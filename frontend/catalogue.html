@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="manifest" href="/site.webmanifest">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Catalogue — StockFlow</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:#0a0a0f;--surface:#13131a;--surface2:#1c1c28;--surface3:#252535;
+      --border:rgba(255,255,255,0.07);--accent:#f0c040;--text:#f0ede8;
+      --text-dim:#8888a0;--text-faint:#44445a;--green:#30d090;--red:#f05060;
+      --orange:#f09030;--radius:14px;
+    }
+    *{margin:0;padding:0;box-sizing:border-box;}
+    body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;}
+    body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(240,192,64,0.025) 1px,transparent 1px),linear-gradient(90deg,rgba(240,192,64,0.025) 1px,transparent 1px);background-size:48px 48px;pointer-events:none;z-index:0;}
+
+    /* ── HEADER ─────────────────────────────────────── */
+    header{
+      position:sticky;top:0;z-index:100;
+      background:rgba(10,10,15,0.94);backdrop-filter:blur(24px);
+      border-bottom:1px solid var(--border);
+    }
+    .header-inner{
+      max-width:1400px;margin:0 auto;
+      display:flex;align-items:center;gap:12px;
+      padding:0 20px;height:62px;
+    }
+
+    /* Logo — compact, ne rétrécit pas */
+    .logo{display:flex;align-items:center;gap:9px;text-decoration:none;flex-shrink:0;}
+    .logo-mark{width:34px;height:34px;background:var(--accent);border-radius:9px;display:flex;align-items:center;justify-content:center;color:#0a0a0f;font-size:14px;}
+    .logo-text{font-family:'Syne',sans-serif;font-weight:800;font-size:16px;}
+    .logo-sub{font-size:9px;color:var(--text-dim);letter-spacing:2px;text-transform:uppercase;display:block;line-height:1;margin-top:1px;}
+
+    /* Search — prend tout l'espace disponible entre logo et actions */
+    .search-wrap{flex:1;position:relative;min-width:0;}
+    .search-wrap i{position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--text-dim);font-size:13px;pointer-events:none;}
+    .search-input{width:100%;height:38px;background:var(--surface2);border:1px solid var(--border);border-radius:999px;padding:0 16px 0 38px;color:var(--text);font-size:13px;outline:none;transition:border-color .2s,box-shadow .2s;}
+    .search-input::placeholder{color:var(--text-faint);}
+    .search-input:focus{border-color:rgba(240,192,64,0.4);box-shadow:0 0 0 3px rgba(240,192,64,0.08);}
+
+    /* Actions à droite — live dot + bouton login */
+    .header-actions{display:flex;align-items:center;gap:10px;flex-shrink:0;margin-left:0;}
+    .live-dot-wrap{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-dim);}
+    .live-dot{width:7px;height:7px;border-radius:50%;background:var(--text-faint);transition:background .4s;flex-shrink:0;}
+    .live-dot.on{background:var(--green);animation:pulse 2s ease-in-out infinite;}
+    @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(1.3)}}
+
+    .btn-login-h{
+      display:inline-flex;align-items:center;gap:7px;
+      padding:0 16px;height:36px;border-radius:999px;
+      background:var(--accent);color:#0a0a0f;
+      font-family:'Syne',sans-serif;font-size:13px;font-weight:700;
+      text-decoration:none;border:none;cursor:pointer;
+      transition:all .2s;flex-shrink:0;white-space:nowrap;
+    }
+    .btn-login-h:hover{background:#ffd060;transform:translateY(-1px);box-shadow:0 5px 18px rgba(240,192,64,0.35);}
+
+    /* ── FILTRES ─────────────────────────────────────── */
+    .filters-bar{
+      position:sticky;top:64px;z-index:90;
+      background:rgba(10,10,15,0.88);backdrop-filter:blur(16px);
+      border-bottom:1px solid var(--border);
+      padding:10px 24px;
+    }
+    .filters-inner{max-width:1400px;margin:0 auto;display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+    .filter-chip{display:inline-flex;align-items:center;gap:7px;padding:6px 16px;border-radius:999px;border:1px solid var(--border);background:var(--surface);color:var(--text-dim);font-size:12px;cursor:pointer;transition:all .18s;white-space:nowrap;}
+    .filter-chip:hover{border-color:rgba(240,192,64,0.3);color:var(--text);}
+    .filter-chip.active{background:var(--accent);border-color:var(--accent);color:#0a0a0f;font-weight:600;}
+    .filter-chip .chip-count{background:rgba(0,0,0,0.15);padding:1px 6px;border-radius:999px;font-size:10px;}
+    .filter-chip:not(.active) .chip-count{background:rgba(255,255,255,0.1);}
+    .filter-sep{width:1px;height:20px;background:var(--border);flex-shrink:0;}
+    .sort-select{height:34px;background:var(--surface2);border:1px solid var(--border);border-radius:999px;padding:0 30px 0 14px;color:var(--text-dim);font-size:12px;outline:none;appearance:none;cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238888a0' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;}
+
+    /* ── MAIN ────────────────────────────────────────── */
+    .main{position:relative;z-index:1;max-width:1400px;margin:0 auto;padding:24px 24px 80px;}
+
+    /* Stats bar */
+    .stats-bar{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:10px;}
+    .stats-bar-left{display:flex;align-items:center;gap:16px;font-size:13px;color:var(--text-dim);}
+    .stats-num{font-family:'Syne',sans-serif;font-size:15px;font-weight:700;color:var(--text);}
+
+    /* ── GRID ────────────────────────────────────────── */
+    .products-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:20px;}
+
+    .product-card{
+      background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+      overflow:hidden;cursor:pointer;display:flex;flex-direction:column;
+      transition:transform .22s cubic-bezier(.22,.68,0,1.2),border-color .2s,box-shadow .22s;
+      animation:cardIn .3s ease both;
+    }
+    .product-card:hover{transform:translateY(-4px);border-color:rgba(240,192,64,0.25);box-shadow:0 16px 40px rgba(0,0,0,0.5);}
+    .product-card.rupture{opacity:.6;}
+    .product-card.rupture:hover{transform:translateY(-2px);}
+
+    .card-img{width:100%;aspect-ratio:4/3;background:var(--surface2);display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative;}
+    .card-img img{width:100%;height:100%;object-fit:cover;transition:transform .3s;}
+    .product-card:hover .card-img img{transform:scale(1.04);}
+    .card-img .no-img{color:var(--text-faint);font-size:32px;}
+
+    .stock-tag{position:absolute;top:10px;right:10px;padding:4px 10px;border-radius:999px;font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;backdrop-filter:blur(6px);}
+    .stock-tag.dispo{background:rgba(48,208,144,0.85);color:#0a0a0f;}
+    .stock-tag.rupture{background:rgba(240,80,96,0.85);color:#fff;}
+    .stock-tag.faible{background:rgba(240,144,48,0.85);color:#0a0a0f;}
+
+    .count-badge{position:absolute;top:10px;left:10px;background:rgba(10,10,15,0.8);border:1px solid rgba(255,255,255,0.15);border-radius:999px;padding:3px 10px;font-size:11px;font-weight:700;color:var(--text);backdrop-filter:blur(6px);}
+
+    .card-body{padding:14px;flex:1;display:flex;flex-direction:column;}
+    .card-type{font-size:10px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:var(--accent);margin-bottom:5px;}
+    .card-name{font-family:'Syne',sans-serif;font-size:14px;font-weight:700;line-height:1.3;margin-bottom:6px;}
+    .card-specs{font-size:11px;color:var(--text-faint);margin-bottom:10px;line-height:1.5;flex:1;}
+    .card-footer{display:flex;align-items:flex-end;justify-content:space-between;margin-top:auto;gap:6px;}
+    .card-price{font-family:'Syne',sans-serif;font-size:17px;font-weight:800;color:var(--accent);}
+    .card-cond{font-size:10px;padding:2px 8px;border-radius:999px;font-weight:600;}
+    .card-cond.neuf{background:rgba(48,208,144,0.15);color:var(--green);}
+    .card-cond.occ{background:rgba(240,192,64,0.12);color:var(--accent);}
+
+    /* ── MODAL ───────────────────────────────────────── */
+    .overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.8);backdrop-filter:blur(10px);z-index:1000;align-items:center;justify-content:center;padding:16px;}
+    .overlay.open{display:flex;animation:fadeIn .2s ease;}
+    .modal{background:var(--surface);border:1px solid var(--border);border-radius:20px;width:100%;max-width:640px;max-height:92vh;overflow-y:auto;animation:slideUp .25s cubic-bezier(.22,.68,0,1.2);}
+    .modal-img{width:100%;height:240px;background:var(--surface2);display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative;flex-shrink:0;}
+    .modal-img img{width:100%;height:100%;object-fit:cover;}
+    .modal-close{position:absolute;top:12px;right:12px;width:34px;height:34px;background:rgba(10,10,15,0.75);border:1px solid rgba(255,255,255,0.1);border-radius:50%;color:var(--text);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;transition:background .2s;}
+    .modal-close:hover{background:rgba(10,10,15,0.95);}
+    .modal-body{padding:24px;}
+    .modal-type{font-size:10px;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--accent);margin-bottom:6px;}
+    .modal-name{font-family:'Syne',sans-serif;font-size:22px;font-weight:800;line-height:1.2;margin-bottom:20px;}
+    .spec-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:20px;}
+    .spec-tile{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;}
+    .spec-tile .tl{font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:var(--text-faint);margin-bottom:3px;}
+    .spec-tile .tv{font-size:13px;color:var(--text);font-weight:500;}
+    .spec-tile.accent-t{border-color:rgba(240,192,64,0.25);}
+    .spec-tile.accent-t .tv{color:var(--accent);font-family:'Syne',sans-serif;font-size:18px;font-weight:800;}
+
+    /* Stock badge dans modal */
+    .stock-info{display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:10px;margin-bottom:16px;}
+    .stock-info.dispo{background:rgba(48,208,144,0.08);border:1px solid rgba(48,208,144,0.2);}
+    .stock-info.rupture{background:rgba(240,80,96,0.08);border:1px solid rgba(240,80,96,0.2);}
+    .stock-info i{font-size:18px;}
+    .stock-info.dispo i{color:var(--green);}
+    .stock-info.rupture i{color:var(--red);}
+    .stock-info .si-text{font-size:14px;font-weight:600;}
+    .stock-info.dispo .si-text{color:var(--green);}
+    .stock-info.rupture .si-text{color:var(--red);}
+    .stock-info .si-sub{font-size:12px;color:var(--text-dim);margin-top:2px;}
+
+    /* ── EMPTY / LOADER ──────────────────────────────── */
+    .empty-state{grid-column:1/-1;display:flex;flex-direction:column;align-items:center;gap:16px;padding:80px 20px;color:var(--text-faint);}
+    .empty-state i{font-size:44px;opacity:.4;}
+    .empty-state p{font-family:'Syne',sans-serif;font-size:16px;color:var(--text-dim);}
+    .loader-wrap{grid-column:1/-1;display:flex;flex-direction:column;align-items:center;gap:16px;padding:80px 20px;color:var(--text-dim);}
+    .spinner{width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;}
+
+    /* ── TOAST ───────────────────────────────────────── */
+    .update-toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--surface);border:1px solid rgba(240,192,64,0.3);border-radius:999px;padding:10px 20px;display:flex;align-items:center;gap:10px;font-size:13px;z-index:200;opacity:0;transition:opacity .3s,transform .3s;pointer-events:none;white-space:nowrap;box-shadow:0 8px 32px rgba(0,0,0,.5);}
+    .update-toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+    .update-toast i{color:var(--accent);}
+
+    /* ── ANIMATIONS ──────────────────────────────────── */
+    @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+    @keyframes slideUp{from{opacity:0;transform:translateY(20px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    @keyframes cardIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+
+    /* ── RESPONSIVE ──────────────────────────────────── */
+    @media(max-width:1200px){.products-grid{grid-template-columns:repeat(3,1fr);}}
+    @media(max-width:900px){.products-grid{grid-template-columns:repeat(2,1fr);} .spec-grid{grid-template-columns:1fr;}}
+    @media(max-width:600px){
+      .header-inner{height:56px;padding:0 14px;gap:10px;}
+      .logo-text{font-size:15px;} .logo-sub{display:none;}
+      .filters-bar{padding:8px 14px;}
+      .main{padding:16px 14px 70px;}
+      .products-grid{grid-template-columns:1fr 1fr;gap:12px;}
+      .card-body{padding:10px;}
+      .card-name{font-size:13px;}
+      .card-price{font-size:15px;}
+      .live-dot-wrap span{display:none;}
+      .modal{border-radius:16px 16px 0 0;}
+      .overlay{align-items:flex-end;padding:0;}
+      .modal-body{padding:18px;}
+    }
+    @media(max-width:380px){
+      .products-grid{grid-template-columns:1fr;}
+    }
+
+    ::-webkit-scrollbar{width:5px;height:5px;}
+    ::-webkit-scrollbar-thumb{background:var(--surface2);border-radius:3px;}
+  </style>
+</head>
+<body>
+
+<!-- ═══ HEADER ═══ -->
+<header>
+  <div class="header-inner">
+    <a href="catalogue.html" class="logo">
+      <div class="logo-mark"><i class="fas fa-layer-group"></i></div>
+      <div><div class="logo-text">StockFlow</div><span class="logo-sub">Catalogue</span></div>
+    </a>
+
+    <div class="search-wrap">
+      <i class="fas fa-search"></i>
+      <input class="search-input" id="searchInput" placeholder="Marque, modèle, processeur…">
+    </div>
+
+    <!-- Actions regroupées à droite -->
+    <div class="header-actions">
+      <div class="live-dot-wrap">
+        <div class="live-dot" id="liveDot"></div>
+        <span id="liveLabel">Connexion…</span>
+      </div>
+      <a href="login.html" class="btn-login-h">
+        <i class="fas fa-sign-in-alt"></i>
+        <span>Se connecter</span>
+      </a>
+    </div>
+  </div>
+</header>
+
+<!-- ═══ FILTRES ═══ -->
+<div class="filters-bar">
+  <div class="filters-inner">
+    <!-- Catégories générées dynamiquement -->
+    <div id="catFilters" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
+    <div class="filter-sep"></div>
+    <!-- Filtre stock -->
+    <button class="filter-chip" id="fAll" onclick="setStockFilter('all')">Tous</button>
+    <button class="filter-chip" id="fDispo" onclick="setStockFilter('dispo')">
+      <i class="fas fa-check-circle" style="color:var(--green);font-size:10px;"></i> Disponibles
+    </button>
+    <button class="filter-chip" id="fRupture" onclick="setStockFilter('rupture')">
+      <i class="fas fa-times-circle" style="color:var(--red);font-size:10px;"></i> Rupture
+    </button>
+    <div class="filter-sep"></div>
+    <select class="sort-select" id="sortSelect" onchange="applyFilters()">
+      <option value="dispo">Stock disponible d'abord</option>
+      <option value="price_asc">Prix croissant</option>
+      <option value="price_desc">Prix décroissant</option>
+      <option value="name">Nom A→Z</option>
+    </select>
+  </div>
+</div>
+
+<!-- ═══ MAIN ═══ -->
+<main class="main">
+  <div class="stats-bar">
+    <div class="stats-bar-left">
+      <span id="resultLabel" style="font-size:13px;color:var(--text-dim);"></span>
+    </div>
+  </div>
+  <div class="products-grid" id="grid">
+    <div class="loader-wrap"><div class="spinner"></div><span>Chargement du catalogue…</span></div>
+  </div>
+</main>
+
+<!-- ═══ MODAL DÉTAIL ═══ -->
+<div class="overlay" id="overlay" onclick="closeModal(event)">
+  <div class="modal" id="modal">
+    <div class="modal-img" id="modalImg">
+      <button class="modal-close" onclick="closeModalDirect()"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-type" id="modalType"></div>
+      <div class="modal-name" id="modalName"></div>
+      <div id="modalStock"></div>
+      <div class="spec-grid" id="modalSpecs"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ TOAST ═══ -->
+<div class="update-toast" id="toast"><i class="fas fa-bolt"></i><span id="toastMsg"></span></div>
+
+<script>
+// ════════════════════════════════════════════════════════
+//  STATE
+// ════════════════════════════════════════════════════════
+let allProducts = [], currentCat = 'all', stockFilter = 'all', openId = null;
+
+// ── LIVE ────────────────────────────────────────────────
+function setLive(on) {
+  document.getElementById('liveDot').className = 'live-dot' + (on ? ' on' : '');
+  document.getElementById('liveLabel').textContent = on ? 'Temps réel' : 'Reconnexion…';
+}
+
+// ── TOAST ───────────────────────────────────────────────
+let toastT;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  document.getElementById('toastMsg').textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastT);
+  toastT = setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// ── SSE ─────────────────────────────────────────────────
+let sse, sseRetry = 0;
+function connectSSE() {
+  if (sse) sse.close();
+  sse = new EventSource('/api/public/events');
+  sse.onopen = () => { sseRetry = 0; setLive(true); };
+  sse.addEventListener('product:update', () => { reload(); showToast('Catalogue mis à jour'); });
+  sse.addEventListener('product:new',    () => { reload(); showToast('Nouveau produit disponible'); });
+  sse.addEventListener('product:delete', () => { reload(); });
+  sse.addEventListener('ping', () => {});
+  sse.onerror = () => {
+    sse.close(); setLive(false);
+    if (sseRetry < 10) setTimeout(connectSSE, Math.min(1000 * 2 ** sseRetry++, 30000));
+  };
+}
+
+// ── LOAD ────────────────────────────────────────────────
+async function load() {
+  try {
+    const res = await fetch('/api/public/products');
+    if (!res.ok) throw new Error('Erreur serveur');
+    allProducts = await res.json();
+    buildCatFilters();
+    applyFilters();
+    connectSSE();
+  } catch(e) {
+    document.getElementById('grid').innerHTML =
+      `<div class="empty-state"><i class="fas fa-wifi"></i><p>Impossible de charger le catalogue</p><small>Réessai dans 5s…</small></div>`;
+    setTimeout(load, 5000);
+  }
+}
+
+async function reload() {
+  try {
+    const res = await fetch('/api/public/products');
+    if (res.ok) { allProducts = await res.json(); buildCatFilters(); applyFilters(); }
+  } catch {}
+}
+
+// ── CATÉGORIES ──────────────────────────────────────────
+function buildCatFilters() {
+  const cats = [...new Set(allProducts.map(p => p.category).filter(Boolean))].sort();
+  const wrap = document.getElementById('catFilters');
+  wrap.innerHTML = `
+    <button class="filter-chip ${currentCat==='all'?'active':''}" onclick="setCat('all')">
+      <i class="fas fa-th-large" style="font-size:10px;"></i> Tous <span class="chip-count">${allProducts.length}</span>
+    </button>
+    ${cats.map(c => {
+      const n = allProducts.filter(p => p.category === c).length;
+      return `<button class="filter-chip ${currentCat===c?'active':''}" onclick="setCat('${esc(c)}')">${esc(c)} <span class="chip-count">${n}</span></button>`;
+    }).join('')}`;
+}
+
+function setCat(cat) {
+  currentCat = cat;
+  document.querySelectorAll('#catFilters .filter-chip').forEach(b => b.classList.remove('active'));
+  const btns = document.querySelectorAll('#catFilters .filter-chip');
+  btns.forEach(b => { if (b.textContent.trim().startsWith(cat === 'all' ? 'Tous' : cat)) b.classList.add('active'); });
+  buildCatFilters(); // rebuild pour garder le bon état
+  applyFilters();
+}
+
+function setStockFilter(f) {
+  stockFilter = f;
+  ['fAll','fDispo','fRupture'].forEach((id, i) => {
+    document.getElementById(id).classList.toggle('active', ['all','dispo','rupture'][i] === f);
+  });
+  applyFilters();
+}
+
+// ── FILTRES + SORT ───────────────────────────────────────
+function applyFilters() {
+  const q = document.getElementById('searchInput').value.trim().toLowerCase();
+  const sort = document.getElementById('sortSelect').value;
+
+  let products = allProducts.filter(p => {
+    const matchCat = currentCat === 'all' || p.category === currentCat;
+    const matchStock = stockFilter === 'all' ||
+      (stockFilter === 'dispo' && p.stock_dispo > 0) ||
+      (stockFilter === 'rupture' && p.stock_dispo === 0);
+    const matchSearch = !q || [p.name,p.brand,p.model,p.processor,p.ram,p.storage_size,p.storage_type].join(' ').toLowerCase().includes(q);
+    return matchCat && matchStock && matchSearch;
+  });
+
+  // Tri
+  products.sort((a, b) => {
+    if (sort === 'price_asc')  return a.sale_price - b.sale_price;
+    if (sort === 'price_desc') return b.sale_price - a.sale_price;
+    if (sort === 'name')       return a.name.localeCompare(b.name);
+    // Par défaut: disponibles d'abord
+    if (a.stock_dispo > 0 && b.stock_dispo === 0) return -1;
+    if (a.stock_dispo === 0 && b.stock_dispo > 0) return 1;
+    return b.stock_dispo - a.stock_dispo;
+  });
+
+  renderGrid(products);
+
+  const total = allProducts.length;
+  const dispo = allProducts.filter(p => p.stock_dispo > 0).length;
+  document.getElementById('resultLabel').innerHTML =
+    `<span class="stats-num">${products.length}</span> configuration(s) · <span style="color:var(--green)">${dispo} disponible(s)</span>`;
+}
+
+// ── RENDER GRID ──────────────────────────────────────────
+function renderGrid(products) {
+  const grid = document.getElementById('grid');
+  if (!products.length) {
+    grid.innerHTML = `<div class="empty-state"><i class="fas fa-search"></i><p>Aucun produit trouvé</p><small>Essayez un autre mot-clé</small></div>`;
+    return;
+  }
+
+  grid.innerHTML = products.map((p, i) => {
+    const hasDispo = p.stock_dispo > 0;
+    const specs = [p.processor, p.ram, (p.storage_size||'') + (p.storage_type?' '+p.storage_type:''), p.screen_size].filter(Boolean);
+
+    return `<div class="product-card ${!hasDispo?'rupture':''}"
+         style="animation-delay:${Math.min(i*.03,.4)}s"
+         onclick="openModal('${esc(p.id)}')">
+      <div class="card-img">
+        ${p.image ? `<img src="${esc(p.image)}" alt="${esc(p.name)}" loading="lazy">` : `<i class="fas fa-laptop no-img"></i>`}
+        <span class="stock-tag ${hasDispo ? (p.stock_dispo<=2?'faible':'dispo') : 'rupture'}">
+          ${hasDispo ? 'Disponible' : 'Rupture'}
+        </span>
+        ${p.stock_dispo > 1 ? `<span class="count-badge">${p.stock_dispo} en stock</span>` : ''}
+        ${p.discount_pct && parseFloat(p.original_price||0) > parseFloat(p.sale_price||0)
+          ? `<span style="position:absolute;top:10px;left:10px;background:var(--red);color:#fff;padding:4px 10px;border-radius:999px;font-size:11px;font-weight:800;letter-spacing:.3px;box-shadow:0 2px 8px rgba(240,80,96,0.4);">−${Math.round(p.discount_pct)}%</span>`
+          : ''}
+      </div>
+      <div class="card-body">
+        ${p.type ? `<div class="card-type">${esc(p.type)}</div>` : ''}
+        <div class="card-name">${esc(p.brand)} ${esc(p.model)}</div>
+        <div class="card-specs">${specs.map(s => esc(s)).join(' · ') || '—'}</div>
+        <div class="card-footer">
+          <div style="display:flex;flex-direction:column;gap:2px;">
+            ${p.original_price && parseFloat(p.original_price) > parseFloat(p.sale_price)
+              ? `<span style="font-size:11px;color:var(--text-faint);text-decoration:line-through;line-height:1;">${fmt(p.original_price)}</span>`
+              : ''}
+            <div class="card-price" style="${p.original_price && parseFloat(p.original_price) > parseFloat(p.sale_price) ? 'color:var(--red);font-size:16px;' : ''}">${fmt(p.sale_price)}</div>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
+            ${p.discount_pct ? `<span style="background:var(--red);color:#fff;padding:2px 8px;border-radius:999px;font-size:10px;font-weight:800;letter-spacing:.3px;">−${Math.round(p.discount_pct)}%</span>` : ''}
+            <span class="card-cond ${p.condition==='sous_carton'?'neuf':'occ'}">${p.condition==='sous_carton'?'Neuf':'Occasion'}</span>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── MODAL ───────────────────────────────────────────────
+function openModal(id) {
+  const p = allProducts.find(x => x.id === id); if (!p) return;
+  openId = id;
+  const hasDispo = p.stock_dispo > 0;
+  const specs = [
+    p.processor ? ['Processeur', p.processor] : null,
+    p.ram ? ['RAM', p.ram] : null,
+    (p.storage_size||p.storage_type) ? ['Stockage', [p.storage_size,p.storage_type].filter(Boolean).join(' ')] : null,
+    p.screen_size ? ['Écran', p.screen_size] : null,
+    p.condition ? ['État', p.condition==='sous_carton'?'Neuf (sous carton)':'Occasion'] : null,
+  ].filter(Boolean);
+
+  document.getElementById('modalImg').innerHTML = `
+    <button class="modal-close" onclick="closeModalDirect()"><i class="fas fa-times"></i></button>
+    ${p.image ? `<img src="${esc(p.image)}" alt="${esc(p.name)}">` : `<i class="fas fa-laptop" style="font-size:52px;color:var(--text-faint)"></i>`}`;
+  document.getElementById('modalType').textContent = p.type || '';
+  document.getElementById('modalName').textContent = `${p.brand} ${p.model}`;
+  // Prix avec discount
+  const hasDiscount = p.original_price && parseFloat(p.original_price) > parseFloat(p.sale_price);
+  const discPct = p.discount_pct ? Math.round(p.discount_pct) :
+    (hasDiscount ? Math.round((1 - parseFloat(p.sale_price)/parseFloat(p.original_price))*100) : null);
+
+  document.getElementById('modalStock').innerHTML = `
+    <div class="stock-info ${hasDispo?'dispo':'rupture'}">
+      <i class="fas ${hasDispo?'fa-check-circle':'fa-times-circle'}"></i>
+      <div>
+        <div class="si-text">${hasDispo ? `${p.stock_dispo} unité(s) disponible(s)` : 'Rupture de stock'}</div>
+        <div class="si-sub">${hasDispo ? 'En stock boutique' : 'Ce modèle n\'est plus disponible en ce moment'}</div>
+      </div>
+    </div>`;
+
+  document.getElementById('modalSpecs').innerHTML = `
+    <!-- Prix avec éventuel barré -->
+    <div class="spec-tile accent-t" style="grid-column:1/-1;">
+      <div class="tl">Prix</div>
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        ${hasDiscount ? `<div style="font-size:13px;color:var(--text-faint);text-decoration:line-through;">${fmt(p.original_price)}</div>` : ''}
+        <div class="tv" style="${hasDiscount?'color:var(--red);font-size:22px;':''}">
+          ${fmt(p.sale_price)}
+        </div>
+        ${discPct ? `<span style="background:var(--red);color:#fff;padding:3px 12px;border-radius:999px;font-size:12px;font-weight:800;">-${discPct}% de remise</span>` : ''}
+      </div>
+    </div>
+    ${specs.map(([l,v]) => `<div class="spec-tile"><div class="tl">${esc(l)}</div><div class="tv">${esc(v)}</div></div>`).join('')}
+
+    <!-- Description -->
+    ${p.catalogue_description ? `
+    <div class="spec-tile" style="grid-column:1/-1;border-color:rgba(240,192,64,0.15);">
+      <div class="tl"><i class="fas fa-align-left" style="margin-right:5px;"></i>Description</div>
+      <div style="font-size:13px;color:var(--text);line-height:1.6;margin-top:4px;">${esc(p.catalogue_description)}</div>
+    </div>` : ''}
+
+    <!-- Accessoires inclus -->
+    ${p.catalogue_accessories ? `
+    <div class="spec-tile" style="grid-column:1/-1;background:rgba(48,208,144,0.06);border-color:rgba(48,208,144,0.2);">
+      <div class="tl" style="color:var(--green);"><i class="fas fa-check-circle" style="margin-right:5px;"></i>Accessoires inclus</div>
+      <div style="font-size:13px;color:var(--text);margin-top:4px;">${esc(p.catalogue_accessories)}</div>
+    </div>` : ''}
+
+    <!-- Remarques -->
+    ${p.catalogue_remarks ? `
+    <div class="spec-tile" style="grid-column:1/-1;background:rgba(240,192,64,0.06);border-color:rgba(240,192,64,0.2);">
+      <div class="tl" style="color:var(--accent);"><i class="fas fa-info-circle" style="margin-right:5px;"></i>Remarques</div>
+      <div style="font-size:12px;color:var(--text-dim);margin-top:4px;line-height:1.5;">${esc(p.catalogue_remarks)}</div>
+    </div>` : ''}
+  `;
+  document.getElementById('overlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeModal(e) { if (e.target === document.getElementById('overlay')) closeModalDirect(); }
+function closeModalDirect() {
+  document.getElementById('overlay').classList.remove('open');
+  document.body.style.overflow = '';
+  openId = null;
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModalDirect(); });
+
+// ── SEARCH ──────────────────────────────────────────────
+let st;
+document.getElementById('searchInput').addEventListener('input', () => { clearTimeout(st); st = setTimeout(applyFilters, 250); });
+
+// ── HELPERS ─────────────────────────────────────────────
+function fmt(n) { return new Intl.NumberFormat('fr-MG').format(Math.round(n||0)) + ' Ar'; }
+function esc(s) { const d=document.createElement('div');d.textContent=s||'';return d.innerHTML; }
+
+// ── INIT ────────────────────────────────────────────────
+setStockFilter('all');
+load();
+</script>
+</body>
+</html>

@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="manifest" href="/site.webmanifest">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>StockFlow — Connexion</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:#0a0a0f;--surface:#13131a;--surface2:#1c1c28;--border:rgba(255,255,255,0.07);
+      --accent:#f0c040;--text:#f0ede8;--text-dim:#8888a0;--text-faint:#44445a;
+      --green:#30d090;--red:#f05060;
+    }
+    *{margin:0;padding:0;box-sizing:border-box;}
+    body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;align-items:center;justify-content:center;}
+    body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(240,192,64,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(240,192,64,0.03) 1px,transparent 1px);background-size:48px 48px;pointer-events:none;z-index:0;}
+    .glow{position:fixed;top:-200px;left:50%;transform:translateX(-50%);width:600px;height:400px;background:radial-gradient(ellipse,rgba(240,192,64,0.08) 0%,transparent 70%);pointer-events:none;z-index:0;}
+    .wrap{position:relative;z-index:1;width:100%;max-width:420px;padding:20px;}
+    .logo{text-align:center;margin-bottom:40px;}
+    .logo-mark{width:56px;height:56px;background:var(--accent);border-radius:16px;display:flex;align-items:center;justify-content:center;color:#0a0a0f;font-size:22px;margin:0 auto 14px;}
+    .logo-name{font-family:'Syne',sans-serif;font-size:26px;font-weight:800;letter-spacing:-0.5px;}
+    .logo-sub{font-size:12px;color:var(--text-dim);letter-spacing:2px;text-transform:uppercase;margin-top:4px;}
+    .box{background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:32px;}
+    .box-title{font-family:'Syne',sans-serif;font-size:18px;font-weight:700;margin-bottom:24px;}
+
+    /* ERROR BOX — séparé du style inline */
+    .error-box{
+      display:none;  /* caché par défaut */
+      align-items:center;
+      gap:10px;
+      padding:10px 14px;
+      background:rgba(240,80,96,0.12);
+      border:1px solid rgba(240,80,96,0.35);
+      border-radius:10px;
+      font-size:13px;
+      color:var(--red);
+      margin-bottom:16px;
+      animation:shake 0.3s ease;
+    }
+    .error-box.visible{display:flex;}
+    .error-box i{font-size:15px;flex-shrink:0;}
+
+    @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
+
+    .form-group{margin-bottom:16px;}
+    .label{font-size:12px;font-weight:500;color:var(--text-dim);margin-bottom:6px;display:block;letter-spacing:0.3px;}
+    .input-wrap{position:relative;}
+    .input-wrap i{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--text-faint);font-size:14px;pointer-events:none;}
+    .input{width:100%;height:48px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:0 14px 0 42px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:15px;outline:none;transition:border-color 0.2s,box-shadow 0.2s;}
+    .input::placeholder{color:var(--text-faint);}
+    .input:focus{border-color:rgba(240,192,64,0.4);box-shadow:0 0 0 3px rgba(240,192,64,0.08);}
+    .input.shake{border-color:var(--red);animation:shake 0.3s ease;}
+
+    .btn-login{width:100%;height:50px;background:var(--accent);border:none;border-radius:12px;color:#0a0a0f;font-family:'Syne',sans-serif;font-size:15px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;transition:all 0.2s;margin-top:8px;}
+    .btn-login:hover{background:#ffd060;transform:translateY(-1px);box-shadow:0 8px 24px rgba(240,192,64,0.3);}
+    .btn-login:active{transform:translateY(0);}
+    .btn-login:disabled{opacity:0.6;cursor:not-allowed;transform:none;}
+
+    .divider{height:1px;background:var(--border);margin:20px 0;position:relative;}
+    .divider span{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--surface);padding:0 12px;font-size:12px;color:var(--text-faint);}
+
+    .btn-catalogue{width:100%;height:44px;background:transparent;border:1px solid var(--border);border-radius:12px;color:var(--text-dim);font-family:'DM Sans',sans-serif;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;transition:all 0.2s;text-decoration:none;}
+    .btn-catalogue:hover{border-color:rgba(240,192,64,0.25);color:var(--text);background:rgba(240,192,64,0.05);}
+
+    .spinner{width:18px;height:18px;border:2px solid rgba(0,0,0,0.2);border-top-color:#0a0a0f;border-radius:50%;animation:spin 0.8s linear infinite;}
+    @keyframes spin{to{transform:rotate(360deg)}}
+  </style>
+</head>
+<body>
+<div class="glow"></div>
+<div class="wrap">
+  <div class="logo">
+    <div class="logo-mark"><i class="fas fa-layer-group"></i></div>
+    <div class="logo-name">StockFlow</div>
+    <div class="logo-sub">Gestion de Stock</div>
+  </div>
+
+  <div class="box">
+    <div class="box-title">Connexion</div>
+
+    <!-- Boîte d'erreur — visible uniquement via JS avec .error-box.visible -->
+    <div class="error-box" id="errorBox">
+      <i class="fas fa-exclamation-circle"></i>
+      <span id="errorMsg">Identifiants incorrects</span>
+    </div>
+
+    <div class="form-group">
+      <label class="label">Identifiant</label>
+      <div class="input-wrap">
+        <i class="fas fa-user"></i>
+        <input type="text" class="input" id="username" placeholder="Votre identifiant" autocomplete="username">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="label">Mot de passe</label>
+      <div class="input-wrap">
+        <i class="fas fa-lock"></i>
+        <input type="password" class="input" id="password" placeholder="••••••••" autocomplete="current-password">
+      </div>
+    </div>
+
+    <button class="btn-login" id="btnLogin">
+      <i class="fas fa-sign-in-alt"></i>
+      Se connecter
+    </button>
+
+    <div class="divider"><span>ou</span></div>
+
+    <a href="catalogue.html" class="btn-catalogue">
+      <i class="fas fa-store"></i>
+      Voir le catalogue sans compte
+    </a>
+  </div>
+</div>
+
+<script>
+  // Redirect si déjà connecté
+  const existingToken = localStorage.getItem('sf_token');
+  if (existingToken) { window.location.href = 'app.html'; }
+
+  const usernameEl = document.getElementById('username');
+  const passwordEl = document.getElementById('password');
+  const btnEl      = document.getElementById('btnLogin');
+  const errorBox   = document.getElementById('errorBox');
+  const errorMsg   = document.getElementById('errorMsg');
+
+  passwordEl.addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+  btnEl.addEventListener('click', doLogin);
+
+  function showError(msg) {
+    errorMsg.textContent = msg;
+    errorBox.classList.add('visible');
+    // Shake les inputs
+    [usernameEl, passwordEl].forEach(el => {
+      el.classList.remove('shake');
+      void el.offsetWidth; // reflow pour restart animation
+      el.classList.add('shake');
+      setTimeout(() => el.classList.remove('shake'), 400);
+    });
+  }
+
+  function hideError() {
+    errorBox.classList.remove('visible');
+  }
+
+  // Cacher l'erreur quand l'utilisateur tape
+  [usernameEl, passwordEl].forEach(el => el.addEventListener('input', hideError));
+
+  async function doLogin() {
+    const username = usernameEl.value.trim();
+    const password = passwordEl.value;
+
+    hideError();
+
+    if (!username || !password) {
+      showError('Veuillez remplir tous les champs');
+      return;
+    }
+
+    btnEl.disabled = true;
+    btnEl.innerHTML = '<div class="spinner"></div> Connexion en cours…';
+
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      });
+
+      let data;
+      try { data = await res.json(); } catch { data = {}; }
+
+      if (!res.ok) {
+        showError(data.error || 'Identifiants incorrects');
+        return;
+      }
+
+      localStorage.setItem('sf_token', data.token);
+      localStorage.setItem('sf_user', JSON.stringify(data.user));
+      window.location.href = 'app.html';
+
+    } catch (err) {
+      showError('Erreur de connexion — vérifiez votre réseau');
+    } finally {
+      btnEl.disabled = false;
+      btnEl.innerHTML = '<i class="fas fa-sign-in-alt"></i> Se connecter';
+    }
+  }
+</script>
+</body>
+</html>
