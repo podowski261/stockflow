@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <title>Supervision — STOCKFLOW</title>
+    <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css">
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/sf.css">
+    <script>document.documentElement.setAttribute('data-theme', localStorage.getItem('stockflow-theme') === 'dark' ? 'dark' : 'light'); try { var sfu = JSON.parse(localStorage.getItem('stockflow-ui') || '{}'); for (var k in sfu) document.documentElement.setAttribute('data-' + k, sfu[k]); } catch (e) {}</script>
+    <style>
+        .kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-bottom:20px; }
+        .kpi { background:var(--bg-card); border:1px solid var(--border-color); border-radius:var(--border-radius-lg); padding:14px 16px; cursor:pointer; }
+        .kpi h4 { font-size:12px; color:var(--text-muted); } .kpi .v { font-size:22px; font-weight:800; color:var(--text-primary); margin-top:4px; }
+        .sec-title { margin:18px 0 10px; display:flex; align-items:center; gap:8px; }
+        .pgrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:12px; }
+        .pcard { background:var(--bg-card); border:1px solid var(--border-color); border-radius:var(--border-radius-lg); padding:14px; }
+        .pcard.stuck { border-color:var(--danger); box-shadow:0 0 0 1px var(--danger) inset; }
+        .pnum { font-weight:800; color:var(--text-primary); font-size:14px; }
+        .pmeta { font-size:12.5px; color:var(--text-secondary); line-height:1.6; margin-top:5px; }
+        .wait { display:inline-flex; align-items:center; gap:5px; font-size:11.5px; font-weight:700; padding:2px 9px; border-radius:999px; background:rgba(245,158,11,.15); color:var(--warning-dark); margin-top:6px; }
+        .wait.stuck { background:rgba(239,68,68,.15); color:var(--danger); }
+        .empty { text-align:center; color:var(--text-muted); padding:24px; }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar" id="sfSidebar"></aside>
+        <main class="main-content">
+            <header class="page-header">
+                <div class="page-title"><h1>Supervision</h1><p>Actions en attente et validations en cours</p></div>
+                <div class="page-actions"><div id="sfTools"></div></div>
+            </header>
+            <div class="page-body" id="page"><div class="sf-skel sf-skel-card"></div><div class="sf-skel sf-skel-card"></div><div class="sf-skel sf-skel-card"></div></div>
+        </main>
+    </div>
+
+    <script src="/js/sf-core.js"></script>
+    <script src="/js/sf-layout.js"></script>
+    <script>
+    const Sup = {
+        data: null,
+        delStage: {
+            nouvelle:  { act: 'À assigner (coordinateur)', link: '/coordination.html', icon: 'fa-inbox' },
+            assignee:  { act: 'Assignée (ancien flux)', link: '/coordination.html', icon: 'fa-motorcycle' },
+            acceptee:  { act: 'À facturer (caisse)', link: '/deliveries.html', icon: 'fa-file-invoice' },
+            facturee:  { act: 'Sortie à valider (stock)', link: '/deliveries.html', icon: 'fa-box-open' },
+            en_livraison: { act: 'En livraison', link: '/deliveries.html', icon: 'fa-truck-fast' },
+            annulee:   { act: 'Retour à valider (stock)', link: '/deliveries.html', icon: 'fa-rotate-left' }
+        },
+        instStage: { envoye: 'À réceptionner (technicien)', en_cours: 'En cours', termine: 'Retour à valider (stock)' },
+        async init() {
+            const u = await SF.Auth.require(); if (!u) return;
+            if (u.role !== 'admin') { location.href = '/index.html'; return; }
+            SF.layout({ active: '/supervision.html' });
+            SF.on('delivery:update', () => this.load());
+            SF.on('install:update', () => this.load());
+            SF.on('reservation:update', () => this.load());
+            SF.on('notification', () => this.load());
+            this.load();
+        },
+        elapsed(ms) { const m = Math.max(0, Math.floor(ms / 60000)); if (m < 60) return m + ' min'; const h = Math.floor(m / 60); return h + ' h ' + (m % 60) + ' min'; },
+        parseMs(dt) { const d = new Date(String(dt).replace(' ', 'T')); return isNaN(d) ? null : d.getTime(); },
+        async load() {
+            try { this.data = await SF.api('/api/supervision'); this.render(); }
+            catch (e) { SF.toast(e.message, 'error'); }
+        },
+        render() {
+            const d = this.data, now = d.now;
+            const delActive = d.deliveries;
+            const kpi = (label, value, link, icon, tone) => SF.tile({ label, value, icon, tone, onclick: `location.href='${link}'` });
+            let html = SF.tileGroup('Opérations en cours', 'fa-tower-broadcast',
+                kpi('Livraisons en cours', delActive.length, '/deliveries.html', 'fa-truck-fast', 'blue')
+                + kpi('Installations actives', d.installations.length, '/installation.html', 'fa-screwdriver-wrench', 'violet')
+                + kpi('Retours à réceptionner', d.returns_pending, '/retour.html', 'fa-rotate-left', 'yellow')
+                + kpi('Garanties en attente', d.garantie_pending, '/garantie.html', 'fa-shield-halved', 'coral')
+                + kpi('Réservations à encaisser', d.reservations.length, '/engagements.html', 'fa-user-tag', 'teal'));
+
+            // Section = carte à en-tête (modèle tableau de bord).
+            const open = (icon, t, n) => `<div class="card dash-card"><div class="card-header"><h3><i class="fas ${icon}"></i> ${t}</h3>${n != null ? `<span class="badge badge-secondary">${n}</span>` : ''}</div><div class="card-body">`;
+            const close = '</div></div>';
+            // Livraisons — pipeline
+            html += open('fa-truck-fast', 'Livraisons — étapes en attente', delActive.length);
+            if (!delActive.length) html += '<div class="empty">Aucune livraison en cours</div>';
+            else html += `<div class="pgrid">${delActive.map(v => {
+                const st = this.delStage[v.status] || { act: v.status, link: '/deliveries.html', icon: 'fa-truck' };
+                const ms = v.status_at ? now - v.status_at : (now - (this.parseMs(v.created_at) || now));
+                const stuck = ['nouvelle', 'assignee', 'acceptee', 'facturee'].includes(v.status) && ms > 10 * 60 * 1000;
+                const who = v.status === 'assignee' || v.status === 'en_livraison' ? (v.livreur_name || '—') : (v.status === 'nouvelle' ? 'coordinateur' : (v.status === 'acceptee' ? 'caisse' : 'stock'));
+                return `<div class="pcard ${stuck ? 'stuck' : ''}" onclick="location.href='${st.link}'">
+                    <div style="display:flex;justify-content:space-between;"><div class="pnum">Livraison #${v.delivery_number}</div>${SF.deliveryBadge(v.status)}</div>
+                    <div class="pmeta"><i class="fas fa-box"></i> ${SF.esc(v.items_summary || '—')}<br><i class="fas fa-user"></i> ${SF.esc(v.client_name)} · <i class="fas fa-headset"></i> ${SF.esc(v.commercial_name || '—')}<br><i class="fas fa-motorcycle"></i> ${SF.esc(v.livreur_name || 'non assigné')}</div>
+                    <div class="wait ${stuck ? 'stuck' : ''}"><i class="fas ${st.icon}"></i> ${st.act} · depuis ${this.elapsed(ms)}${stuck ? ' ⚠' : ''}</div>
+                </div>`;
+            }).join('')}</div>`;
+
+            html += close;
+            // Installations
+            const inst = d.installations;
+            html += open('fa-screwdriver-wrench', 'Installations', inst.length);
+            if (!inst.length) html += '<div class="empty">Aucune installation active</div>';
+            else html += `<div class="pgrid">${inst.map(t => {
+                const ms = now - (this.parseMs(t.created_at) || now);
+                const overdue = t.status === 'en_cours' && t.deadline_ms && t.deadline_ms < now && !t.overdue_reason;
+                const stuck = (t.status === 'envoye' || t.status === 'termine') && ms > 10 * 60 * 1000;
+                return `<div class="pcard ${overdue || stuck ? 'stuck' : ''}" onclick="location.href='/installation.html'">
+                    <div style="display:flex;justify-content:space-between;"><div class="pnum">Tâche #${t.id}</div><span class="badge ${t.status === 'en_cours' ? 'badge-warning' : (t.status === 'termine' ? 'badge-success' : 'badge-info')}">${t.status}</span></div>
+                    <div class="pmeta"><i class="fas fa-user"></i> ${SF.esc(t.technician_name || '—')} · ${t.unit_count} unité(s)</div>
+                    <div class="wait ${overdue || stuck ? 'stuck' : ''}">${this.instStage[t.status] || t.status}${overdue ? ' · EN RETARD ⚠' : ''}</div>
+                </div>`;
+            }).join('')}</div>`;
+
+            html += close;
+            // Réservations
+            if (d.reservations.length) {
+                html += open('fa-user-tag', 'Réservations à encaisser', d.reservations.length);
+                html += `<div class="pgrid">${d.reservations.map(r => {
+                    const ms = now - (this.parseMs(r.created_at) || now);
+                    return `<div class="pcard" onclick="location.href='/engagements.html'">
+                        <div class="pnum">Réservation #${r.id}</div>
+                        <div class="pmeta"><i class="fas fa-box"></i> ${SF.esc(r.items_summary || '—')}<br><i class="fas fa-user-tag"></i> ${SF.esc(r.commercial_name || '—')} · ${SF.fmt.ar(r.total)}</div>
+                        <div class="wait">En attente de paiement · depuis ${this.elapsed(ms)}</div>
+                    </div>`;
+                }).join('')}</div>` + close;
+            }
+            document.getElementById('page').innerHTML = html;
+        }
+    };
+    Sup.init();
+    </script>
+</body>
+</html>

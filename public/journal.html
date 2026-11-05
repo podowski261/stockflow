@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <title>Journal d'activité — STOCKFLOW</title>
+    <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css">
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/sf.css">
+    <script>document.documentElement.setAttribute('data-theme', localStorage.getItem('stockflow-theme') === 'dark' ? 'dark' : 'light'); try { var sfu = JSON.parse(localStorage.getItem('stockflow-ui') || '{}'); for (var k in sfu) document.documentElement.setAttribute('data-' + k, sfu[k]); } catch (e) {}</script>
+    <style>
+        .jr-bar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:14px; }
+        .jr-bar .form-control { width:auto; height:38px; font-size:13px; min-width:0; }
+        .jr-bar .grow { flex:1 1 220px; }
+        .jr-range { display:none; gap:6px; align-items:center; }
+        .jr-range.on { display:inline-flex; }
+        /* Utilisateurs */
+        .us-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(230px, 1fr)); gap:8px; }
+        .us { display:flex; gap:10px; align-items:center; padding:9px 11px; border:1px solid var(--border-color); border-radius:10px; background:var(--bg-card); cursor:pointer; text-align:left; font:inherit; color:inherit; min-width:0; }
+        .us:hover { border-color:var(--accent); }
+        .us.on { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-glow); }
+        .av { width:34px; height:34px; border-radius:50%; display:grid; place-items:center; font-weight:800; font-size:12.5px; color:#fff; flex-shrink:0; }
+        .us .nm { font-weight:700; font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .us .mt { font-size:11.5px; color:var(--text-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .us .n { margin-left:auto; font-weight:800; font-size:15px; }
+        .us .bad { color:var(--danger); font-size:11px; font-weight:800; }
+        /* Catégories */
+        .cats { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px; }
+        .cat { display:inline-flex; align-items:center; gap:6px; font-size:12.5px; font-weight:700; padding:5px 11px; border-radius:999px; border:1px solid var(--border-color); background:var(--bg-card); cursor:pointer; color:var(--text-primary); }
+        .cat i { color:var(--c); }
+        .cat.on { background:color-mix(in srgb, var(--c) 14%, var(--bg-card)); border-color:var(--c); color:var(--c); }
+        /* Fil d'activité */
+        .day { font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:.5px; color:var(--text-muted); padding:12px 4px 6px; position:sticky; top:0; background:var(--bg-body, var(--bg-main)); z-index:1; display:flex; justify-content:space-between; }
+        .ev { display:grid; grid-template-columns:52px 34px minmax(0,1fr) auto; gap:10px; align-items:start; padding:9px 10px; border-bottom:1px solid var(--border-light, var(--border-color)); font-size:13px; }
+        .ev:hover { background:var(--bg-input); }
+        .ev .tm { font-variant-numeric:tabular-nums; font-weight:700; color:var(--text-muted); padding-top:2px; }
+        .ev .who { font-weight:700; }
+        .ev .lbl { display:inline-flex; align-items:center; gap:5px; font-size:11.5px; font-weight:800; padding:2px 8px; border-radius:999px; background:color-mix(in srgb, var(--c) 13%, var(--bg-card)); color:var(--c); white-space:nowrap; margin-left:6px; vertical-align:1px; }
+        .ev .det { color:var(--text-secondary, var(--text-muted)); font-size:12.5px; margin-top:3px; overflow-wrap:anywhere; line-height:1.45; }
+        .ev .det b { color:var(--text-primary); font-weight:700; }
+        .ev .ip { font-size:11px; color:var(--text-muted); text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; }
+        .ev.fail { background:color-mix(in srgb, var(--danger) 6%, transparent); }
+        .more { display:flex; justify-content:center; padding:14px; }
+        .more[hidden] { display:none; }
+        .empty { text-align:center; color:var(--text-muted); padding:30px 10px; }
+        @media (max-width: 640px) {
+            .ev { grid-template-columns:44px minmax(0,1fr); }
+            .ev .av { display:none; }
+            .ev .ip { grid-column:2; text-align:left; }
+            .jr-bar .form-control { flex:1 1 140px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar" id="sfSidebar"></aside>
+        <main class="main-content">
+            <header class="page-header">
+                <div class="page-title"><h1>Journal d'activité</h1><p>Toutes les actions de tous les utilisateurs : qui, quoi, quand, depuis où</p></div>
+                <div class="page-actions"><div id="sfTools"></div></div>
+            </header>
+            <div class="page-body">
+                <div class="jr-bar">
+                    <select id="per" class="form-control" onchange="Jr.setPer(this.value)">
+                        <option value="0" selected>Aujourd'hui</option>
+                        <option value="1">Hier</option>
+                        <option value="7">7 derniers jours</option>
+                        <option value="30">30 derniers jours</option>
+                        <option value="all">Depuis le début</option>
+                        <option value="custom">Personnalisé…</option>
+                    </select>
+                    <span class="jr-range" id="range"><input type="date" id="dFrom" class="form-control" onchange="Jr.load()"> → <input type="date" id="dTo" class="form-control" onchange="Jr.load()"></span>
+                    <select id="usr" class="form-control" onchange="Jr.setUser(this.value)"><option value="">Tous les utilisateurs</option></select>
+                    <input id="q" class="form-control grow" type="search" placeholder="Rechercher : n° de vente, série, client, IP…" oninput="Jr.search(this.value)">
+                    <span class="text-muted" style="font-size:12px;" id="upd"></span>
+                </div>
+                <div id="kpis"></div>
+                <div class="card" style="margin-bottom:14px;">
+                    <div class="card-header"><h3><i class="fas fa-users"></i> Utilisateurs sur la période</h3><span class="text-muted" style="font-size:12px;">Cliquez pour filtrer</span></div>
+                    <div class="card-body"><div id="users" class="us-grid"><div class="sf-skel sf-skel-card"></div></div></div>
+                </div>
+                <div class="card">
+                    <div class="card-header"><h3><i class="fas fa-list-ul"></i> Actions</h3><span class="text-muted" style="font-size:12px;" id="cnt"></span></div>
+                    <div class="card-body">
+                        <div class="cats" id="cats"></div>
+                        <div id="feed"><div class="sf-skel sf-skel-card"></div></div>
+                        <div class="more" id="more" hidden><button class="btn btn-secondary" onclick="Jr.next()"><i class="fas fa-angles-down"></i> Afficher plus</button></div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="/js/sf-core.js"></script>
+    <script src="/js/sf-layout.js"></script>
+    <script>
+    // Catégories d'actions (filtre + couleur).
+    const CATS = {
+        connexion: { l: 'Connexions', i: 'fa-right-to-bracket', c: '#64748b' },
+        vente:     { l: 'Ventes', i: 'fa-receipt', c: '#0f766e' },
+        retour:    { l: 'Retours & échanges', i: 'fa-right-left', c: '#d97706' },
+        caisse:    { l: 'Caisse & trésorerie', i: 'fa-vault', c: '#16a34a' },
+        livraison: { l: 'Livraisons', i: 'fa-truck', c: '#2563eb' },
+        stock:     { l: 'Stock', i: 'fa-warehouse', c: '#b45309' },
+        produit:   { l: 'Produits', i: 'fa-tags', c: '#7c3aed' },
+        garantie:  { l: 'Garantie & atelier', i: 'fa-shield-halved', c: '#0891b2' },
+        appro:     { l: 'Approvisionnement', i: 'fa-truck-ramp-box', c: '#4f46e5' },
+        sortie:    { l: 'Contrôle de sortie', i: 'fa-door-open', c: '#dc2626' },
+        admin:     { l: 'Comptes & réglages', i: 'fa-user-gear', c: '#db2777' },
+        autre:     { l: 'Autres', i: 'fa-ellipsis', c: '#94a3b8' },
+    };
+    // Action enregistrée → [libellé, catégorie].
+    const ACT = {
+        login: ['Connexion', 'connexion'], logout: ['Déconnexion', 'connexion'], login_failed: ['Échec de connexion', 'connexion'], password_reset: ['Mot de passe réinitialisé', 'connexion'],
+        sale: ['Vente', 'vente'], sale_manual: ['Vente rétroactive', 'vente'], sale_edit: ['Vente modifiée', 'vente'], sale_client_edit: ['Client de la vente modifié', 'vente'], sale_delete: ['Vente supprimée', 'vente'],
+        sale_balance_pay: ['Reste atelier encaissé', 'caisse'], proforma_create: ['Proforma', 'vente'], reservation_sell: ['Réservation vendue', 'vente'], consignment_sell: ['Vente boutique', 'vente'],
+        layaway_create: ['Vente avec avance', 'vente'], layaway_pay: ['Versement d’avance', 'caisse'], layaway_complete: ['Avance soldée', 'vente'], layaway_cancel: ['Avance annulée', 'retour'],
+        sale_return: ['Retour / remboursement', 'retour'], sale_exchange: ['Échange', 'retour'], return_receive: ['Retour réceptionné', 'stock'],
+        exchange_request: ['Demande d’échange', 'retour'], exchange_validate: ['Échange validé (stock)', 'retour'],
+        treasury: ['Mouvement de caisse', 'caisse'], treasury_close: ['Clôture de caisse', 'caisse'], retrait: ['Retrait (finance)', 'caisse'],
+        delivery_create: ['Commande en ligne', 'livraison'], delivery_complete: ['Livraison confirmée', 'livraison'], delivery_avance: ['Avance livraison', 'caisse'], delivery_avance_pay: ['Versement livraison', 'caisse'],
+        delivery_acompte_refuse: ['Acompte non reçu', 'livraison'], delivery_cancel_order: ['Commande annulée', 'livraison'], delivery_cancel_partial: ['Annulation partielle', 'livraison'],
+        delivery_cancel_category: ['Cause d’annulation corrigée', 'livraison'], delivery_defer: ['Livraison reportée', 'livraison'], delivery_reschedule: ['Livraison replanifiée', 'livraison'], delivery_delete: ['Livraison supprimée', 'livraison'],
+        exit_check: ['Contrôle de sortie', 'sortie'],
+        reception: ['Réception', 'appro'], supplier_order_create: ['Bon de commande', 'appro'], supplier_order_update: ['Bon de commande modifié', 'appro'], supplier_order_cancel: ['Bon de commande annulé', 'appro'],
+        supplier_order_delete: ['Bon de commande supprimé', 'appro'], supplier_order_seen: ['Bon de commande vu', 'appro'],
+        sortie_boutique: ['Sortie boutique', 'stock'], consignment_return: ['Retour boutique', 'stock'], consignment_return_depot: ['Retour dépôt', 'stock'], consignment_return_to_stock: ['Retour en stock', 'stock'], consignment_return_units: ['Retour d’unités', 'stock'],
+        reservation: ['Réservation', 'stock'], retire: ['Retrait', 'stock'], stock_adjust_retire: ['Ajustement (retiré)', 'stock'], unit_defectueux: ['Marqué défectueux', 'stock'], unit_reconfigure: ['Config d’unité corrigée', 'stock'],
+        unit_usage_magasin: ['Usage magasin', 'stock'], unit_usage_magasin_retour: ['Retour d’usage magasin', 'stock'], corbeille_restore_units: ['Restauré (corbeille)', 'stock'],
+        inventaire: ['Inventaire', 'stock'], inventaire_restock: ['Inventaire : remis en stock', 'stock'], inventaire_retire: ['Inventaire : retiré', 'stock'],
+        installation_send: ['Envoi installation', 'garantie'], installation_return: ['Retour installation', 'garantie'],
+        product_edit: ['Fiche produit modifiée', 'produit'], product_delete: ['Produit retiré', 'produit'], product_restore: ['Produit restauré', 'produit'], product_supplier_edit: ['Fournisseur modifié', 'produit'],
+        product_auto_image: ['Photo automatique', 'produit'], price_sync: ['Prix appliqué aux unités', 'produit'], battery_compat_edit: ['Compatibilités batterie', 'produit'], starlink_client_edit: ['Client Starlink modifié', 'vente'],
+        garantie_treat: ['Garantie traitée', 'garantie'], garantie_repair: ['Réparation', 'garantie'], garantie_return_supplier: ['Renvoi fournisseur', 'garantie'], garantie_confirm_send: ['Envoi garantie confirmé', 'garantie'],
+        garantie_mark_returned: ['Garantie revenue', 'garantie'], garantie_receive_return: ['Retour garantie réceptionné', 'garantie'], garantie_refund_validate: ['Remboursement fournisseur validé', 'garantie'],
+        garantie_refund_reject: ['Remboursement fournisseur refusé', 'garantie'], garantie_cancel: ['Garantie annulée', 'garantie'], garantie_set_reason: ['Motif garantie', 'garantie'],
+        create: ['Création', 'admin'], update: ['Modification', 'admin'], delete: ['Suppression', 'admin'], revoke: ['Code révoqué', 'admin'],
+    };
+    // Écritures tracées automatiquement (sans action métier dédiée) : méthode + route → [libellé, catégorie].
+    const ROUTES = [
+        [/^POST \/api\/deliveries\/\d+\/assign$/, 'Livreur affecté', 'livraison'], [/^POST \/api\/deliveries\/\d+\/invoice$/, 'Livraison facturée', 'livraison'],
+        [/^POST \/api\/deliveries\/\d+\/release$/, 'Sortie stock (livraison)', 'stock'], [/^POST \/api\/deliveries\/\d+\/cancel$/, 'Livraison annulée (caisse)', 'livraison'],
+        [/^POST \/api\/deliveries\/\d+\/return-confirm$/, 'Retour livraison confirmé', 'stock'], [/^POST \/api\/deliveries\/\d+\/declared-payment$/, 'Paiement déclaré modifié', 'livraison'],
+        [/^POST \/api\/consignments$/, 'Sortie boutique', 'stock'], [/^POST \/api\/consignments\/\d+\/(receive|return-received)$/, 'Boutique : réception', 'stock'], [/^POST \/api\/consignments\/\d+\/cancel$/, 'Sortie boutique annulée', 'stock'],
+        [/^POST \/api\/reservations\/\d+\/cancel$/, 'Réservation annulée', 'stock'], [/^POST \/api\/reservations\/unit\/\d+\/return$/, 'Réservation : retour', 'stock'],
+        [/^POST \/api\/exchanges\/\d+\/cancel$/, 'Demande d’échange annulée', 'retour'], [/^POST \/api\/exchanges\/\d+\/reject$/, 'Échange refusé (stock)', 'retour'],
+        [/^POST \/api\/installations/, 'Installation / préparation', 'garantie'], [/^POST \/api\/atelier-labels/, 'Étiquette atelier imprimée', 'garantie'], [/^POST \/api\/stock\/send-warranty$/, 'Envoi en garantie', 'garantie'],
+        [/^POST \/api\/garantie\/refund$/, 'Remboursement fournisseur déclaré', 'garantie'],
+        [/^POST \/api\/inventaire\/(finish|resolve)$/, 'Inventaire', 'stock'], [/^POST \/api\/units\/retire$/, 'Unités retirées', 'stock'],
+        [/^(PUT|POST) \/api\/products/, 'Produit modifié', 'produit'], [/^DELETE \/api\/products/, 'Produit supprimé', 'produit'], [/^(POST|PUT) \/api\/services$/, 'Service', 'produit'], [/^POST \/api\/referentiels$/, 'Référentiel', 'produit'],
+        [/^(POST|PUT|DELETE) \/api\/supplier-orders/, 'Bon de commande', 'appro'], [/^(POST|PUT|DELETE) \/api\/suppliers/, 'Fournisseur', 'appro'], [/^DELETE \/api\/reception-items/, 'Ligne de réception supprimée', 'appro'],
+        [/^(POST|PUT) \/api\/client-requests/, 'Demande client', 'appro'],
+        [/^(PUT|DELETE) \/api\/treasury\/movement/, 'Mouvement de caisse modifié', 'caisse'], [/^POST \/api\/treasury/, 'Caisse', 'caisse'],
+        [/^PATCH \/api\/sales\/\d+\/client$/, 'Client de la vente modifié', 'vente'], [/^PATCH \/api\/sales/, 'Vente modifiée', 'vente'], [/^POST \/api\/sales\/\d+\/balance$/, 'Reste atelier encaissé', 'caisse'],
+        [/^POST \/api\/proformas$/, 'Proforma', 'vente'],
+        [/^(PUT|POST) \/api\/profile/, 'Profil modifié', 'admin'], [/^(POST|PUT|DELETE) \/api\/users/, 'Compte utilisateur', 'admin'], [/^PUT \/api\/(settings|config)$/, 'Paramètres', 'admin'],
+        [/^POST \/api\/registration-codes/, 'Code d’inscription', 'admin'], [/^POST \/api\/backup$/, 'Sauvegarde', 'admin'],
+    ];
+    const ENT = { sale: 'vente', delivery: 'livraison', user: 'compte', product: 'produit', unit: 'unité', layaway: 'avance', reception: 'réception', cash_movement: 'mouvement',
+        supplier_order: 'bon de commande', settings: 'paramètres', config: 'configuration', supplier: 'fournisseur', registration_code: 'code', reservation: 'réservation', warranty: 'garantie' };
+    // Champs des détails → libellé lisible.
+    const KEY = { number: 'n°', units: 'articles', refund: 'remboursé', refund_method: 'mode', total: 'total', amount: 'montant', declared: 'déclaré',
+        payment_status: 'paiement', next_payment_date: 'prochain paiement', method: 'mode', kind: 'type', type: 'type', reason: 'motif', note: 'note',
+        serial: 'série', client: 'client', commercial: 'commercial', count: 'nombre', fee: 'droit', price_diff: 'écart', from: 'vente d’origine',
+        returned: 'rendus', new_units: 'nouveaux', sale_date: 'date', status: 'statut', items: 'articles', role: 'rôle', username: 'identifiant',
+        name: 'nom', removed: 'retiré', state: 'état', ref: 'réf.', restored: 'remis en stock', before: 'avant', edit: 'modifié', delete: 'supprimé' };
+    const ROLE = { admin: 'Admin', caisse: 'Caisse', gestion_stock: 'Stock', commercial: 'Commercial', commercial_ligne: 'Commercial en ligne', coordinateur: 'Coordinateur',
+        technicien: 'Technicien', securite: 'Sécurité', livreur: 'Livreur' };
+    const COLORS = ['#0f766e', '#2563eb', '#b45309', '#7c3aed', '#db2777', '#0891b2', '#16a34a', '#4f46e5', '#dc2626', '#a16207'];
+    const avColor = id => id ? COLORS[id % COLORS.length] : '#94a3b8';
+    const initials = n => String(n || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase();
+    const pad = n => String(n).padStart(2, '0');
+    const iso = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
+    const Jr = {
+        rows: [], users: [], total: 0, user: '', cat: '', q: '', per: '0', _qt: null,
+        async init() {
+            const u = await SF.Auth.require([]); if (!u) return;   // admin uniquement
+            SF.layout({ active: '/journal.html' });
+            try { const st = JSON.parse(localStorage.getItem('sf-journal') || '{}'); if (st.per) { this.per = st.per; document.getElementById('per').value = st.per; } } catch (e) {}
+            this.setPer(this.per, true);
+            await this.load();
+        },
+        range() {
+            const now = new Date();
+            if (this.per === 'all') return {};
+            if (this.per === 'custom') return { from: document.getElementById('dFrom').value, to: document.getElementById('dTo').value };
+            const n = parseInt(this.per, 10);
+            if (n === 1) { const y = new Date(now); y.setDate(y.getDate() - 1); return { from: iso(y), to: iso(y) }; }
+            const f = new Date(now); f.setDate(f.getDate() - Math.max(0, n - 1));
+            return { from: iso(f), to: iso(now) };
+        },
+        setPer(v, silent) {
+            this.per = v; document.getElementById('range').classList.toggle('on', v === 'custom');
+            if (v === 'custom' && !document.getElementById('dFrom').value) { const t = iso(new Date()); document.getElementById('dFrom').value = t; document.getElementById('dTo').value = t; }
+            try { localStorage.setItem('sf-journal', JSON.stringify({ per: v })); } catch (e) {}
+            if (!silent) this.load();
+        },
+        setUser(v) { this.user = v; document.getElementById('usr').value = v; this.load(); },
+        setCat(c) { this.cat = this.cat === c ? '' : c; this.renderFeed(); },
+        search(v) { clearTimeout(this._qt); this._qt = setTimeout(() => { this.q = v.trim(); this.load(); }, 300); },
+        params(before) {
+            const p = new URLSearchParams(); const r = this.range();
+            if (r.from) p.set('from', r.from); if (r.to) p.set('to', r.to);
+            if (this.user) p.set('user_id', this.user); if (this.q) p.set('q', this.q);
+            if (before) p.set('before', before); p.set('limit', '300');
+            return p.toString();
+        },
+        async load() {
+            try {
+                const d = await SF.api('/api/activity?' + this.params());
+                this.rows = d.rows || []; this.total = d.total || 0; this.users = d.users || [];
+            } catch (e) { SF.toast(e.message, 'error'); return; }
+            document.getElementById('upd').textContent = 'Mis à jour ' + new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+            this.renderUsers(); this.renderFeed();
+        },
+        async next() {
+            const last = this.rows[this.rows.length - 1]; if (!last) return;
+            try { const d = await SF.api('/api/activity?' + this.params(last.id)); this.rows = this.rows.concat(d.rows || []); this.renderFeed(); }
+            catch (e) { SF.toast(e.message, 'error'); }
+        },
+        info(r) {
+            if (r.action === 'api') {
+                const hit = ROUTES.find(x => x[0].test(r.path || ''));
+                return hit ? { l: hit[1], c: hit[2] } : { l: (r.path || 'Action').replace(/^(\w+) \/api\//, '$1 '), c: 'autre' };
+            }
+            const a = ACT[r.action];
+            if (a && ['create', 'update', 'delete'].includes(r.action) && r.entity) return { l: `${a[0]} — ${ENT[r.entity] || r.entity}`, c: a[1] };
+            return a ? { l: a[0], c: a[1] } : { l: r.action, c: 'autre' };
+        },
+        detail(r) {
+            const out = [];
+            const ent = r.action === 'login' || r.action === 'logout' ? '' : r.entity && r.entity_id ? `${ENT[r.entity] || r.entity} n° ${SF.esc(r.entity_id)}` : (r.action === 'api' && r.entity_id ? `n° ${SF.esc(r.entity_id)}` : '');
+            if (ent) out.push(ent);
+            const d = r.details;
+            if (r.action === 'login_failed') return `Identifiant tapé : <b>${SF.esc(r.user_name || '')}</b> · ${d && d.known_user ? 'mot de passe erroné' : 'identifiant inconnu'}`;
+            if (d && typeof d === 'object') {
+                const fmt = (k, v) => {
+                    if (v == null || v === '') return null;
+                    if (Array.isArray(v)) v = v.length > 6 ? `${v.slice(0, 6).join(', ')}… (${v.length})` : v.join(', ');
+                    else if (typeof v === 'object') v = JSON.stringify(v).slice(0, 120);
+                    if (typeof v === 'number' && /amount|total|refund$|fee|price|diff|deposit|ecart|counted|declared/i.test(k)) v = SF.fmt.ar(v);
+                    return `${SF.esc(KEY[k] || k.replace(/_/g, ' '))} : <b>${SF.esc(String(v)).slice(0, 160)}</b>`;
+                };
+                Object.entries(d).slice(0, 8).forEach(([k, v]) => { const s = fmt(k, v); if (s) out.push(s); });
+            }
+            if (r.action === 'api' && r.path) out.push(`<span style="font-family:ui-monospace,Consolas,monospace;font-size:11.5px;">${SF.esc(r.path)}</span>`);
+            return out.join(' · ');
+        },
+        renderUsers() {
+            const sel = document.getElementById('usr'), cur = this.user;
+            const all = this.users.filter(u => u.user_id);
+            sel.innerHTML = '<option value="">Tous les utilisateurs</option>' + all.map(u => `<option value="${u.user_id}">${SF.esc(u.name)} (${u.n})</option>`).join('')
+                + (this.users.some(u => !u.user_id) ? '<option value="none">Sans compte (échecs de connexion)</option>' : '');
+            sel.value = cur;
+            const tot = this.users.reduce((t, u) => t + u.n, 0), logins = this.users.reduce((t, u) => t + (u.logins || 0), 0), failed = this.users.reduce((t, u) => t + (u.failed || 0), 0);
+            document.getElementById('kpis').innerHTML = SF.tileGroup('Synthèse de la période', 'fa-chart-simple',
+                SF.tile({ label: 'Actions', value: tot.toLocaleString('fr-FR'), icon: 'fa-list-check', tone: 'teal', sub: 'toutes les écritures' })
+                + SF.tile({ label: 'Utilisateurs actifs', value: all.length, icon: 'fa-users', tone: 'blue', sub: 'au moins une action' })
+                + SF.tile({ label: 'Connexions', value: logins, icon: 'fa-right-to-bracket', tone: 'violet', sub: 'réussies' })
+                + SF.tile({ label: 'Échecs de connexion', value: failed, icon: 'fa-user-lock', tone: failed ? 'coral' : 'green', sub: failed ? 'mot de passe erroné' : 'aucun', onclick: failed ? "Jr.only('login_failed')" : '' }));
+            document.getElementById('users').innerHTML = this.users.length ? this.users.map(u => {
+                const id = u.user_id ? String(u.user_id) : 'none';
+                const last = u.last_at ? u.last_at.slice(5, 16).replace(/(\d+)-(\d+) /, '$2/$1 ') : '';
+                return `<button class="us${this.user === id ? ' on' : ''}" type="button" onclick="Jr.setUser(Jr.user === '${id}' ? '' : '${id}')">
+                    <span class="av" style="background:${avColor(u.user_id)}">${SF.esc(initials(u.name))}</span>
+                    <span style="min-width:0;"><div class="nm">${SF.esc(u.user_id ? u.name : u.name + ' (inconnu)')}</div>
+                    <div class="mt">${SF.esc(ROLE[u.role] || (u.user_id ? '' : 'identifiant tapé'))}${last ? ' · dernière ' + last : ''}${u.active === 0 ? ' · désactivé' : ''}</div>
+                    ${u.failed ? `<div class="bad"><i class="fas fa-triangle-exclamation"></i> ${u.failed} échec(s) de connexion</div>` : ''}</span>
+                    <span class="n">${u.n}</span></button>`;
+            }).join('') : '<div class="empty">Aucune activité sur la période.</div>';
+        },
+        only(action) { document.getElementById('q').value = action; this.q = action; this.load(); },
+        renderFeed() {
+            const list = this.rows.map(r => ({ r, ...this.info(r) }));
+            const counts = {}; list.forEach(x => { counts[x.c] = (counts[x.c] || 0) + 1; });
+            document.getElementById('cats').innerHTML = Object.entries(CATS).filter(([k]) => counts[k]).map(([k, c]) =>
+                `<button class="cat${this.cat === k ? ' on' : ''}" type="button" style="--c:${c.c}" onclick="Jr.setCat('${k}')"><i class="fas ${c.i}"></i>${c.l} <span class="text-muted">${counts[k]}</span></button>`).join('');
+            const shown = list.filter(x => !this.cat || x.c === this.cat);
+            document.getElementById('cnt').textContent = `${shown.length.toLocaleString('fr-FR')} affichée(s) sur ${this.total.toLocaleString('fr-FR')}`;
+            let day = '', html = '';
+            const dayLbl = d => { const t = iso(new Date()), y = iso(new Date(Date.now() - 864e5)); return d === t ? "Aujourd'hui" : d === y ? 'Hier' : new Date(d + 'T12:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }); };
+            const perDay = {}; shown.forEach(x => { const d = (x.r.created_at || '').slice(0, 10); perDay[d] = (perDay[d] || 0) + 1; });
+            shown.forEach(({ r, l, c }) => {
+                const d = (r.created_at || '').slice(0, 10);
+                if (d !== day) { day = d; html += `<div class="day"><span>${SF.esc(dayLbl(d))}</span><span>${perDay[d]} action(s)</span></div>`; }
+                const cat = CATS[c] || CATS.autre;
+                html += `<div class="ev${r.action === 'login_failed' ? ' fail' : ''}">
+                    <span class="tm">${SF.esc((r.created_at || '').slice(11, 16))}</span>
+                    <span class="av" style="background:${avColor(r.user_id)}">${SF.esc(initials(r.user_name))}</span>
+                    <div style="min-width:0;"><span class="who">${SF.esc(r.user_name || 'système')}</span><span class="lbl" style="--c:${cat.c}"><i class="fas ${cat.i}"></i>${SF.esc(l)}</span>
+                        ${this.detail(r) ? `<div class="det">${this.detail(r)}</div>` : ''}</div>
+                    <span class="ip">${r.ip ? '<i class="fas fa-location-dot"></i> ' + SF.esc(r.ip) : ''}</span></div>`;
+            });
+            document.getElementById('feed').innerHTML = html || '<div class="empty"><i class="fas fa-inbox" style="font-size:22px;"></i><div style="margin-top:8px;">Aucune action pour ces filtres.</div></div>';
+            document.getElementById('more').hidden = this.rows.length >= this.total || !this.rows.length;
+        }
+    };
+    Jr.init();
+    </script>
+</body>
+</html>

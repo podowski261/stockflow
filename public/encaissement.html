@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <title>Encaissement en attente — STOCKFLOW</title>
+    <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css">
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/sf.css">
+    <script>document.documentElement.setAttribute('data-theme', localStorage.getItem('stockflow-theme') === 'dark' ? 'dark' : 'light'); try { var sfu = JSON.parse(localStorage.getItem('stockflow-ui') || '{}'); for (var k in sfu) document.documentElement.setAttribute('data-' + k, sfu[k]); } catch (e) {}</script>
+    <style>
+        .sumbar { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:18px; }
+        .sumtile { flex:1; min-width:150px; background:var(--bg-card); border:1px solid var(--border-color); border-radius:var(--border-radius-lg); padding:14px 16px; }
+        .sumtile .lbl { font-size:11.5px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.4px; }
+        .sumtile .val { font-size:22px; font-weight:800; margin-top:3px; }
+        /* Ligne « À encaisser … montant » de la fenêtre d'encaissement (classe absente → texte collé). */
+        .cart-total { display:flex; justify-content:space-between; align-items:baseline; gap:12px; font-weight:800; margin:6px 0 12px; padding-top:8px; border-top:1px solid var(--border-color); }
+        /* Téléphone : montant à encaisser en grand, puis les 2 compteurs côte à côte. */
+        @media (max-width:768px) {
+            .sumbar { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:14px; }
+            .sumtile { min-width:0; padding:10px 12px; }
+            .sumtile:first-child { grid-column:1 / -1; }
+            .sumtile .lbl { font-size:10.5px; }
+            .sumtile .val { font-size:18px; }
+            .sumtile:first-child .val { font-size:24px; }
+        }
+        .info-banner { background:var(--bg-card); border:1px solid var(--border-color); border-left:3px solid var(--accent); border-radius:var(--border-radius-lg); padding:12px 15px; margin-bottom:16px; font-size:12.5px; color:var(--text-secondary); }
+        .info-banner a { color:var(--accent-dark); font-weight:600; }
+        .section-h { font-size:15px; margin:0 0 12px; display:flex; align-items:center; gap:8px; padding-bottom:8px; border-bottom:2px solid var(--border-color); }
+        .section-h .n { margin-left:auto; font-size:12px; color:var(--text-muted); font-weight:600; }
+        .ec-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:14px; }
+        .ec { background:var(--bg-card); border:1px solid var(--border-color); border-left:3px solid #c9ced6; border-radius:var(--border-radius-lg); padding:15px 16px; box-shadow:var(--shadow-xs); display:flex; flex-direction:column; }
+        .ec.late { border-left-color:#e3a19b; }
+        .ec .top { display:flex; justify-content:space-between; align-items:flex-start; gap:8px; }
+        .ec .who { font-weight:800; font-size:15px; }
+        .ec .cli { font-size:12.5px; color:var(--text-secondary); line-height:1.7; margin-top:3px; }
+        .ec .cli a { color:var(--accent-dark); font-weight:600; text-decoration:none; }
+        .ec .tot { font-size:19px; font-weight:800; white-space:nowrap; }
+        .ec .items { font-size:12.5px; color:var(--text-secondary); line-height:1.55; margin:10px 0; padding:8px 10px; background:var(--bg-input); border-radius:8px; }
+        .ec .age { display:inline-flex; align-items:center; gap:5px; font-size:11.5px; font-weight:700; padding:3px 9px; border-radius:999px; }
+        .age.ok { background:var(--accent-glow); color:var(--accent-dark); }
+        .age.warn { background:rgba(245,158,11,.15); color:var(--warning-dark); }
+        .age.late { background:rgba(229,72,77,.15); color:var(--danger); }
+        .badge-defer { background:rgba(245,158,11,.15); color:var(--warning-dark); font-size:10.5px; font-weight:700; padding:3px 8px; border-radius:6px; }
+        .defer-reason { margin-top:8px; font-size:11.5px; color:var(--text-secondary); background:rgba(245,158,11,.10); border-left:3px solid var(--warning); border-radius:6px; padding:6px 9px; line-height:1.5; }
+        .ec .acts { display:flex; gap:8px; margin-top:auto; padding-top:12px; flex-wrap:wrap; }
+        .ec .acts .btn { flex:1; min-width:110px; }
+        .empty { text-align:center; color:var(--text-muted); padding:36px; font-size:13px; background:var(--bg-card); border:1px dashed var(--border-color); border-radius:var(--border-radius-lg); }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar" id="sfSidebar"></aside>
+        <main class="main-content">
+            <header class="page-header">
+                <div class="page-title"><h1>Encaissement en attente</h1><p>Livraisons sorties, paiement à encaisser à la livraison</p></div>
+                <div class="page-actions"><div id="sfTools"></div></div>
+            </header>
+            <div class="page-body">
+                <div class="card dash-card"><div class="card-header"><h3><i class="fas fa-hand-holding-dollar"></i> À encaisser</h3></div><div class="card-body"><div class="stats-grid" id="sumbar"></div></div></div>
+                <h3 class="section-h"><i class="fas fa-truck-fast"></i> Livraisons à encaisser <span class="n" id="lCount"></span></h3>
+                <div id="livraison"><div class="sf-skel sf-skel-card"></div><div class="sf-skel sf-skel-card"></div><div class="sf-skel sf-skel-card"></div></div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modale encaissement (paiement à la livraison) -->
+    <div class="modal-overlay" id="payModal">
+        <div class="modal" style="max-width:480px;">
+            <div class="modal-header"><h3 id="pmTitle">Encaisser la livraison</h3><button class="modal-close" onclick="SF.Modal.close('payModal')">&times;</button></div>
+            <div class="modal-body" id="pmBody"></div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="SF.Modal.close('payModal')">Annuler</button>
+                <button class="btn btn-primary" id="pmBtn" onclick="Enc.doComplete()"><i class="fas fa-check"></i> Confirmer le paiement</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modale report de livraison : date de relance + motif -->
+    <div class="modal-overlay" id="deferModal">
+        <div class="modal" style="max-width:420px;">
+            <div class="modal-header"><h3>Reporter la livraison</h3><button class="modal-close" onclick="SF.Modal.close('deferModal')">&times;</button></div>
+            <div class="modal-body">
+                
+                <label style="font-size:12.5px;font-weight:600;color:var(--text-secondary);">Reportée au</label>
+                <input type="date" id="deferDate" class="form-control" style="margin:4px 0 12px;font-size:16px;">
+                <label style="font-size:12.5px;font-weight:600;color:var(--text-secondary);">Motif du report</label>
+                <textarea id="deferReason" class="form-control" rows="3" placeholder="Ex : client absent, relance demain…" style="margin-top:4px;font-size:16px;"></textarea>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="SF.Modal.close('deferModal')">Annuler</button>
+                <button class="btn btn-primary" id="deferBtn" onclick="Enc.doDefer()"><i class="fas fa-hourglass-half"></i> Reporter</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/sf-core.js"></script>
+    <script src="/js/sf-layout.js"></script>
+    <script src="/js/sf-invoice.js"></script>
+    <script src="/js/sf-pay.js"></script>
+    <script>
+    const Enc = {
+        data: { livraison: [], now: Date.now() }, config: {}, alertH: 3, current: null,
+        async init() {
+            const u = await SF.Auth.require(['caisse']); if (!u) return;
+            SF.layout({ active: '/encaissement.html' });
+            try { this.config = await SF.api('/api/config'); } catch (e) {}
+            try { const s = await SF.api('/api/settings'); this.alertH = parseInt(s.delivery_alert_hours, 10) || 3; } catch (e) {}
+            SF.on('delivery:update', () => this.load());
+            SF.on('notification', () => this.load());
+            this.load();
+        },
+        async load() {
+            try { this.data = await SF.api('/api/encaissement/pending'); this.render(); }
+            catch (e) { SF.toast(e.message, 'error'); }
+        },
+        // Âge depuis la sortie du stock (released_at), repli sur status_at / created_at.
+        ageMs(d) {
+            const t = d.released_at || Date.parse(String(d.status_at || d.created_at || '').replace(' ', 'T')) || 0;
+            return Math.max(0, (this.data.now || Date.now()) - t);
+        },
+        ageLabel(ms) {
+            const h = Math.floor(ms / 3600000), m = Math.floor((ms % 3600000) / 60000);
+            if (h >= 24) return Math.floor(h / 24) + ' j ' + (h % 24) + ' h';
+            return h > 0 ? `${h} h ${m} min` : `${m} min`;
+        },
+        render() {
+            const lv = this.data.livraison || [];
+            const total = lv.reduce((s, d) => s + this.reste(d), 0);
+            const late = lv.filter(d => this.ageMs(d) > this.alertH * 3600000).length;
+            document.getElementById('lCount').textContent = lv.length + ' en cours';
+            document.getElementById('sumbar').innerHTML =
+                SF.tile({ label: 'À encaisser', value: SF.fmt.ar(total), icon: 'fa-sack-dollar', tone: 'teal' })
+                + SF.tile({ label: 'Livraisons', value: lv.length, icon: 'fa-truck-fast', tone: 'blue' })
+                + SF.tile({ label: `En retard (> ${this.alertH} h)`, value: late, icon: 'fa-clock', tone: 'coral', valCls: late ? 'neg' : '' });
+            document.getElementById('livraison').innerHTML = lv.length
+                ? `<div class="ec-grid">${lv.map(d => this.card(d)).join('')}</div>`
+                : '<div class="empty"><i class="fas fa-check-circle" style="font-size:22px;color:var(--success);"></i><br>Aucune livraison en attente de paiement.</div>';
+        },
+        card(d) {
+            const ms = this.ageMs(d);
+            const late = ms > this.alertH * 3600000;
+            const ageCls = late ? 'late' : (ms > this.alertH * 3600000 / 2 ? 'warn' : 'ok');
+            const deferred = !!d.deferred_date;
+            const phone = (d.client_phone || '').trim();
+            return `<div class="ec ${late ? 'late' : ''}">
+                <div class="top">
+                    <div>
+                        <div class="who"><i class="fas fa-truck"></i> Livraison #${d.delivery_number}</div>
+                        <div class="cli">
+                            <i class="fas fa-user"></i> ${SF.esc(d.client_name || '—')}${phone ? ` · <a href="tel:${SF.esc(phone)}"><i class="fas fa-phone"></i> ${SF.esc(phone)}</a>` : ''}<br>
+                            <i class="fas fa-motorcycle"></i> Livreur : <b>${SF.esc(d.livreur_name || '—')}</b>
+                        </div>
+                    </div>
+                    <div class="tot">${SF.fmt.ar(this.reste(d))}${d.acompte > 0 ? `<div style="font-size:11px;font-weight:600;color:var(--text-muted);">avance ${SF.fmt.ar(d.acompte)} déduite</div>` : ''}</div>
+                </div>
+                <div class="items"><i class="fas fa-box"></i> ${SF.esc(d.items_summary || '—')}</div>
+                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                    <span class="age ${ageCls}"><i class="fas fa-clock"></i> ${late ? 'En retard — ' : 'Sortie il y a '}${this.ageLabel(ms)}</span>
+                    ${deferred ? `<span class="badge-defer"><i class="fas fa-hourglass-half"></i> Reportée au ${SF.esc(this.fmtDefer(d.deferred_date))}</span>` : ''}
+                </div>
+                ${deferred && d.defer_reason ? `<div class="defer-reason"><i class="fas fa-comment-dots"></i> ${SF.esc(d.defer_reason)}</div>` : ''}
+                <div class="acts">
+                    <button class="btn btn-primary btn-sm" onclick="Enc.openPay(${d.id})"><i class="fas fa-cash-register"></i> Encaisser</button>
+                    <button class="btn btn-secondary btn-sm" onclick="Enc.defer(${d.id})"><i class="fas fa-hourglass-half"></i> Reporter</button>
+                    <button class="btn btn-secondary btn-sm" onclick="location.href='/deliveries.html'"><i class="fas fa-eye"></i> Détails</button>
+                </div>
+            </div>`;
+        },
+        // Reste à encaisser : total − avance déjà versée (acompte).
+        reste(d) { return Math.max(0, (d.total || 0) - Math.min(d.total || 0, d.acompte || 0)); },
+        async openPay(id) {
+            this.current = (this.data.livraison || []).find(d => d.id === id);
+            if (!this.current) return;
+            const d = this.current;
+            // Articles livrés (par unité) : le caissier coche ceux réellement pris par le client.
+            this.encItems = [];
+            this.encServices = 0;
+            try {
+                const sale = await SF.api('/api/sales/' + d.sale_id);
+                this.encItems = (sale.items || []).filter(it => it.unit_id && !it.returned);
+                // Services (sans unité) : toujours facturés, jamais « non pris » → constante ajoutée au recalcul.
+                this.encServices = (sale.items || []).filter(it => it.is_service).reduce((s, it) => s + (it.unit_price || 0), 0);
+            } catch (e) {}
+            const multi = this.encItems.length > 1;
+            const itemsHtml = this.encItems.map((it, i) => `
+                <label style="display:flex;align-items:center;gap:8px;padding:7px 9px;border:1px solid var(--border-color);border-radius:8px;margin:4px 0;cursor:pointer;font-size:12.5px;">
+                    <input type="checkbox" checked data-i="${i}" onchange="Enc.encRecalc()">
+                    <span style="flex:1;">${SF.esc([it.brand, it.model].filter(Boolean).join(' ') || it.product_name)} <span class="text-muted" style="font-family:monospace;">${SF.esc(it.serial || '')}</span></span>
+                    <b>${SF.fmt.ar(it.unit_price)}</b>
+                </label>`).join('');
+            document.getElementById('pmTitle').textContent = `Encaisser la livraison #${d.delivery_number}`;
+            document.getElementById('pmBody').innerHTML = `
+                <div style="font-size:13px;line-height:1.7;margin-bottom:10px;">
+                    <b>${SF.esc(d.client_name || '—')}</b>${d.client_phone ? ' · ' + SF.esc(d.client_phone) : ''}<br>
+                    <span class="text-muted">Livreur : ${SF.esc(d.livreur_name || '—')}</span>
+                </div>
+                ${multi ? `<div style="font-size:12px;color:var(--text-secondary);margin-bottom:4px;"><i class="fas fa-hand-pointer"></i> Cochez les articles RÉELLEMENT pris (décochez ceux non pris → retour au stock) :</div><div id="encItems">${itemsHtml}</div>` : `<div id="encItems"></div>`}
+                ${d.acompte > 0 ? `<div style="font-size:12.5px;color:var(--text-secondary);">Total ${SF.fmt.ar(d.total)} − avance déjà versée ${SF.fmt.ar(d.acompte)}</div>` : ''}
+                <div class="cart-total" style="font-size:19px;"><span>À encaisser</span><span id="encTot">${SF.fmt.ar(this.reste(d))}</span></div>
+                <label style="font-size:12.5px;font-weight:600;color:var(--text-secondary);">Paiement (répartition possible)</label>
+                <div id="encPay"></div>`;
+            SFPay.mount(document.getElementById('encPay'), this.reste(d));
+            SF.Modal.open('payModal');
+        },
+        // Recalcule le montant à encaisser selon les articles cochés (pris).
+        encRecalc() {
+            const boxes = document.querySelectorAll('#encItems input[type="checkbox"]');
+            if (!boxes.length) return;
+            let kept = this.encServices || 0;
+            boxes.forEach(b => { if (b.checked) kept += (this.encItems[+b.dataset.i].unit_price || 0); });
+            const due = Math.max(0, kept - Math.min(kept, this.current.acompte || 0));   // avance déduite (excédent → remboursement)
+            document.getElementById('encTot').textContent = SF.fmt.ar(due);
+            SFPay.setTotal(document.getElementById('encPay'), due);
+        },
+        async doComplete() {
+            const returned = [];
+            document.querySelectorAll('#encItems input[type="checkbox"]').forEach(b => { if (!b.checked) returned.push(this.encItems[+b.dataset.i].unit_id); });
+            if (this.encItems.length && returned.length >= this.encItems.length)
+                return SF.toast('Au moins un article doit être pris (sinon annulez la livraison).', 'error');
+            const box = document.getElementById('encPay');
+            let payments = [];
+            if (box._sfpay && box._sfpay.total > 0) { const pr = await SFPay.confirm(box); if (pr.cancelled) return; if (pr.error) return SF.toast(pr.error, 'error'); payments = pr.payments; }
+            const btn = document.getElementById('pmBtn'); btn.disabled = true;
+            try {
+                await SF.api(`/api/deliveries/${this.current.id}/complete`, { method: 'POST', body: { payment: { payments }, returned_unit_ids: returned } });
+                SF.toast(returned.length ? `Livraison partielle encaissée — ${returned.length} article(s) au retour stock` : 'Livraison encaissée & confirmée', 'success');
+                SF.Modal.close('payModal');
+                // Impression facture (récupère la vente liée).
+                if (this.current.sale_id) { try { const sale = await SF.api('/api/sales/' + this.current.sale_id); SFInvoice.chooser(sale, this.config); } catch (e) {} }
+                this.load();
+            } catch (e) { SF.toast(e.message, 'error'); }
+            btn.disabled = false;
+        },
+        // Ajoute n jours à une date 'YYYY-MM-DD' (calcul en UTC pour éviter les décalages).
+        addDays(ymd, n) {
+            const [y, m, d] = ymd.split('-').map(Number);
+            const dt = new Date(Date.UTC(y, m - 1, d + n)), p = x => String(x).padStart(2, '0');
+            return `${dt.getUTCFullYear()}-${p(dt.getUTCMonth() + 1)}-${p(dt.getUTCDate())}`;
+        },
+        // Affiche la date de report en clair (« demain (21/08) », « aujourd'hui », sinon JJ/MM/AAAA).
+        fmtDefer(ymd) {
+            if (!ymd) return '';
+            const [y, m, d] = ymd.split('-');
+            const today = this.data.today;
+            if (today) {
+                if (ymd === this.addDays(today, 1)) return `demain (${d}/${m})`;
+                if (ymd === today) return "aujourd'hui";
+            }
+            return `${d}/${m}/${y}`;
+        },
+        defer(id) {
+            this.deferId = id;
+            const tomorrow = this.data.today ? this.addDays(this.data.today, 1) : '';
+            const dateEl = document.getElementById('deferDate');
+            dateEl.min = tomorrow; dateEl.value = tomorrow;
+            document.getElementById('deferReason').value = '';
+            SF.Modal.open('deferModal');
+            setTimeout(() => dateEl.focus(), 60);
+        },
+        async doDefer() {
+            const date = document.getElementById('deferDate').value;
+            const reason = document.getElementById('deferReason').value.trim();
+            const today = this.data.today || '';
+            if (!date || (today && date <= today)) return SF.toast('Choisissez une date postérieure à aujourd’hui.', 'error');
+            if (!reason) return SF.toast('Le motif du report est obligatoire.', 'error');
+            const btn = document.getElementById('deferBtn'); btn.disabled = true;
+            try {
+                await SF.api(`/api/deliveries/${this.deferId}/defer`, { method: 'POST', body: { date, reason } });
+                SF.toast('Livraison reportée', 'success');
+                SF.Modal.close('deferModal');
+                this.load();
+            } catch (e) { SF.toast(e.message, 'error'); }
+            btn.disabled = false;
+        }
+    };
+    Enc.init();
+    </script>
+</body>
+</html>

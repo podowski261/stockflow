@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <title>Approvisionnement — STOCKFLOW</title>
+    <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css">
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/sf.css">
+    <script>document.documentElement.setAttribute('data-theme', localStorage.getItem('stockflow-theme') === 'dark' ? 'dark' : 'light'); try { var sfu = JSON.parse(localStorage.getItem('stockflow-ui') || '{}'); for (var k in sfu) document.documentElement.setAttribute('data-' + k, sfu[k]); } catch (e) {}</script>
+    <style>
+        .appro-toolbar { display:flex; gap:12px; align-items:center; margin-bottom:16px; flex-wrap:wrap; }
+        .search-box { position:relative; flex:1; min-width:220px; max-width:420px; }
+        .search-box input { width:100%; padding:11px 14px 11px 40px; background:var(--bg-input); border:1px solid transparent; border-radius:var(--border-radius); color:var(--text-primary); font-size:14px; }
+        .search-box input:focus { outline:none; border-color:var(--accent); background:var(--bg-card); }
+        .search-box i { position:absolute; left:14px; top:50%; transform:translateY(-50%); color:var(--text-muted); }
+        .kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px; margin-bottom:18px; }
+        .kpi { background:var(--bg-card); border:1px solid var(--border-color); border-radius:var(--border-radius-lg); padding:13px 15px; }
+        .kpi h4 { font-size:12px; color:var(--text-muted); } .kpi .v { font-size:22px; font-weight:800; margin-top:3px; }
+        .kpi.rupture .v { color:var(--danger); } .kpi.faible .v { color:var(--warning-dark); } .kpi.ok .v { color:var(--success-dark); }
+        .sec-title { margin:14px 0 10px; display:flex; align-items:center; gap:8px; font-size:15px; }
+        .stock-pill { font-size:10.5px; font-weight:700; padding:2px 9px; border-radius:999px; }
+        .stock-pill.rupture { background:rgba(239,68,68,.15); color:var(--danger); }
+        .stock-pill.faible { background:rgba(245,158,11,.15); color:var(--warning-dark); }
+        .stock-pill.ok { background:rgba(34,197,94,.15); color:var(--success-dark); }
+        .empty { text-align:center; color:var(--text-muted); padding:20px; }
+        .spec-box { background:var(--bg-input); border-radius:10px; padding:10px 12px; font-size:12.5px; line-height:1.6; margin-bottom:12px; }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar" id="sfSidebar"></aside>
+        <main class="main-content">
+            <header class="page-header">
+                <div class="page-title"><h1>Approvisionnement</h1><p>Stock faible et ruptures · réassort rapide</p></div>
+                <div class="page-actions"><div id="sfTools"></div></div>
+            </header>
+            <div class="page-body">
+                <div class="appro-toolbar">
+                    <div class="search-box"><i class="fas fa-search"></i><input type="text" id="search" placeholder="Rechercher un produit…" oninput="Appro.debounced()"></div>
+                    <select id="filter" class="form-control" style="max-width:200px;" onchange="Appro.render()">
+                        <option value="alert">Rupture &amp; stock faible</option>
+                        <option value="rupture">Ruptures uniquement</option>
+                        <option value="faible">Stock faible uniquement</option>
+                        <option value="all">Tous les produits</option>
+                    </select>
+                </div>
+                <div class="card dash-card"><div class="card-header"><h3><i class="fas fa-boxes-stacked"></i> Approvisionnement</h3></div><div class="card-body"><div class="stats-grid" id="kpis"></div></div></div>
+                <div id="list"><div class="sf-skel sf-skel-card"></div><div class="sf-skel sf-skel-card"></div><div class="sf-skel sf-skel-card"></div></div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modale ré-approvisionnement -->
+    <div class="modal-overlay" id="reModal">
+        <div class="modal" style="max-width:480px;">
+            <div class="modal-header"><h3 id="reTitle">Ré-approvisionner</h3><button class="modal-close" onclick="SF.Modal.close('reModal')">&times;</button></div>
+            <div class="modal-body">
+                <div class="spec-box" id="reSpec"></div>
+                <div class="form-group"><label>Fournisseur *</label><select id="re_supplier" class="form-control"></select></div>
+                <div class="form-row">
+                    <div class="form-group"><label>Quantité à ajouter *</label><input type="number" id="re_qty" class="form-control" min="1" value="1"></div>
+                    <div class="form-group"><label>Prix de vente (Ar)</label><input type="number" id="re_price" class="form-control" min="0"><p class="form-hint" style="font-size:11px;">Modifiable si le prix a changé.</p></div>
+                </div>
+                <div class="form-group"><label>Garantie (jours)</label><input type="number" id="re_warranty" class="form-control" min="0" placeholder="valeur du fournisseur par défaut"></div>
+                <div class="form-group"><label>Numéros de série constructeur (optionnel)</label><textarea id="re_serials" class="form-control" rows="2" placeholder="Un par ligne (facultatif)"></textarea></div>
+                <p class="text-muted" style="font-size:11.5px;"><i class="fas fa-tag"></i> À la validation, les étiquettes code-barres sortent directement (× nb du fournisseur).</p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="SF.Modal.close('reModal')">Annuler</button>
+                <button class="btn btn-success" id="reBtn" onclick="Appro.submit()"><i class="fas fa-check"></i> Valider &amp; imprimer</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/sf-core.js"></script>
+    <script src="/js/sf-layout.js"></script>
+    <script src="/js/sf-barcode.js"></script>
+    <script>
+    const Appro = {
+        products: [], threshold: 2, suppliers: [], current: null, _t: null,
+        async init() {
+            const u = await SF.Auth.require(['gestion_stock']); if (!u) return;
+            SF.layout({ active: '/appro.html' });
+            try { this.suppliers = await SF.api('/api/suppliers'); } catch (e) { this.suppliers = []; }
+            document.getElementById('re_supplier').innerHTML = this.suppliers.length
+                ? this.suppliers.map(s => `<option value="${s.id}">${SF.esc(s.name)}</option>`).join('')
+                : '<option value="">— Aucun fournisseur —</option>';
+            SF.on('stock:update', () => this.load());
+            SF.on('reception:new', () => this.load());
+            this.load();
+        },
+        debounced() { clearTimeout(this._t); this._t = setTimeout(() => this.load(), 300); },
+        async load() {
+            const q = document.getElementById('search').value.trim();
+            try {
+                const r = await SF.api('/api/stock/appro' + (q ? '?search=' + encodeURIComponent(q) : ''));
+                this.products = r.products; this.threshold = r.threshold; this.render();
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        cls(p) { return p.available <= 0 ? 'rupture' : (p.available <= this.threshold ? 'faible' : 'ok'); },
+        render() {
+            const rupture = this.products.filter(p => p.available <= 0);
+            const faible = this.products.filter(p => p.available > 0 && p.available <= this.threshold);
+            document.getElementById('kpis').innerHTML =
+                SF.tile({ label: 'Ruptures', value: rupture.length, icon: 'fa-ban', tone: 'coral' })
+                + SF.tile({ label: `Stock faible (≤ ${this.threshold})`, value: faible.length, icon: 'fa-triangle-exclamation', tone: 'yellow' })
+                + SF.tile({ label: 'Produits suivis', value: this.products.length, icon: 'fa-boxes-stacked', tone: 'teal' });
+            const f = document.getElementById('filter').value;
+            let list = this.products;
+            if (f === 'alert') list = this.products.filter(p => p.available <= this.threshold);
+            else if (f === 'rupture') list = rupture;
+            else if (f === 'faible') list = faible;
+            const box = document.getElementById('list');
+            if (!list.length) { box.innerHTML = '<div class="empty"><i class="fas fa-circle-check fa-2x"></i><p style="margin-top:10px;">Rien à réapprovisionner.</p></div>'; return; }
+            box.innerHTML = `<div class="table-container"><table>
+                <thead><tr><th>Produit</th><th>Configuration</th><th class="text-center">Dispo.</th><th>État stock</th><th class="text-right">Prix</th><th></th></tr></thead>
+                <tbody>${list.map(p => {
+                    const title = [p.brand, p.model].filter(Boolean).join(' ') || p.name;
+                    const cfg = p.is_accessory ? [p.category, p.subcategory].filter(Boolean).join(' · ') : (window.SFBarcode ? SFBarcode.fullSpec(p) : '');
+                    const c = this.cls(p);
+                    const lbl = c === 'rupture' ? 'Rupture' : (c === 'faible' ? 'Faible' : 'OK');
+                    return `<tr>
+                        <td><div style="font-weight:600;">${SF.esc(title)}</div><div class="text-muted" style="font-size:11.5px;">${SF.esc(p.is_accessory ? 'Accessoire' : (p.category || ''))}</div></td>
+                        <td class="text-muted" style="font-size:12px;max-width:280px;">${SF.esc(cfg)}${p.description ? '<br>' + SF.esc(p.description) : ''}</td>
+                        <td class="text-center" style="font-weight:800;">${p.available}</td>
+                        <td><span class="stock-pill ${c}">${lbl}</span></td>
+                        <td class="text-right">${SF.fmt.ar(p.sale_price)}</td>
+                        <td class="text-right"><button class="btn btn-sm btn-primary" onclick="Appro.open(${p.id})"><i class="fas fa-truck-ramp-box"></i> Réappro</button></td>
+                    </tr>`;
+                }).join('')}</tbody></table></div>`;
+        },
+        open(id) {
+            const p = this.products.find(x => x.id === id); if (!p) return;
+            this.current = p;
+            const title = [p.brand, p.model].filter(Boolean).join(' ') || p.name;
+            const cfg = p.is_accessory ? [p.category, p.subcategory].filter(Boolean).join(' · ') : (window.SFBarcode ? SFBarcode.fullSpec(p) : '');
+            document.getElementById('reTitle').textContent = 'Ré-approvisionner — ' + title;
+            document.getElementById('reSpec').innerHTML = `<strong>${SF.esc(title)}</strong><br>${SF.esc(cfg || '—')}${p.description ? '<br><span class="text-muted">' + SF.esc(p.description) + '</span>' : ''}<br>Disponible actuellement : <strong>${p.available}</strong>`;
+            document.getElementById('re_qty').value = 1;
+            document.getElementById('re_price').value = p.sale_price || 0;
+            document.getElementById('re_warranty').value = '';
+            document.getElementById('re_serials').value = '';
+            SF.Modal.open('reModal');
+        },
+        async submit() {
+            const p = this.current; if (!p) return;
+            const supplier_id = parseInt(document.getElementById('re_supplier').value, 10);
+            if (!supplier_id) return SF.toast('Sélectionnez un fournisseur', 'error');
+            const qty = Math.max(1, parseInt(document.getElementById('re_qty').value, 10) || 1);
+            const price = parseFloat(document.getElementById('re_price').value) || 0;
+            const serials = document.getElementById('re_serials').value.split(/[\n,;]+/).map(s => s.trim()).filter(Boolean);
+            if (serials.length > qty) return SF.toast(`Trop de numéros de série (${serials.length}) pour ${qty} unité(s)`, 'error');
+            // Réappro = réception d'une ligne aux specs exactes du produit (même signature → même carte).
+            const line = {
+                is_accessory: !!p.is_accessory, category: p.category, subcategory: p.subcategory,
+                brand: p.brand, model: p.model, condition: p.condition,
+                cpu: p.cpu, ram: p.ram, storage: p.storage, storage_type: p.storage_type, gpu: p.gpu, screen_size: p.screen_size,
+                touchscreen: !!p.touchscreen, webcam: !!p.webcam, wifi: !!p.wifi, bluetooth: !!p.bluetooth, numpad: !!p.numpad,
+                unit_price: price, warranty_days: document.getElementById('re_warranty').value,
+                quantity: qty, description: p.description || '', serials
+            };
+            const btn = document.getElementById('reBtn'); btn.disabled = true;
+            try {
+                const res = await SF.api('/api/receptions', { method: 'POST', body: { supplier_id, reference: 'Réappro', note: 'Réapprovisionnement', lines: [line] } });
+                const sup = this.suppliers.find(s => s.id === supplier_id);
+                const copies = Math.max(1, parseInt(sup && sup.label_count, 10) || 1);
+                const labels = [];
+                (res.units || []).forEach(u => { for (let k = 0; k < copies; k++) labels.push(u); });
+                SF.toast(`Réapprovisionné — ${res.total_units} unité(s) · ${labels.length} étiquette(s)`, 'success');
+                if (labels.length && window.SFBarcode) SFBarcode.downloadPDF(labels, SF.fmt.ar);
+                SF.Modal.close('reModal');
+                this.load();
+            } catch (e) { SF.toast(e.message, 'error'); }
+            btn.disabled = false;
+        }
+    };
+    Appro.init();
+    </script>
+</body>
+</html>

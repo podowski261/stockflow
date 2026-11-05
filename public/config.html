@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <title>Configuration — STOCKFLOW</title>
+    <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css">
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/sf.css">
+    <script>document.documentElement.setAttribute('data-theme', localStorage.getItem('stockflow-theme') === 'dark' ? 'dark' : 'light'); try { var sfu = JSON.parse(localStorage.getItem('stockflow-ui') || '{}'); for (var k in sfu) document.documentElement.setAttribute('data-' + k, sfu[k]); } catch (e) {}</script>
+    <style>
+        .tabs { display: flex; gap: 6px; margin-bottom: 20px; flex-wrap: wrap; }
+        .tab-btn { padding: 9px 18px; border-radius: 999px; border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-secondary); font-family: var(--font-body); font-size: 13.5px; font-weight: 600; cursor: pointer; }
+        .tab-btn.active { background: var(--accent); color: var(--accent-contrast); border-color: var(--accent); }
+        .tab-pane { display: none; }
+        .tab-pane.active { display: block; }
+        .logo-preview { width: 120px; height: 120px; border-radius: var(--border-radius); border: 1px dashed var(--border-color); background: var(--bg-input) center / contain no-repeat; display: flex; align-items: center; justify-content: center; color: var(--text-muted); }
+        .setting-row { display: grid; grid-template-columns: 1fr 160px; align-items: center; gap: 16px; padding: 14px 0; border-bottom: 1px solid var(--border-light); }
+        .setting-row:last-child { border-bottom: none; }
+        .setting-row h4 { font-size: 14px; color: var(--text-primary); }
+        .setting-row p { font-size: 12.5px; color: var(--text-muted); margin-top: 2px; }
+        /* ---- Personnalisation ---- */
+        .ui-grid { display:grid; grid-template-columns:minmax(0,1fr) 340px; gap:20px; align-items:start; }
+        .ui-group { padding:16px 0; border-bottom:1px solid var(--border-light); }
+        .ui-group:first-child { padding-top:0; }
+        .ui-group:last-child { border-bottom:none; }
+        .ui-group h4 { font-size:13.5px; color:var(--text-primary); margin:0 0 10px; }
+        .ui-opts { display:flex; flex-wrap:wrap; gap:8px; }
+        .ui-opt { display:inline-flex; align-items:center; gap:9px; min-height:40px; padding:8px 14px; border:1px solid var(--input-border); border-radius:8px; background:var(--bg-card); color:var(--text-secondary); font:inherit; font-size:13px; font-weight:600; cursor:pointer; box-shadow:var(--shadow-xs); }
+        .ui-opt:hover { border-color:#b4bcc8; color:var(--text-primary); }
+        .ui-opt.active { border-color:var(--accent); background:var(--accent-soft); color:var(--text-primary); box-shadow:inset 0 0 0 1px var(--accent); }
+        .ui-shape { width:22px; height:16px; border:2px solid currentColor; opacity:.7; }
+        .ui-shape.round { border-radius:6px !important; }
+        .ui-sw { width:18px; height:18px; border-radius:50% !important; flex-shrink:0; box-shadow:inset 0 0 0 1px rgba(0,0,0,.12); }
+        .ui-preview { position:sticky; top:16px; }
+        .ui-preview .card { margin:0; }
+        .ui-prev-row { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
+        .ui-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:16px; }
+        @media (max-width: 1024px) { .ui-grid { grid-template-columns:minmax(0,1fr); } .ui-preview { position:static; } }
+        .setting-row.sp-row { grid-template-columns: 1fr minmax(0,340px); }
+        .sp-list { display:flex; flex-wrap:wrap; gap:6px; }
+        .sp-chip { display:inline-flex; align-items:center; gap:6px; padding:4px 6px 4px 11px; border-radius:999px; background:var(--accent-glow); color:var(--accent-dark); font-size:12.5px; font-weight:700; }
+        .sp-chip button { border:none; background:transparent; color:inherit; font-size:15px; line-height:1; cursor:pointer; padding:0 3px; opacity:.7; }
+        .sp-chip button:hover { opacity:1; }
+        @media (max-width:700px) { .setting-row.sp-row { grid-template-columns: minmax(0,1fr); } }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar" id="sfSidebar"></aside>
+        <main class="main-content">
+            <header class="page-header">
+                <div class="page-title"><h1>Configuration</h1><p>Entreprise, fournisseurs et paramètres</p></div>
+                <div class="page-actions"><div id="sfTools"></div></div>
+            </header>
+            <div class="page-body">
+                <div class="tabs">
+                    <button class="tab-btn active" data-tab="company"><i class="fas fa-building"></i> Entreprise</button>
+                    <button class="tab-btn" data-tab="suppliers"><i class="fas fa-industry"></i> Fournisseurs</button>
+                    <button class="tab-btn" data-tab="params"><i class="fas fa-sliders"></i> Paramètres</button>
+                    <button class="tab-btn" data-tab="proforma"><i class="fas fa-file-invoice"></i> Proforma</button>
+                    <button class="tab-btn" data-tab="ui"><i class="fas fa-palette"></i> Personnalisation</button>
+                </div>
+
+                <!-- ENTREPRISE -->
+                <div class="tab-pane active" id="tab-company">
+                    <div class="card"><div class="card-body">
+                        <form id="companyForm" onsubmit="return false;">
+                            <div style="display:flex;gap:24px;flex-wrap:wrap;align-items:flex-start;margin-bottom:20px;">
+                                <div>
+                                    <div class="logo-preview" id="logoPreview"><i class="fas fa-image fa-2x"></i></div>
+                                    <label class="btn btn-secondary btn-sm" style="margin-top:10px;display:inline-flex;">
+                                        <i class="fas fa-upload"></i> Logo
+                                        <input type="file" id="logoInput" accept="image/*" hidden onchange="Config.previewLogo(event)">
+                                    </label>
+                                </div>
+                                <div style="flex:1;min-width:260px;">
+                                    <div class="form-group"><label>Nom de l'entreprise *</label><input type="text" id="c_name" class="form-control" placeholder="Ex : STOCKFLOW Informatique"></div>
+                                    <div class="form-row">
+                                        <div class="form-group"><label>Téléphone</label><input type="text" id="c_phone" class="form-control"></div>
+                                        <div class="form-group"><label>E-mail</label><input type="email" id="c_email" class="form-control"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="form-group"><label>Adresse</label><input type="text" id="c_address" class="form-control"></div>
+                            <div class="form-row">
+                                <div class="form-group"><label>Site web</label><input type="text" id="c_website" class="form-control" placeholder="www.exemple.mg"></div>
+                                <div class="form-group"><label>Devise</label><input type="text" id="c_currency" class="form-control" value="Ar"></div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group"><label>NIF</label><input type="text" id="c_nif" class="form-control"></div>
+                                <div class="form-group"><label>STAT</label><input type="text" id="c_stat" class="form-control"></div>
+                                <div class="form-group"><label>RCS</label><input type="text" id="c_rcs" class="form-control"></div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group"><label>TVA (%)</label><input type="number" step="0.01" id="c_tva_rate" class="form-control" value="0"></div>
+                            </div>
+                            <div class="form-group"><label>En-tête de facture (haut de page)</label><input type="text" id="c_invoice_header" class="form-control" placeholder="Texte affiché en haut des factures"></div>
+                            <div class="form-group"><label>Remarque de facture</label><textarea id="c_invoice_note" class="form-control" rows="2" placeholder="Ex : Merci de votre confiance."></textarea></div>
+                            <div class="form-group"><label>Pied de page de facture</label><input type="text" id="c_invoice_footer" class="form-control" placeholder="Conditions, mentions légales…"></div>
+                            <div style="text-align:right;"><button class="btn btn-primary" onclick="Config.saveCompany()"><i class="fas fa-save"></i> Enregistrer</button></div>
+                        </form>
+                    </div></div>
+                </div>
+
+                <!-- FOURNISSEURS -->
+                <div class="tab-pane" id="tab-suppliers">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Liste des fournisseurs</h3>
+                            <button class="btn btn-primary btn-sm" onclick="Config.showSupplier()"><i class="fas fa-plus"></i> Ajouter</button>
+                        </div>
+                        <div class="card-body"><div class="table-container">
+                            <table>
+                                <thead><tr><th>Fournisseur</th><th>Contact</th><th>Téléphone</th><th>Garantie</th><th>Étiquettes</th><th>État</th><th style="text-align:right;">Actions</th></tr></thead>
+                                <tbody id="suppliersBody"><tr><td colspan="7" class="sf-skel-cell"><span class="sf-skel sf-skel-line"></span><span class="sf-skel sf-skel-line"></span><span class="sf-skel sf-skel-line"></span></td></tr></tbody>
+                            </table>
+                        </div></div>
+                    </div>
+                </div>
+
+                <!-- PARAMÈTRES -->
+                <div class="tab-pane" id="tab-params">
+                    <div class="card"><div class="card-body">
+                        <div class="setting-row">
+                            <div><h4>Garantie fournisseur par défaut</h4><p>Nombre de jours de garantie appliqué à la réception (sauf valeur propre au fournisseur).</p></div>
+                            <div><input type="number" id="s_default_warranty_days" class="form-control" min="0"> <span class="text-muted" style="font-size:12px;">jours</span></div>
+                        </div>
+                        <div class="setting-row">
+                            <div><h4>Responsable des garanties</h4><p>Utilisateur chargé d'envoyer les garanties au fournisseur. Les retours au fournisseur passent d'abord par sa page « Envoi des garanties » pour validation.</p></div>
+                            <div><select id="s_garantie_responsible_id" class="form-control"><option value="">— Aucun (envoi direct par le stock) —</option></select></div>
+                        </div>
+                        <div class="setting-row">
+                            <div><h4>Responsable des commandes</h4><p>Utilisateur qui passe les commandes chez les fournisseurs : il saisit les <b>bons de commande</b> (articles, quantités, prix de vente, photos de la facture) que le responsable stock vérifie à l'arrivée, avant la réception.</p></div>
+                            <div><select id="s_commande_responsible_id" class="form-control"><option value="">— Aucun (admin uniquement) —</option></select></div>
+                        </div>
+                        <div class="setting-row">
+                            <div><h4>Responsable du service atelier</h4><p>Utilisateur qui reçoit les ordinateurs des clients (diagnostic, entretien, réparation, installation) et imprime leurs étiquettes depuis la page « Service atelier ».</p></div>
+                            <div><select id="s_atelier_responsible_id" class="form-control"><option value="">— Aucun (admin uniquement) —</option></select></div>
+                        </div>
+                        <div class="setting-row">
+                            <div><h4>Responsable de la boutique</h4><p>Commercial (boutique) désigné : <b>seul autorisé à recevoir une « sortie boutique »</b> (stock partagé, vendable par la caisse à tout client). Les autres commerciaux passent par « Réservé à vendre » — unités à leur nom, à rendre si non vendues.</p></div>
+                            <div><select id="s_boutique_responsible_id" class="form-control"><option value="">— Aucun —</option></select></div>
+                        </div>
+                        <div class="setting-row">
+                            <div><h4>Durée d'installation par pièce</h4><p>Minutes allouées à chaque unité en installation/préparation (base du compte à rebours).</p></div>
+                            <div><input type="number" id="s_install_minutes_per_unit" class="form-control" min="1"> <span class="text-muted" style="font-size:12px;">minutes par pièce</span></div>
+                        </div>
+                        <div class="setting-row">
+                            <div><h4>Échange gratuit</h4><p>Nombre de jours après la vente pendant lesquels l'échange est gratuit.</p></div>
+                            <div><input type="number" id="s_exchange_free_days" class="form-control" min="0"> <span class="text-muted" style="font-size:12px;">jours</span></div>
+                        </div>
+                        <div class="setting-row">
+                            <div><h4>Droit d'échange</h4><p>Montant facturé au client pour un échange au-delà du délai gratuit.</p></div>
+                            <div><input type="number" id="s_exchange_fee" class="form-control" min="0"> <span class="text-muted" style="font-size:12px;">Ar</span></div>
+                        </div>
+                        <div class="setting-row">
+                            <div><h4>Alerte livraison impayée</h4><p>Délai après lequel une livraison encore impayée déclenche une alerte.</p></div>
+                            <div><input type="number" id="s_delivery_alert_hours" class="form-control" min="1"> <span class="text-muted" style="font-size:12px;">heures</span></div>
+                        </div>
+                        <div class="setting-row">
+                            <div><h4>Seuil d'alerte admin (livreur)</h4><p>Montant en attente chez un livreur au-delà duquel l'admin est alerté.</p></div>
+                            <div><input type="number" id="s_delivery_alert_amount" class="form-control" min="0"> <span class="text-muted" style="font-size:12px;">Ar</span></div>
+                        </div>
+                        <div class="setting-row">
+                            <div><h4>Forfait « pack cadeau »</h4><p>Montant fixe ajouté à la vente lorsqu'un ou plusieurs accessoires sont offerts avec un ordinateur (peu importe leur valeur totale).</p></div>
+                            <div><input type="number" id="s_gift_pack_amount" class="form-control" min="0"> <span class="text-muted" style="font-size:12px;">Ar</span></div>
+                        </div>
+                        <div class="setting-row">
+                            <div><h4>Délai de paiement d'une avance</h4><p>Vente avec avance : nombre de jours accordés au client pour solder (date limite imprimée sur la facture d'avance).</p></div>
+                            <div><input type="number" id="s_layaway_max_days" class="form-control" min="1"> <span class="text-muted" style="font-size:12px;">jours</span></div>
+                        </div>
+                        <div class="setting-row sp-row">
+                            <div><h4>Pages réseaux sociaux</h4><p>Canal obligatoire d'une commande en ligne : le commercial choisit la page qui a reçu la commande. Analyse par page dans Ventes › Réseaux sociaux.</p></div>
+                            <div style="min-width:0;">
+                                <div id="spList" class="sp-list"></div>
+                                <div style="display:flex;gap:6px;margin-top:8px;"><input type="text" id="spNew" class="form-control" placeholder="Nom de la page" onkeydown="if(event.key==='Enter'){event.preventDefault();Config.spAdd();}"><button type="button" class="btn btn-secondary" onclick="Config.spAdd()"><i class="fas fa-plus"></i></button></div>
+                            </div>
+                        </div>
+                        <div class="setting-row" id="fcRow" style="display:none;">
+                            <div><h4>Accès complet aux chiffres</h4><p>Ces admins voient la page Profits, les marges et le chiffre d'affaires des jours passés. Les autres admins ne voient que le CA du jour.</p></div>
+                            <div id="fcList" style="display:grid;gap:6px;min-width:0;"></div>
+                        </div>
+                        <div class="setting-row">
+                            <div><h4>Conditions de l'avance</h4><p>Texte imprimé sur la facture d'avance, sous les dates de paiement.</p></div>
+                            <div><textarea id="s_layaway_conditions" class="form-control" rows="3"></textarea></div>
+                        </div>
+                        <div style="text-align:right;margin-top:16px;"><button class="btn btn-primary" onclick="Config.saveSettings()"><i class="fas fa-save"></i> Enregistrer</button></div>
+                    </div></div>
+
+                    <div class="card"><div class="card-header"><h3><i class="fas fa-database"></i> Sauvegarde</h3></div>
+                    <div class="card-body">
+                        <p class="text-muted" style="font-size:13px;margin-bottom:12px;"><i class="fas fa-circle-info"></i> Une sauvegarde automatique de la base est créée chaque soir (à partir de 20h). Les 30 dernières sont conservées dans le dossier <code>backups/</code>.</p>
+                        <button class="btn btn-secondary" id="backupBtn" onclick="Config.backupNow()"><i class="fas fa-download"></i> Sauvegarder maintenant</button>
+                        <span id="backupInfo" class="text-muted" style="font-size:12.5px;margin-left:10px;"></span>
+                    </div></div>
+                </div>
+
+                <!-- PROFORMA -->
+                <div class="tab-pane" id="tab-proforma">
+                    <div class="card"><div class="card-body">
+                        <p class="text-muted" style="font-size:13px;margin-bottom:16px;"><i class="fas fa-circle-info"></i> Ces textes apparaissent sur la <strong>facture proforma</strong> (devis). Modifiez-les selon votre activité — ils sont enregistrés et repris sur chaque proforma générée.</p>
+                        <div class="form-group"><label>Slogan (sous le nom de l'entreprise)</label><input type="text" id="s_proforma_tagline" class="form-control" placeholder="Ex : Réparation et vente des produits informatiques"></div>
+                        <div class="form-row">
+                            <div class="form-group" style="max-width:220px;"><label>Validité de l'offre</label><div style="display:flex;align-items:center;gap:8px;"><input type="number" id="s_proforma_validity_days" class="form-control" min="1" style="max-width:110px;"> <span class="text-muted" style="font-size:12px;">jours (tableau de référence)</span></div></div>
+                        </div>
+                        <div class="form-group"><label>Conditions — Validité de l'offre (texte au bas du devis)</label><textarea id="s_proforma_conditions_validity" class="form-control" rows="3" placeholder="Ex : La présente facture proforma est valable pour une durée de sept (07) jours…"></textarea></div>
+                        <div class="form-group"><label>Conditions — Modalités de paiement (texte au bas du devis)</label><textarea id="s_proforma_conditions_payment" class="form-control" rows="4" placeholder="Ex : Le règlement peut être effectué par Mobile Money…"></textarea></div>
+                        <div style="text-align:right;margin-top:8px;"><button class="btn btn-primary" onclick="Config.saveSettings()"><i class="fas fa-save"></i> Enregistrer</button></div>
+                    </div></div>
+                </div>
+                <!-- PERSONNALISATION (commune à tous les postes) -->
+                <div class="tab-pane" id="tab-ui">
+                    <div class="ui-grid">
+                        <div class="card"><div class="card-body" id="uiGroups"></div></div>
+                        <div class="ui-preview">
+                            <div class="card">
+                                <div class="card-header"><h3><i class="fas fa-eye"></i> Aperçu</h3><span class="badge badge-success">Payé</span></div>
+                                <div class="card-body">
+                                    <div class="form-group"><label>Client</label><input type="text" class="form-control" value="Rakoto Jean"></div>
+                                    <div class="table-container"><table><thead><tr><th>Produit</th><th>Total</th></tr></thead>
+                                        <tbody><tr><td>ASUS X515</td><td class="sf-nowrap">1 250 000 Ar</td></tr><tr><td>Souris USB</td><td class="sf-nowrap">25 000 Ar</td></tr></tbody></table></div>
+                                    <div class="ui-prev-row">
+                                        <button type="button" class="btn btn-primary"><i class="fas fa-check"></i> Valider</button>
+                                        <button type="button" class="btn btn-secondary">Annuler</button>
+                                        <button type="button" class="btn btn-danger"><i class="fas fa-trash"></i></button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="ui-actions">
+                                <button class="btn btn-secondary" onclick="Config.uiReset()"><i class="fas fa-rotate-left"></i> Par défaut</button>
+                                <button class="btn btn-primary" onclick="Config.uiSave()"><i class="fas fa-save"></i> Enregistrer</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modale fournisseur -->
+    <div class="modal-overlay" id="supplierModal">
+        <div class="modal" style="max-width:520px;">
+            <div class="modal-header"><h3 id="supplierModalTitle">Nouveau fournisseur</h3><button class="modal-close" onclick="SF.Modal.close('supplierModal')">&times;</button></div>
+            <div class="modal-body">
+                <form id="supplierForm" onsubmit="return false;">
+                    <input type="hidden" id="supId">
+                    <div class="form-group"><label>Nom *</label><input type="text" id="sup_name" class="form-control" required></div>
+                    <div class="form-row">
+                        <div class="form-group"><label>Personne de contact</label><input type="text" id="sup_contact" class="form-control"></div>
+                        <div class="form-group"><label>Téléphone</label><input type="text" id="sup_phone" class="form-control"></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label>E-mail</label><input type="email" id="sup_email" class="form-control"></div>
+                        <div class="form-group"><label>Garantie (jours)</label><input type="number" id="sup_warranty_days" class="form-control" min="0" placeholder="valeur globale par défaut"></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label>Étiquettes par produit</label><input type="number" id="sup_label_count" class="form-control" min="1" value="1"></div>
+                        <div class="form-group"><label>Adresse</label><input type="text" id="sup_address" class="form-control"></div>
+                    </div>
+                    <div class="form-group"><label>Note</label><textarea id="sup_note" class="form-control" rows="2"></textarea></div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="SF.Modal.close('supplierModal')">Annuler</button>
+                <button class="btn btn-primary" onclick="Config.saveSupplier()"><i class="fas fa-save"></i> Enregistrer</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/sf-core.js"></script>
+    <script src="/js/sf-layout.js"></script>
+    <script>
+    const Config = {
+        suppliers: [],
+        async init() {
+            const user = await SF.Auth.require([]);   // admin uniquement
+            this.user = user;
+            if (!user) return;
+            SF.layout({ active: '/config.html' });
+            document.querySelectorAll('.tab-btn').forEach(b => b.onclick = () => this.switchTab(b.dataset.tab));
+            const h = location.hash.slice(1);
+            if (h && document.getElementById('tab-' + h)) this.switchTab(h);
+            this.loadCompany(); this.loadSuppliers(); this.loadSettings();
+        },
+        switchTab(t) {
+            // Aperçu non enregistré : on le montre dans l'onglet, on revient aux réglages en vigueur ailleurs.
+            if (this.uiPrefs) SF.UI.apply(t === 'ui' ? this.uiPrefs : SF.UI.get());
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === t));
+            document.querySelectorAll('.tab-pane').forEach(p => p.classList.toggle('active', p.id === 'tab-' + t));
+        },
+        async loadCompany() {
+            try {
+                const c = await SF.api('/api/config');
+                ['name','phone','email','address','website','currency','nif','stat','rcs','tva_rate','invoice_header','invoice_note','invoice_footer']
+                    .forEach(k => { const el = document.getElementById('c_' + k); if (el && c[k] != null) el.value = c[k]; });
+                if (c.logo) document.getElementById('logoPreview').style.backgroundImage = `url('${c.logo}')`,
+                            document.getElementById('logoPreview').innerHTML = '';
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        previewLogo(e) {
+            const f = e.target.files[0]; if (!f) return;
+            const p = document.getElementById('logoPreview');
+            p.style.backgroundImage = `url('${URL.createObjectURL(f)}')`; p.innerHTML = '';
+        },
+        async saveCompany() {
+            const fd = new FormData();
+            ['name','phone','email','address','website','currency','nif','stat','rcs','tva_rate','invoice_header','invoice_note','invoice_footer']
+                .forEach(k => fd.append(k, document.getElementById('c_' + k).value));
+            const logo = document.getElementById('logoInput').files[0];
+            if (logo) fd.append('logo', logo);
+            try { await SF.api('/api/config', { method: 'PUT', body: fd }); SF.toast('Configuration enregistrée', 'success'); }
+            catch (e) { SF.toast(e.message, 'error'); }
+        },
+        // ---- Personnalisation : appliquée en direct, enregistrée pour tous les postes ----
+        UI_GROUPS: [
+            { key: 'look', title: 'Style', opts: [['soft', 'Doux (2026)', '<i class="fas fa-circle-half-stroke"></i>'], ['classic', 'Classique', '<i class="fas fa-table-cells-large"></i>']] },
+            { key: 'radius', title: 'Bordures', opts: [['round', 'Arrondies', '<span class="ui-shape round"></span>'], ['square', 'Carrées', '<span class="ui-shape"></span>']] },
+            { key: 'accent', title: 'Couleur principale', opts: [['teal', 'Vert canard', '<span class="ui-sw" style="background:#0f6b5f"></span>'], ['blue', 'Bleu', '<span class="ui-sw" style="background:#2f80ed"></span>'], ['emerald', 'Émeraude', '<span class="ui-sw" style="background:#0b7a5c"></span>'], ['navy', 'Bleu marine', '<span class="ui-sw" style="background:#1f4e8c"></span>'], ['petrol', 'Bleu pétrole', '<span class="ui-sw" style="background:#0f6874"></span>'], ['slate', 'Ardoise', '<span class="ui-sw" style="background:#344054"></span>'], ['burgundy', 'Bordeaux', '<span class="ui-sw" style="background:#8c2f39"></span>']] },
+            { key: 'sidebar', title: 'Menu latéral', opts: [['dark', 'Sombre', '<i class="fas fa-square" style="color:#111821"></i>'], ['light', 'Clair', '<i class="far fa-square"></i>']] },
+            { key: 'font', title: "Taille de l'interface", opts: [['sm', 'Petite', ''], ['md', 'Normale', ''], ['lg', 'Grande', '']] },
+            { key: 'density', title: 'Densité', opts: [['comfort', 'Confortable', '<i class="fas fa-grip-lines"></i>'], ['compact', 'Compacte', '<i class="fas fa-bars"></i>']] },
+            { key: 'width', title: 'Largeur du contenu', opts: [['limited', 'Centrée', '<i class="fas fa-compress"></i>'], ['full', 'Pleine largeur', '<i class="fas fa-expand"></i>']] },
+            { key: 'typeface', title: 'Police', opts: [['dmsans', 'DM Sans', ''], ['system', 'Système', '']] },
+            { key: 'motion', title: 'Animations', opts: [['on', 'Activées', ''], ['off', 'Désactivées', '']] },
+        ],
+        uiRender() {
+            const p = this.uiPrefs;
+            document.getElementById('uiGroups').innerHTML = this.UI_GROUPS.map(g => `<div class="ui-group"><h4>${g.title}</h4><div class="ui-opts">${
+                g.opts.map(([v, label, ico]) => `<button type="button" class="ui-opt ${p[g.key] === v ? 'active' : ''}" onclick="Config.uiSet('${g.key}','${v}')">${ico}${label}</button>`).join('')}</div></div>`).join('');
+        },
+        uiSet(k, v) { this.uiPrefs[k] = v; SF.UI.apply(this.uiPrefs); this.uiRender(); },
+        uiReset() { this.uiPrefs = SF.UI.clean({}); SF.UI.apply(this.uiPrefs); this.uiRender(); },
+        async uiSave() {
+            try {
+                await SF.api('/api/settings', { method: 'PUT', body: { ui_prefs: JSON.stringify(this.uiPrefs) } });
+                SF.UI.cache(this.uiPrefs);
+                SF.toast('Personnalisation enregistrée pour tous les postes', 'success');
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        async loadSettings() {
+            try {
+                // Peuple d'abord la liste des utilisateurs (pour le responsable garantie).
+                try {
+                    const users = await SF.api('/api/users');
+                    const sel = document.getElementById('s_garantie_responsible_id');
+                    if (sel) sel.innerHTML = '<option value="">— Aucun (envoi direct par le stock) —</option>' +
+                        users.filter(u => u.active).map(u => `<option value="${u.id}">${SF.esc(u.full_name || u.username)} · ${SF.esc(SF.fmt.roleLabel(u.role))}</option>`).join('');
+                    const csel = document.getElementById('s_commande_responsible_id');
+                    if (csel) csel.innerHTML = '<option value="">— Aucun (admin uniquement) —</option>' +
+                        users.filter(u => u.active).map(u => `<option value="${u.id}">${SF.esc(u.full_name || u.username)} · ${SF.esc(SF.fmt.roleLabel(u.role))}</option>`).join('');
+                    const asel = document.getElementById('s_atelier_responsible_id');
+                    if (asel) asel.innerHTML = '<option value="">— Aucun (admin uniquement) —</option>' +
+                        users.filter(u => u.active).map(u => `<option value="${u.id}">${SF.esc(u.full_name || u.username)} · ${SF.esc(SF.fmt.roleLabel(u.role))}</option>`).join('');
+                    // Responsable boutique : uniquement les commerciaux BOUTIQUE (rôle 'commercial').
+                    const bsel = document.getElementById('s_boutique_responsible_id');
+                    if (bsel) bsel.innerHTML = '<option value="">— Aucun —</option>' +
+                        users.filter(u => u.active && u.role === 'commercial').map(u => `<option value="${u.id}">${SF.esc(u.full_name || u.username)}</option>`).join('');
+                } catch (e) {}
+                const s = await SF.api('/api/settings');
+                Object.keys(s).forEach(k => { const el = document.getElementById('s_' + k); if (el) el.value = s[k]; });
+                SF.api('/api/social-pages').then(r => { this.pages = r.pages || []; this.spRender(); }).catch(() => {});
+                if (this.user && this.user.full_ca) {
+                    try {
+                        const [fc, us] = await Promise.all([SF.api('/api/settings/full-ca'), SF.api('/api/users')]);
+                        const ids = (fc.ids || []).map(Number);
+                        document.getElementById('fcList').innerHTML = us.filter(u => u.role === 'admin' && u.active).map(u =>
+                            `<label style="display:flex;gap:8px;align-items:center;font-size:13.5px;"><input type="checkbox" class="fc-cb" value="${u.id}" ${ids.includes(u.id) ? 'checked' : ''} ${u.id === this.user.id ? 'disabled title="Votre propre accès"' : ''}> ${SF.esc(u.full_name || u.username)} <span class="text-muted">(${SF.esc(u.username)})</span></label>`).join('');
+                        document.getElementById('fcRow').style.display = '';
+                    } catch (e) {}
+                }
+                let up = {}; try { up = s.ui_prefs ? JSON.parse(s.ui_prefs) : {}; } catch (e) {}
+                this.uiPrefs = SF.UI.clean(up); this.uiRender();
+            } catch (e) {}
+        },
+        pages: [],
+        spRender() {
+            const el = document.getElementById('spList'); if (!el) return;
+            el.innerHTML = this.pages.length ? this.pages.map((p, i) => `<span class="sp-chip">${SF.esc(p)}<button type="button" title="Retirer" onclick="Config.spDel(${i})">&times;</button></span>`).join('')
+                : '<span class="text-muted" style="font-size:12.5px;">Aucune page : ajoutez-en au moins une.</span>';
+        },
+        spAdd() {
+            const inp = document.getElementById('spNew'), v = inp.value.trim().replace(/\s+/g, ' ');
+            if (!v) return;
+            if (this.pages.some(p => p.toLowerCase() === v.toLowerCase())) return SF.toast('Page déjà dans la liste', 'error');
+            this.pages.push(v); inp.value = ''; this.spRender();
+        },
+        spDel(i) { this.pages.splice(i, 1); this.spRender(); },
+        async saveSettings() {
+            const keys = ['default_warranty_days','install_minutes_per_unit','exchange_free_days','exchange_fee','delivery_alert_hours','delivery_alert_amount','gift_pack_amount','layaway_max_days','layaway_conditions','garantie_responsible_id','boutique_responsible_id','commande_responsible_id','atelier_responsible_id',
+                          'proforma_tagline','proforma_validity_days','proforma_conditions_validity','proforma_conditions_payment'];
+            const payload = {}; keys.forEach(k => { const el = document.getElementById('s_' + k); if (el) payload[k] = el.value; });
+            if (this.user && this.user.full_ca && document.querySelector('.fc-cb'))
+                payload.full_ca_users = JSON.stringify([...document.querySelectorAll('.fc-cb')].filter(c => c.checked || c.disabled).map(c => Number(c.value)));
+            if (document.getElementById('spList')) {
+                if (!this.pages.length) return SF.toast('Gardez au moins une page réseau social', 'error');
+                payload.social_pages = JSON.stringify(this.pages);
+            }
+            try { await SF.api('/api/settings', { method: 'PUT', body: payload }); SF.toast('Paramètres enregistrés', 'success'); }
+            catch (e) { SF.toast(e.message, 'error'); }
+        },
+        async backupNow() {
+            const btn = document.getElementById('backupBtn'); btn.disabled = true;
+            try {
+                const r = await SF.api('/api/backup', { method: 'POST' });
+                document.getElementById('backupInfo').textContent = 'Sauvegardé : ' + r.file;
+                SF.toast('Sauvegarde créée', 'success');
+            } catch (e) { SF.toast(e.message, 'error'); }
+            btn.disabled = false;
+        },
+        async loadSuppliers() {
+            try {
+                this.suppliers = await SF.api('/api/suppliers?all=1');
+                const body = document.getElementById('suppliersBody');
+                if (!this.suppliers.length) { body.innerHTML = '<tr><td colspan="7" class="text-center text-muted">Aucun fournisseur</td></tr>'; return; }
+                body.innerHTML = this.suppliers.map(s => `
+                    <tr>
+                        <td style="font-weight:600;color:var(--text-primary);">${SF.esc(s.name)}</td>
+                        <td>${SF.esc(s.contact || '—')}</td>
+                        <td>${SF.esc(s.phone || '—')}</td>
+                        <td>${s.warranty_days != null ? s.warranty_days + ' jours' : '<span class="text-muted">par défaut</span>'}</td>
+                        <td>× ${s.label_count != null ? s.label_count : 1}</td>
+                        <td>${s.active ? '<span class="badge badge-success">Actif</span>' : '<span class="badge badge-secondary">Inactif</span>'}</td>
+                        <td style="text-align:right;white-space:nowrap;">
+                            <button class="btn btn-sm btn-secondary" onclick="Config.showSupplier(${s.id})"><i class="fas fa-pen"></i></button>
+                            ${s.active ? `<button class="btn btn-sm btn-danger" onclick="Config.removeSupplier(${s.id})"><i class="fas fa-ban"></i></button>` : ''}
+                        </td>
+                    </tr>`).join('');
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        showSupplier(id) {
+            document.getElementById('supplierForm').reset();
+            document.getElementById('supId').value = '';
+            document.getElementById('supplierModalTitle').textContent = 'Nouveau fournisseur';
+            if (id) {
+                const s = this.suppliers.find(x => x.id === id); if (!s) return;
+                document.getElementById('supId').value = s.id;
+                document.getElementById('supplierModalTitle').textContent = 'Modifier le fournisseur';
+                ['name','contact','phone','email','address','note'].forEach(k => document.getElementById('sup_' + k).value = s[k] || '');
+                document.getElementById('sup_warranty_days').value = s.warranty_days != null ? s.warranty_days : '';
+                document.getElementById('sup_label_count').value = s.label_count != null ? s.label_count : 1;
+            }
+            SF.Modal.open('supplierModal');
+        },
+        async saveSupplier() {
+            const id = document.getElementById('supId').value;
+            const payload = {
+                name: document.getElementById('sup_name').value.trim(),
+                contact: document.getElementById('sup_contact').value.trim(),
+                phone: document.getElementById('sup_phone').value.trim(),
+                email: document.getElementById('sup_email').value.trim(),
+                address: document.getElementById('sup_address').value.trim(),
+                warranty_days: document.getElementById('sup_warranty_days').value,
+                label_count: document.getElementById('sup_label_count').value,
+                note: document.getElementById('sup_note').value.trim(),
+                active: 1
+            };
+            if (!payload.name) return SF.toast('Nom du fournisseur requis', 'error');
+            try {
+                if (id) await SF.api('/api/suppliers/' + id, { method: 'PUT', body: payload });
+                else await SF.api('/api/suppliers', { method: 'POST', body: payload });
+                SF.Modal.close('supplierModal'); SF.toast('Fournisseur enregistré', 'success'); this.loadSuppliers();
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        async removeSupplier(id) {
+            const s = this.suppliers.find(x => x.id === id);
+            if (!await SF.confirm(`Désactiver « ${s.name} » ? Son historique est conservé.`, { danger: true, okLabel: 'Désactiver' })) return;
+            try { await SF.api('/api/suppliers/' + id, { method: 'DELETE' }); SF.toast('Fournisseur désactivé', 'success'); this.loadSuppliers(); }
+            catch (e) { SF.toast(e.message, 'error'); }
+        }
+    };
+    Config.init();
+    </script>
+</body>
+</html>

@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <title>Clients Starlink — STOCKFLOW</title>
+    <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css">
+    <link rel="stylesheet" href="/vendor/leaflet/leaflet.css">
+    <script src="/vendor/leaflet/leaflet.js"></script>
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/sf.css">
+    <script>document.documentElement.setAttribute('data-theme', localStorage.getItem('stockflow-theme') === 'dark' ? 'dark' : 'light'); try { var sfu = JSON.parse(localStorage.getItem('stockflow-ui') || '{}'); for (var k in sfu) document.documentElement.setAttribute('data-' + k, sfu[k]); } catch (e) {}</script>
+    <style>
+        .sk-bar { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:12px; }
+        .sk-bar .search { flex:1; min-width:220px; position:relative; }
+        .sk-bar .search input { padding-left:34px; }
+        .sk-bar .search i { position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-muted); }
+        .sk-seg { display:inline-flex; border:1px solid var(--border-color); border-radius:10px; overflow:hidden; }
+        .sk-seg button { border:0; background:var(--bg-card); color:var(--text-secondary); padding:7px 12px; font-size:13px; font-weight:600; cursor:pointer; }
+        .sk-seg button.on { background:var(--accent); color:#fff; }
+        .sk-tbl { width:100%; border-collapse:collapse; font-size:13px; }
+        .sk-tbl th { font-size:11px; text-transform:uppercase; letter-spacing:.3px; color:var(--text-muted); font-weight:700; padding:8px 6px; border-bottom:1px solid var(--border-color); text-align:left; white-space:nowrap; }
+        .sk-tbl td { padding:9px 6px; border-bottom:1px solid var(--border-color); vertical-align:top; }
+        .sk-tbl tr.click { cursor:pointer; } .sk-tbl tr.click:hover td { background:var(--bg-input); }
+        .sk-nm { font-weight:700; color:var(--text-primary); } .sk-sub { font-size:11.5px; color:var(--text-muted); margin-top:2px; }
+        .sk-mono { font-family:monospace; font-size:12px; }
+        .sk-addr { display:flex; gap:6px; align-items:flex-start; } .sk-addr i { color:var(--accent); margin-top:2px; }
+        .sk-st { display:inline-block; font-size:11px; font-weight:700; padding:2px 8px; border-radius:999px; white-space:nowrap; }
+        .sk-st.vendu { background:rgba(22,163,74,.12); color:var(--success-dark,#15803d); }
+        .sk-st.avance { background:rgba(217,119,6,.14); color:#b45309; }
+        .sk-st.livraison { background:rgba(59,130,246,.14); color:#1d4ed8; }
+        .sk-st.stock { background:var(--bg-input); color:var(--text-muted); }
+        .sk-loc { display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:10px; }
+        .sk-lc { border:1px solid var(--border-color); border-radius:12px; padding:12px 14px; background:var(--bg-card); cursor:pointer; }
+        .sk-lc:hover { box-shadow:0 2px 10px rgba(0,0,0,.07); }
+        .sk-lc .a { font-weight:800; color:var(--text-primary); display:flex; justify-content:space-between; gap:8px; }
+        .sk-lc .a span.n { background:var(--accent); color:#fff; border-radius:999px; padding:0 9px; font-size:12px; }
+        .sk-lc .c { font-size:12.5px; color:var(--text-muted); margin-top:4px; }
+        .sk-dl { display:grid; grid-template-columns:140px 1fr; gap:6px 12px; font-size:13.5px; }
+        .sk-dl .k { color:var(--text-muted); } .sk-dl .v { font-weight:600; color:var(--text-primary); word-break:break-word; }
+        .sk-h4 { font-size:13px; font-weight:800; margin:14px 0 8px; color:var(--text-primary); }
+        .sk-map { height:62vh; min-height:320px; border-radius:12px; border:1px solid var(--border-color); z-index:0; }
+        .sk-mini { height:190px; border-radius:10px; border:1px solid var(--border-color); margin:8px 0; z-index:0; }
+        .sk-gps { display:flex; gap:8px; flex-wrap:wrap; align-items:center; font-size:13px; }
+        .sk-gps .pos { font-family:monospace; font-weight:700; color:var(--text-primary); }
+        .sk-pin { color:#16a34a; } .sk-nopin { color:var(--text-muted); opacity:.6; }
+        .pk-bar { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:8px; }
+        .pk-bar input { flex:1; min-width:200px; }
+        .pk-info { font-size:12.5px; color:var(--text-muted); margin-top:6px; }
+        .pk-info b { color:var(--text-primary); font-family:monospace; }
+        @media (max-width:700px){ .sk-bar .search { min-width:100%; } .sk-dl { grid-template-columns:110px 1fr; } .page-actions .m-lbl { display:none; } }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar" id="sfSidebar"></aside>
+        <main class="main-content">
+            <header class="page-header">
+                <div class="page-title"><h1>Clients Starlink</h1><p>Kits vendus, clients et lieux d'installation</p></div>
+                <div class="page-actions">
+                    <button class="btn btn-secondary" onclick="Sk.exportPDF()"><i class="fas fa-file-pdf"></i><span class="m-lbl"> PDF</span></button>
+                    <button class="btn btn-secondary" onclick="Sk.exportExcel()"><i class="fas fa-file-excel"></i><span class="m-lbl"> Excel</span></button>
+                    <div id="sfTools"></div>
+                </div>
+            </header>
+            <div class="page-body">
+                <div id="tiles"></div>
+                <div class="card">
+                    <div class="card-header">
+                        <div class="sk-seg" id="viewSeg">
+                            <button class="on" data-v="list" onclick="Sk.setView('list')"><i class="fas fa-users"></i> Clients</button>
+                            <button data-v="loc" onclick="Sk.setView('loc')"><i class="fas fa-location-dot"></i> Par localisation</button>
+                            <button data-v="map" onclick="Sk.setView('map')"><i class="fas fa-map-location-dot"></i> Carte</button>
+                        </div>
+                        <div style="display:flex;gap:6px;">
+                            <button class="btn btn-sm btn-success" onclick="Sk.exportExcel()" title="Exporter en Excel (liste filtrée + par localisation)"><i class="fas fa-file-excel"></i> Excel</button>
+                            <button class="btn btn-sm btn-secondary" onclick="Sk.exportPDF()" title="Rapport PDF"><i class="fas fa-file-pdf"></i> PDF</button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="sk-bar">
+                            <div class="search"><i class="fas fa-magnifying-glass"></i><input type="text" id="q" class="form-control" placeholder="Client, téléphone, adresse, n° kit, ID routeur, SN…" oninput="Sk.render()"></div>
+                            <select id="fVer" class="form-control" style="width:auto;" onchange="Sk.render()"><option value="">Toutes versions</option></select>
+                            <div class="sk-seg" id="kindSeg">
+                                <button class="on" data-k="client" onclick="Sk.setKind('client')">Avec client</button>
+                                <button data-k="vendu" onclick="Sk.setKind('vendu')">Vendus</button>
+                                <button data-k="avance" onclick="Sk.setKind('avance')">Avances</button>
+                                <button data-k="stock" onclick="Sk.setKind('stock')">Non vendus</button>
+                                <button data-k="" onclick="Sk.setKind('')">Tous</button>
+                            </div>
+                        </div>
+                        <div id="box"></div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div class="modal-overlay" id="detModal">
+        <div class="modal" style="max-width:620px;">
+            <div class="modal-header"><h3 id="detTitle">Kit Starlink</h3><button class="modal-close" onclick="SF.Modal.close('detModal')">&times;</button></div>
+            <div class="modal-body" id="detBody"></div>
+            <div class="modal-footer"><button class="btn btn-primary" onclick="SF.Modal.close('detModal')">Fermer</button></div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="pickModal" data-no-dismiss style="z-index:2100;">
+        <div class="modal" style="max-width:860px;width:100%;">
+            <div class="modal-header"><h3><i class="fas fa-map-location-dot"></i> Localisation précise du client</h3><button class="modal-close" onclick="Sk.pickClose()">&times;</button></div>
+            <div class="modal-body">
+                <div class="pk-bar">
+                    <button class="btn btn-sm btn-secondary" onclick="Sk.pickMyPos()" title="Position GPS de cet appareil (sur place chez le client)"><i class="fas fa-location-crosshairs"></i> Ma position</button>
+                    <input type="text" id="pk_paste" class="form-control" placeholder="Coller un lien Google Maps ou « latitude, longitude »" onkeydown="if(event.key==='Enter'){event.preventDefault();Sk.pickPaste();}">
+                    <button class="btn btn-sm btn-secondary" onclick="Sk.pickPaste()"><i class="fas fa-arrow-right"></i> Aller</button>
+                </div>
+                <div id="pickMap" class="sk-map"></div>
+                <div class="pk-info" id="pk_info"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="Sk.pickClose()">Annuler</button>
+                <button class="btn btn-secondary" onclick="Sk.pickClear()"><i class="fas fa-eraser"></i> Sans position</button>
+                <button class="btn btn-primary" onclick="Sk.pickOk()"><i class="fas fa-check"></i> Valider la position</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/sf-core.js"></script>
+    <script src="/js/sf-layout.js"></script>
+    <script src="/js/sf-report.js"></script>
+    <script>
+    const Sk = {
+        rows: [], view: 'list', kind: 'client', config: {}, loc: null,
+        KIND: { vendu: 'Vendu', livraison: 'En livraison', avance: 'Avance', stock: 'Non vendu' },
+        async init() {
+            const u = await SF.Auth.require([]); if (!u) return;   // admin uniquement
+            SF.layout({ active: '/starlink-clients.html' });
+            try { this.config = await SF.api('/api/config'); } catch (e) {}
+            ['sale:new', 'stock:update', 'layaway:update'].forEach(ev => SF.on(ev, () => this.load()));
+            this.load();
+        },
+        async load() {
+            try {
+                this.rows = await SF.api('/api/starlink/clients');
+                const vers = [...new Set(this.rows.map(r => r.version).filter(Boolean))].sort();
+                const sel = document.getElementById('fVer'), cur = sel.value;
+                sel.innerHTML = '<option value="">Toutes versions</option>' + vers.map(v => `<option value="${SF.esc(v)}">${SF.esc(v)}</option>`).join('');
+                if (vers.includes(cur)) sel.value = cur;
+                this.render();
+            } catch (e) { document.getElementById('box').innerHTML = `<div class="text-muted">${SF.esc(e.message)}</div>`; }
+        },
+        setView(v) { this.view = v; document.querySelectorAll('#viewSeg button').forEach(b => b.classList.toggle('on', b.dataset.v === v)); this.render(); },
+        setKind(k) { this.kind = k; document.querySelectorAll('#kindSeg button').forEach(b => b.classList.toggle('on', b.dataset.k === k)); this.render(); },
+        // Localité = adresse normalisée (casse, espaces, ponctuation finale) pour regrouper les clients d'un même lieu.
+        locKey(a) { return String(a || '').trim().replace(/\s+/g, ' ').replace(/[.,;]+$/, '').toLowerCase(); },
+        filtered() {
+            const words = document.getElementById('q').value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+            const ver = document.getElementById('fVer').value;
+            return this.rows.filter(r => {
+                if (ver && r.version !== ver) return false;
+                if (this.loc != null && this.locKey(r.address) !== this.loc) return false;
+                if (this.kind === 'client' && r.kind === 'stock') return false;
+                if (this.kind === 'vendu' && !['vendu', 'livraison'].includes(r.kind)) return false;
+                if (['avance', 'stock'].includes(this.kind) && r.kind !== this.kind) return false;
+                const hay = [r.client_name, r.client_phone, r.address, r.serial, r.router_id, r.dish_sn, r.version, r.ref, r.commercial].join(' ').toLowerCase();
+                return words.every(w => hay.includes(w));
+            });
+        },
+        st(r) { return `<span class="sk-st ${r.kind}">${this.KIND[r.kind] || r.kind}</span>`; },
+        render() {
+            this.renderTiles();
+            const list = this.filtered();
+            this._list = list;
+            const box = document.getElementById('box');
+            if (!list.length && this.loc != null) { this.loc = null; return this.render(); }
+            if (!list.length) { box.innerHTML = '<div class="text-muted" style="padding:20px;text-align:center;">Aucun kit Starlink pour ce filtre.</div>'; return; }
+            if (this.view === 'loc') return this.renderLoc(list);
+            if (this.view === 'map') return this.renderMap(list);
+            const chip = this.loc != null ? `<div style="margin-bottom:10px;"><span class="sk-st livraison" style="font-size:12.5px;padding:5px 12px;"><i class="fas fa-location-dot"></i> ${SF.esc(this.locLabel)} — ${list.length} kit(s) <a style="cursor:pointer;margin-left:6px;" onclick="Sk.clearLoc()" title="Retirer le filtre"><i class="fas fa-xmark"></i></a></span></div>` : '';
+            box.innerHTML = chip + `<div class="table-container"><table class="sk-tbl">
+                <thead><tr><th>Client</th><th>Adresse (installation)</th><th>Kit</th><th>Antenne / routeur</th><th>Statut</th><th>Date</th><th class="text-right">Prix</th></tr></thead>
+                <tbody>${list.map((r, i) => `<tr class="click" onclick="Sk.open(${i})">
+                    <td>${r.client_name ? `<div class="sk-nm">${SF.esc(r.client_name)}</div><div class="sk-sub"><i class="fas fa-phone"></i> ${SF.esc(r.client_phone || '—')}</div>` : '<span class="text-muted">—</span>'}</td>
+                    <td>${r.address ? `<div class="sk-addr"><i class="fas fa-location-dot ${r.lat != null ? 'sk-pin' : 'sk-nopin'}" title="${r.lat != null ? 'Position GPS enregistrée' : 'Pas de position GPS'}"></i><span>${SF.esc(r.address)}</span></div>` : (r.client_name ? `<a class="btn btn-sm btn-secondary" onclick="event.stopPropagation();Sk.open(${i}, true)"><i class="fas fa-plus"></i> Ajouter l'adresse</a>` : '')}</td>
+                    <td><div class="sk-nm">Starlink ${SF.esc(r.version)}</div><div class="sk-sub sk-mono">${SF.esc(r.serial || '')}</div></td>
+                    <td class="sk-mono">${r.router_id ? `Routeur ${SF.esc(r.router_id)}` : ''}${r.dish_sn ? `<div class="sk-sub sk-mono">Dish ${SF.esc(r.dish_sn)}</div>` : ''}</td>
+                    <td>${this.st(r)}${r.ref ? `<div class="sk-sub">${SF.esc(r.ref)}</div>` : ''}</td>
+                    <td style="white-space:nowrap;">${r.date ? SF.fmt.date(String(r.date).slice(0, 10)) : '—'}</td>
+                    <td class="text-right" style="white-space:nowrap;">${SF.fmt.ar(r.price)}${r.kind === 'avance' ? `<div class="sk-sub">avance ${SF.fmt.ar(r.deposit)}</div>` : ''}</td></tr>`).join('')}</tbody></table></div>`;
+        },
+        renderLoc(list) {
+            const m = new Map();
+            list.filter(r => r.client_name).forEach(r => {
+                const k = this.locKey(r.address) || '(adresse non renseignée)';
+                const g = m.get(k) || { label: r.address || '(adresse non renseignée)', rows: [] };
+                g.rows.push(r); m.set(k, g);
+            });
+            const groups = [...m.values()].sort((a, b) => b.rows.length - a.rows.length || a.label.localeCompare(b.label));
+            this._groups = groups;
+            document.getElementById('box').innerHTML = groups.length ? `<div class="sk-loc">${groups.map((g, i) => `<div class="sk-lc" onclick="Sk.openLoc(${i})">
+                <div class="a"><span><i class="fas fa-location-dot" style="color:var(--accent);"></i> ${SF.esc(g.label)}</span><span class="n">${g.rows.length}</span></div>
+                <div class="c">${SF.esc([...new Set(g.rows.map(r => r.client_name))].join(', '))}</div>
+                <div class="c">${SF.esc([...new Set(g.rows.map(r => 'Starlink ' + r.version))].join(' · '))}</div></div>`).join('')}</div>`
+                : '<div class="text-muted" style="padding:20px;text-align:center;">Aucun client pour ce filtre.</div>';
+        },
+        // Clic sur une localisation : liste de ses clients (filtre exact sur l'adresse normalisée).
+        openLoc(i) {
+            const g = (this._groups || [])[i]; if (!g) return;
+            this.loc = this.locKey(g.rows[0].address); this.locLabel = g.label;
+            this.setView('list');
+        },
+        clearLoc() { this.loc = null; this.render(); },
+        open(i, edit) {
+            const r = (this._list || [])[i]; if (!r) return;
+            this.cur = r;
+            const row = (k, v) => v ? `<div class="k">${k}</div><div class="v">${v}</div>` : '';
+            document.getElementById('detTitle').textContent = `Starlink ${r.version} — ${r.serial || ''}`;
+            const others = r.client_phone ? this.rows.filter(x => x !== r && x.client_phone && x.client_phone.replace(/\D/g, '') === r.client_phone.replace(/\D/g, '')) : [];
+            document.getElementById('detBody').innerHTML = `
+                <div class="sk-h4" style="margin-top:0;display:flex;justify-content:space-between;align-items:center;"><span><i class="fas fa-user"></i> Client</span>
+                    ${r.client_name ? `<button class="btn btn-sm btn-secondary" onclick="Sk.editClient()"><i class="fas fa-pen"></i> Modifier les coordonnées</button>` : ''}</div>
+                <div id="skEdit" style="display:none;"></div>
+                <div class="sk-dl">${r.client_name ? row('Nom', SF.esc(r.client_name)) + row('Téléphone', r.client_phone ? `<a href="tel:${SF.esc(r.client_phone)}">${SF.esc(r.client_phone)}</a>` : '—')
+                    + row('Adresse', SF.esc(r.address || 'non renseignée'))
+                    + row('Position GPS', r.lat != null ? `<span class="sk-mono">${(+r.lat).toFixed(6)}, ${(+r.lng).toFixed(6)}</span>`
+                        : `<span class="text-muted">non localisé</span> <a class="btn btn-sm btn-secondary" style="margin-left:6px;" onclick="Sk.editClient(true)"><i class="fas fa-map-location-dot"></i> Localiser sur la carte</a>`)
+                    + row('Commercial', SF.esc(r.commercial || '—')) : row('Client', '<span class="text-muted">Kit non vendu</span>')}</div>
+                ${r.lat != null ? `<div id="detMap" class="sk-mini"></div>
+                    <div class="sk-gps"><a class="btn btn-sm btn-secondary" target="_blank" rel="noopener" href="${this.gmaps(r.lat, r.lng)}"><i class="fas fa-map"></i> Ouvrir dans Google Maps</a>
+                    <a class="btn btn-sm btn-secondary" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&destination=${r.lat},${r.lng}"><i class="fas fa-route"></i> Itinéraire</a></div>` : ''}
+                <div class="sk-h4"><i class="fas fa-satellite-dish"></i> Kit</div>
+                <div class="sk-dl">${row('Version', SF.esc(r.version || '—')) + row('N° kit', `<span class="sk-mono">${SF.esc(r.serial || '—')}</span>`)
+                    + row('ID routeur', `<span class="sk-mono">${SF.esc(r.router_id || '—')}</span>`) + row('SN antenne', `<span class="sk-mono">${SF.esc(r.dish_sn || '—')}</span>`)
+                    + row('Garantie jusqu\'au', r.warranty_end ? SF.fmt.date(r.warranty_end) : '') + row('Réception', r.received_at ? SF.fmt.date(String(r.received_at).slice(0, 10)) : '')}</div>
+                <div class="sk-h4"><i class="fas fa-receipt"></i> ${r.kind === 'avance' ? 'Avance' : 'Vente'}</div>
+                <div class="sk-dl">${row('Statut', this.st(r)) + row(r.kind === 'avance' ? 'Facture d\'avance' : 'Facture', r.ref ? SF.esc(r.ref) : '—')
+                    + row('Date', r.date ? SF.fmt.datetime(r.date) : '—') + row('Prix', SF.fmt.ar(r.price))
+                    + (r.kind === 'avance' ? row('Avance versée', SF.fmt.ar(r.deposit)) + row('Reste', SF.fmt.ar((r.lay_total || 0) - (r.deposit || 0))) + row('Date limite', r.lay_due ? SF.fmt.date(r.lay_due) : '') : '')
+                    + (r.delivery_number ? row('Livraison', '#' + SF.esc(r.delivery_number)) : '')}</div>
+                ${others.length ? `<div class="sk-h4"><i class="fas fa-layer-group"></i> Autres kits de ce client (${others.length})</div>
+                    <div class="sk-dl">${others.map(o => row(SF.esc(o.serial || ''), `Starlink ${SF.esc(o.version)} · routeur ${SF.esc(o.router_id || '—')} · ${this.KIND[o.kind]}`)).join('')}</div>` : ''}`;
+            SF.Modal.open('detModal');
+            if (r.lat != null) setTimeout(() => {
+                if (this._detMap) { this._detMap.remove(); this._detMap = null; }
+                const m = this.mkMap('detMap', { sat: true, zoom: 17, center: [r.lat, r.lng] });
+                L.marker([r.lat, r.lng]).addTo(m); this._detMap = m;
+                setTimeout(() => { m.invalidateSize(); m.setView([r.lat, r.lng], 17); }, 300);
+            }, 250);
+            if (edit && r.client_name) this.editClient();
+        },
+        // ── Cartes (Leaflet, fonds OpenStreetMap / satellite Esri) ──
+        CENTER: [-18.8792, 47.5079],   // Antananarivo
+        gmaps(lat, lng) { return `https://www.google.com/maps?q=${lat},${lng}`; },
+        mkMap(id, o = {}) {
+            // OpenStreetMap exige un « Referer » : la page envoie « Referrer-Policy: same-origin » (rien vers l'extérieur),
+            // on autorise donc pour ces tuiles l'envoi de l'ORIGINE seule (sinon 403 « Access blocked »).
+            const plan = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap', referrerPolicy: 'strict-origin-when-cross-origin' });
+            const plan2 = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, attribution: 'Plan © Esri' });
+            const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, attribution: 'Imagerie © Esri' });
+            const m = L.map(id, { center: o.center || this.CENTER, zoom: o.zoom || 12, layers: [o.sat ? sat : plan] });
+            L.control.layers({ 'Plan (OpenStreetMap)': plan, 'Plan (Esri)': plan2, 'Satellite': sat }).addTo(m);
+            // Repli automatique : tuiles OSM refusées → plan Esri.
+            let fails = 0;
+            plan.on('tileerror', () => { if (++fails === 3 && m.hasLayer(plan)) { m.removeLayer(plan); plan2.addTo(m); } });
+            return m;
+        },
+        // Lien Google Maps (…@lat,lng…, !3dlat!4dlng, ?q=lat,lng) ou texte « lat, lng » → [lat, lng].
+        parseCoords(txt) {
+            const t = String(txt || '').trim();
+            const m = t.match(/@(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/) || t.match(/!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/)
+                || t.match(/[?&](?:q|query|ll|destination)=(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)/) || t.match(/(-?\d{1,2}\.\d+)\s*[,; ]\s*(-?\d{1,3}\.\d+)/);
+            if (!m) return null;
+            const lat = +m[1], lng = +m[2];
+            return Math.abs(lat) <= 90 && Math.abs(lng) <= 180 ? [lat, lng] : null;
+        },
+        // Modale carte : toucher la carte pose le repère, il se déplace en le faisant glisser.
+        openPicker() {
+            SF.Modal.open('pickModal');
+            document.getElementById('pk_paste').value = '';
+            setTimeout(() => {
+                const has = this.edLat != null;
+                if (!this._pickMap) {
+                    this._pickMap = this.mkMap('pickMap', { sat: true, zoom: has ? 18 : 12, center: has ? [this.edLat, this.edLng] : this.CENTER });
+                    this._pickMap.on('click', e => this.pickSet(e.latlng.lat, e.latlng.lng, false));
+                } else {
+                    this._pickMap.invalidateSize();
+                    this._pickMap.setView(has ? [this.edLat, this.edLng] : this.CENTER, has ? 18 : 12);
+                }
+                this.pkLat = this.edLat; this.pkLng = this.edLng;
+                if (this._pickMarker) { this._pickMarker.remove(); this._pickMarker = null; }
+                if (has) this.pickSet(this.edLat, this.edLng, false);
+                this.pickInfo();
+            }, 250);
+        },
+        pickSet(lat, lng, fly) {
+            this.pkLat = +(+lat).toFixed(6); this.pkLng = +(+lng).toFixed(6);
+            if (!this._pickMarker) {
+                this._pickMarker = L.marker([this.pkLat, this.pkLng], { draggable: true }).addTo(this._pickMap);
+                this._pickMarker.on('dragend', () => { const p = this._pickMarker.getLatLng(); this.pkLat = +p.lat.toFixed(6); this.pkLng = +p.lng.toFixed(6); this.pickInfo(); });
+            } else this._pickMarker.setLatLng([this.pkLat, this.pkLng]);
+            if (fly) this._pickMap.setView([this.pkLat, this.pkLng], 18);
+            this.pickInfo();
+        },
+        pickInfo(extra) {
+            document.getElementById('pk_info').innerHTML = (this.pkLat != null
+                ? `<i class="fas fa-location-dot" style="color:var(--accent);"></i> Position : <b>${this.pkLat}, ${this.pkLng}</b> — faites glisser le repère pour ajuster.`
+                : '<i class="fas fa-hand-pointer"></i> Touchez la carte à l\'endroit exact de l\'installation (passez en « Satellite » pour voir les maisons).') + (extra ? `<br>${extra}` : '');
+        },
+        pickMyPos() {
+            if (!navigator.geolocation) return SF.toast('Géolocalisation non disponible sur cet appareil', 'warn');
+            SF.toast('Recherche de la position GPS…', 'info', 2000);
+            navigator.geolocation.getCurrentPosition(
+                p => { this.pickSet(p.coords.latitude, p.coords.longitude, true); this.pickInfo(`Précision ≈ ${Math.round(p.coords.accuracy)} m`); },
+                e => SF.toast('Position introuvable : ' + (e.code === 1 ? 'autorisation refusée' : e.message), 'error'),
+                { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
+        },
+        pickPaste() {
+            const v = document.getElementById('pk_paste').value;
+            const c = this.parseCoords(v);
+            if (!c) return SF.toast(/goo\.gl|maps\.app/i.test(v) ? 'Lien court : ouvrez-le, puis copiez le lien complet (ou les coordonnées) depuis Google Maps' : 'Coordonnées introuvables dans ce texte', 'warn', 5000);
+            this.pickSet(c[0], c[1], true);
+        },
+        pickOk() {
+            if (this.pkLat == null) return SF.toast('Touchez la carte pour placer le repère', 'warn');
+            this.edLat = this.pkLat; this.edLng = this.pkLng;
+            this.edGpsRender(); SF.Modal.close('pickModal');
+        },
+        pickClear() { this.edLat = null; this.edLng = null; this.edGpsRender(); SF.Modal.close('pickModal'); },
+        pickClose() { SF.Modal.close('pickModal'); },
+        edGpsRender() {
+            const el = document.getElementById('ed_gps'); if (!el) return;
+            el.innerHTML = this.edLat != null
+                ? `<i class="fas fa-location-dot sk-pin"></i> <span class="pos">${this.edLat}, ${this.edLng}</span> <a href="${this.gmaps(this.edLat, this.edLng)}" target="_blank" rel="noopener" style="font-size:12px;">voir</a>`
+                : '<span class="text-muted">Aucune position</span>';
+        },
+        // ── Vue « Carte » : tous les clients localisés ──
+        renderMap(list) {
+            const pts = list.filter(r => r.lat != null);
+            const miss = list.filter(r => r.client_name && r.lat == null).length;
+            document.getElementById('box').innerHTML = `<div class="pk-info" style="margin:0 0 8px;"><i class="fas fa-location-dot sk-pin"></i> ${pts.length} client(s) localisé(s)${miss ? ` · <a style="cursor:pointer;" onclick="Sk.setView('list')">${miss} sans position GPS</a>` : ''}</div><div id="allMap" class="sk-map"></div>`;
+            if (this._allMap) { this._allMap.remove(); this._allMap = null; }
+            const m = this.mkMap('allMap', { zoom: 11 });
+            const b = [];
+            pts.forEach(r => {
+                const i = list.indexOf(r);
+                L.marker([r.lat, r.lng]).addTo(m).bindPopup(`<b>${SF.esc(r.client_name || '')}</b><br>${SF.esc(r.client_phone || '')}<br>${SF.esc(r.address || '')}<br>Starlink ${SF.esc(r.version)} · ${SF.esc(r.serial || '')}<br>
+                    <a href="${this.gmaps(r.lat, r.lng)}" target="_blank" rel="noopener">Google Maps</a> · <a style="cursor:pointer;" onclick="Sk.open(${i})">Détail</a>`);
+                b.push([r.lat, r.lng]);
+            });
+            const fit = () => { if (b.length === 1) m.setView(b[0], 16); else if (b.length) m.fitBounds(b, { padding: [30, 30], maxZoom: 16 }); };
+            fit();
+            // Taille définitive du conteneur connue après l'affichage : recalcul (sinon tuiles grises / mauvais zoom).
+            setTimeout(() => { m.invalidateSize(); fit(); }, 250);
+            this._allMap = m;
+        },
+        // Formulaire de coordonnées (admin) : nom, téléphone (≥ 10 chiffres), adresse d'installation.
+        editClient(withMap) {
+            const r = this.cur; if (!r) return;
+            this.edLat = r.lat != null ? +r.lat : null; this.edLng = r.lng != null ? +r.lng : null;
+            const box = document.getElementById('skEdit');
+            box.style.display = '';
+            box.innerHTML = `<div style="border:1px solid var(--border-color);border-radius:12px;padding:12px;margin-bottom:10px;background:var(--bg-input);">
+                <div class="form-row">
+                    <div class="form-group"><label>Nom du client *</label><input type="text" id="ed_name" class="form-control" value="${SF.esc(r.client_name || '')}"></div>
+                    <div class="form-group"><label>Téléphone *</label><input type="text" id="ed_phone" class="form-control" inputmode="tel" value="${SF.esc(r.client_phone || '')}"></div>
+                </div>
+                <div class="form-group"><label>Adresse (lieu d'installation) *</label><input type="text" id="ed_address" class="form-control" placeholder="Quartier, ville…" value="${SF.esc(r.address || '')}"></div>
+                <div class="form-group"><label>Position GPS (localisation précise)</label>
+                    <div class="sk-gps"><span id="ed_gps"></span>
+                        <button type="button" class="btn btn-sm btn-primary" onclick="Sk.openPicker()"><i class="fas fa-map-location-dot"></i> Choisir sur la carte</button></div></div>
+                <p class="text-muted" style="font-size:11.5px;margin:0 0 8px;">Mis à jour sur la ${r.kind === 'avance' ? "facture d'avance" : 'facture (et la livraison)'} ${SF.esc(r.ref || '')}${r.kind !== 'avance' ? ' — tous les articles de cette facture sont concernés' : ''}.</p>
+                <div style="display:flex;gap:8px;justify-content:flex-end;">
+                    <button class="btn btn-sm btn-secondary" onclick="document.getElementById('skEdit').style.display='none'">Annuler</button>
+                    <button class="btn btn-sm btn-primary" id="ed_save" onclick="Sk.saveClient()"><i class="fas fa-save"></i> Enregistrer</button>
+                </div></div>`;
+            this.edGpsRender();
+            if (withMap) this.openPicker(); else document.getElementById(r.address ? 'ed_name' : 'ed_address').focus();
+        },
+        async saveClient() {
+            const r = this.cur; if (!r) return;
+            if (!SF.checkClient('ed_name', 'ed_phone')) return;
+            const address = document.getElementById('ed_address').value.trim();
+            if (!address) { document.getElementById('ed_address').focus(); return SF.toast("L'adresse est obligatoire", 'warn'); }
+            const btn = document.getElementById('ed_save'); btn.disabled = true;
+            try {
+                await SF.api(`/api/starlink/clients/${r.unit_id}`, { method: 'PUT', body: {
+                    name: document.getElementById('ed_name').value.trim(), phone: document.getElementById('ed_phone').value.trim(), address,
+                    lat: this.edLat == null ? '' : this.edLat, lng: this.edLng == null ? '' : this.edLng } });
+                SF.toast('Coordonnées du client enregistrées', 'success');
+                SF.Modal.close('detModal');
+                await this.load();
+            } catch (e) { SF.toast(e.message, 'error'); btn.disabled = false; }
+        },
+        renderTiles() {
+            const R = this.rows;
+            const n = k => R.filter(r => r.kind === k).length;
+            const clients = new Set(R.filter(r => r.client_phone).map(r => r.client_phone.replace(/\D/g, ''))).size;
+            const locs = new Set(R.filter(r => r.client_name && r.address).map(r => this.locKey(r.address))).size;
+            const noAddr = R.filter(r => r.client_name && !r.address).length;
+            document.getElementById('tiles').innerHTML = SF.tileGroup('Starlink', 'fa-satellite-dish', [
+                SF.tile({ label: 'Kits vendus', value: n('vendu') + n('livraison'), icon: 'fa-check', tone: 'green', sub: n('livraison') ? `dont ${n('livraison')} en livraison` : '', onclick: "Sk.setKind('vendu')" }),
+                SF.tile({ label: 'En avance', value: n('avance'), icon: 'fa-hand-holding-dollar', tone: 'yellow', onclick: "Sk.setKind('avance')" }),
+                SF.tile({ label: 'Non vendus', value: n('stock'), icon: 'fa-boxes-stacked', tone: 'blue', sub: 'stock / boutique', onclick: "Sk.setKind('stock')" }),
+                SF.tile({ label: 'Clients', value: clients, icon: 'fa-users', tone: 'teal', onclick: "Sk.setKind('client')" }),
+                SF.tile({ label: 'Localisations', value: locs, icon: 'fa-location-dot', tone: 'violet', sub: noAddr ? `${noAddr} sans adresse` : '', onclick: "Sk.setView('loc')" })
+            ].join(''));
+        },
+        reportRows() {
+            return this.filtered().map(r => ({ ...r, kind_l: this.KIND[r.kind] || r.kind, date_l: r.date ? SF.fmt.date(String(r.date).slice(0, 10)) : '' }));
+        },
+        exportPDF(fmt) {
+            const rows = this.reportRows();
+            if (!rows.length) return SF.toast('Aucune donnée à exporter', 'warn');
+            const opts = {
+                company: this.config, title: 'Clients Starlink', filename: 'Clients-Starlink.pdf',
+                period: `${rows.length} kit(s) — édité le ${SF.fmt.date(SF.fmt.today())}`,
+                summary: [
+                    { label: 'Kits', value: rows.length },
+                    { label: 'Vendus', value: rows.filter(r => ['vendu', 'livraison'].includes(r.kind)).length },
+                    { label: 'Avances', value: rows.filter(r => r.kind === 'avance').length },
+                    { label: 'Clients', value: new Set(rows.filter(r => r.client_phone).map(r => r.client_phone.replace(/\D/g, ''))).size }
+                ],
+                sections: [{
+                    heading: 'Kits Starlink et clients',
+                    columns: [
+                        { header: 'Client', key: 'client_name', width: 38, format: v => v || '—' },
+                        { header: 'Téléphone', key: 'client_phone', width: 26, format: v => v || '' },
+                        { header: 'Adresse', key: 'address', width: 52, format: v => v || '' },
+                        { header: 'Version', key: 'version', width: 24 },
+                        { header: 'N° kit', key: 'serial', width: 22 },
+                        { header: 'ID routeur', key: 'router_id', width: 28, format: v => v || '' },
+                        { header: 'SN antenne', key: 'dish_sn', width: 26, format: v => v || '' },
+                        { header: 'Statut', key: 'kind_l', width: 18 },
+                        { header: 'Date', key: 'date_l', width: 18 },
+                        { header: 'Prix', key: 'price', width: 24, align: 'right', format: v => SFReport.fmtNum(v) }
+                    ],
+                    rows
+                }]
+            };
+            if (fmt === 'xlsx') return SFReport.excel(opts);
+            SFReport.build(opts);
+        },
+        // Excel : feuille « Kits & clients » (liste filtrée, détaillée) + feuille « Par localisation ».
+        async exportExcel() {
+            const rows = this.reportRows();
+            if (!rows.length) return SF.toast('Aucune donnée à exporter', 'warn');
+            try { await SFReport.loadXlsx(); } catch (e) { return SF.toast(e.message, 'error'); }
+            const company = (this.config && this.config.name) || 'STOCKFLOW', meta = SFReport.editedLine();
+            const n = v => Number(v) || 0;
+            const kits = SFXlsx.table({
+                name: 'Kits & clients', company, title: 'Clients Starlink', subtitle: `${rows.length} kit(s)`, meta,
+                columns: [
+                    { header: 'Client', width: 26 }, { header: 'Téléphone', width: 16 }, { header: 'Adresse (installation)', width: 34 },
+                    { header: 'Version', width: 16 }, { header: 'N° kit', width: 14 }, { header: 'ID routeur', width: 20 }, { header: 'SN antenne', width: 20 },
+                    { header: 'Statut', width: 13 }, { header: 'Facture / avance', width: 17 }, { header: 'Date', width: 12 }, { header: 'Commercial', width: 20 },
+                    { header: 'Prix', type: 'money' }, { header: 'Avance versée', type: 'money' }, { header: 'Reste', type: 'money' }, { header: 'Date limite avance', width: 14 },
+                    { header: 'Position GPS', width: 22 }, { header: 'Lien Google Maps', width: 40 }
+                ],
+                rows: rows.map(r => [r.client_name || '', r.client_phone || '', r.address || '', r.version, r.serial || '', r.router_id || '', r.dish_sn || '',
+                    r.kind_l, r.ref || '', r.date_l, r.commercial || '', n(r.price),
+                    r.kind === 'avance' ? n(r.deposit) : '', r.kind === 'avance' ? n(r.lay_total) - n(r.deposit) : '', r.lay_due ? SF.fmt.date(r.lay_due) : '',
+                    r.lat != null ? `${r.lat}, ${r.lng}` : '', r.lat != null ? this.gmaps(r.lat, r.lng) : '']),
+                totals: ['Total', '', '', '', '', '', '', '', '', '', '', 'sum', 'sum', 'sum', '', '', '']
+            });
+            const m = new Map();
+            rows.filter(r => r.client_name).forEach(r => {
+                const k = this.locKey(r.address) || '(non renseignée)';
+                const g = m.get(k) || { label: r.address || '(adresse non renseignée)', rows: [] };
+                g.rows.push(r); m.set(k, g);
+            });
+            const groups = [...m.values()].sort((a, b) => b.rows.length - a.rows.length);
+            const locs = SFXlsx.table({
+                name: 'Par localisation', company, title: 'Clients Starlink — par localisation', subtitle: `${groups.length} localisation(s)`, meta,
+                columns: [{ header: 'Localisation', width: 34 }, { header: 'Kits', type: 'num' }, { header: 'Clients', width: 44 }, { header: 'Versions', width: 30 }, { header: 'Montant', type: 'money' }],
+                rows: groups.map(g => [g.label, g.rows.length, [...new Set(g.rows.map(r => `${r.client_name} (${r.client_phone || ''})`))].join(', '),
+                    [...new Set(g.rows.map(r => r.version))].join(', '), g.rows.reduce((t, r) => t + n(r.price), 0)]),
+                totals: ['Total', 'sum', '', '', 'sum']
+            });
+            SFXlsx.download(SFReport.stampName('Clients-Starlink', 'xlsx'), { title: 'Clients Starlink', author: company, footer: company + ' · Clients Starlink', sheets: [kits, locs] });
+            SF.toast(`Export Excel : ${rows.length} kit(s)`, 'success');
+        }
+    };
+    Sk.init();
+    </script>
+</body>
+</html>

@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <title>Corbeille — STOCKFLOW</title>
+    <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css">
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/sf.css">
+    <script>document.documentElement.setAttribute('data-theme', localStorage.getItem('stockflow-theme') === 'dark' ? 'dark' : 'light'); try { var sfu = JSON.parse(localStorage.getItem('stockflow-ui') || '{}'); for (var k in sfu) document.documentElement.setAttribute('data-' + k, sfu[k]); } catch (e) {}</script>
+    <style>
+        .cb-search { position:relative; margin-bottom:14px; }
+        .cb-search i { position:absolute; left:16px; top:50%; transform:translateY(-50%); color:var(--text-muted); }
+        .cb-search input { width:100%; min-height:46px; padding:12px 16px 12px 44px; background:var(--bg-card); border:2px solid var(--border-color); border-radius:var(--border-radius); color:var(--text-primary); font-size:15px; }
+        .cb-search input:focus { outline:none; border-color:var(--accent); }
+        .cb-bar { display:flex; gap:8px; flex-wrap:wrap; align-items:flex-end; margin-bottom:12px; }
+        .cb-bar .form-group { margin:0; }
+        .cb-chip { padding:7px 12px; border-radius:999px; border:1px solid var(--border-color); background:var(--bg-card); font-size:12.5px; font-weight:600; color:var(--text-secondary); cursor:pointer; }
+        .cb-chip.on { background:var(--accent); color:var(--accent-contrast); border-color:var(--accent); }
+        .cb-sum { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:12px; font-size:13px; color:var(--text-secondary); }
+        .cb-sum b { color:var(--text-primary); }
+        .cb-sum .grow { flex:1; }
+        .cb-group { background:var(--bg-card); border:1px solid var(--border-color); border-radius:var(--border-radius-lg); margin-bottom:12px; overflow:hidden; }
+        .cb-gh { display:flex; align-items:center; gap:10px; padding:11px 14px; background:var(--bg-input); cursor:pointer; }
+        .cb-gh input { width:17px; height:17px; accent-color:var(--accent); flex-shrink:0; }
+        .cb-gh .nm { font-weight:800; color:var(--text-primary); flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .cb-gh .n { font-size:12px; font-weight:800; background:var(--bg-card); border:1px solid var(--border-color); border-radius:999px; padding:1px 9px; white-space:nowrap; }
+        .cb-gh .chev { color:var(--text-muted); transition:transform .15s; }
+        .cb-group.open .chev { transform:rotate(90deg); }
+        .cb-units { display:none; }
+        .cb-group.open .cb-units { display:block; }
+        .cb-u { display:grid; grid-template-columns:22px minmax(110px,auto) 1fr auto; gap:10px; align-items:center; padding:8px 14px; border-top:1px solid var(--border-light); font-size:12.5px; }
+        .cb-u input { width:16px; height:16px; accent-color:var(--accent); }
+        .cb-u .sn { font-family:monospace; font-weight:700; font-size:13px; color:var(--text-primary); }
+        .cb-u .sn mark { background:var(--accent-glow); color:inherit; border-radius:3px; }
+        .cb-u .info { color:var(--text-secondary); min-width:0; }
+        .cb-u .when { color:var(--text-muted); white-space:nowrap; font-size:11.5px; text-align:right; }
+        .cb-from { font-size:11px; font-weight:700; padding:1px 7px; border-radius:999px; background:var(--bg-input); color:var(--text-secondary); white-space:nowrap; }
+        .cb-warn { color:var(--danger); font-weight:700; }
+        .cb-prod { background:var(--bg-card); border:1px solid var(--border-color); border-radius:var(--border-radius-lg); padding:14px; margin-bottom:12px; display:flex; gap:12px; align-items:flex-start; flex-wrap:wrap; }
+        .cb-prod .b { flex:1; min-width:220px; }
+        .cb-prod .nm { font-weight:800; font-size:14px; color:var(--text-primary); }
+        .cb-prod .meta { font-size:12.5px; color:var(--text-secondary); margin-top:3px; line-height:1.6; }
+        .cb-prod .hits { margin-top:6px; display:flex; flex-wrap:wrap; gap:5px; }
+        .cb-prod .hits span { font-family:monospace; font-size:12px; font-weight:700; background:var(--accent-glow); border-radius:6px; padding:1px 7px; }
+        .cb-empty { text-align:center; color:var(--text-muted); padding:34px 10px; }
+        @media (max-width:768px) {
+            .cb-search input { font-size:16px; }
+            .cb-u { grid-template-columns:22px 1fr; row-gap:2px; }
+            .cb-u .info, .cb-u .when { grid-column:2; text-align:left; }
+            .cb-bar .form-group { flex:1 1 40%; }
+            .cb-sum .btn { width:100%; justify-content:center; }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar" id="sfSidebar"></aside>
+        <main class="main-content">
+            <header class="page-header">
+                <div class="page-title"><h1>Corbeille</h1><p id="sub"></p></div>
+                <div class="page-actions"><div id="sfTools"></div></div>
+            </header>
+            <div class="page-body">
+                <div class="cb-search"><i class="fas fa-barcode"></i><input type="text" id="q" placeholder="N° de série, produit, marque…" autocomplete="off" oninput="Cb.onSearch()"></div>
+                <div class="tabs" id="tabs">
+                    <div class="tab active" data-t="units" onclick="Cb.tab('units')"><i class="fas fa-box-archive"></i> Unités retirées <span id="nUnits"></span></div>
+                    <div class="tab" data-t="products" id="tabProducts" style="display:none;" onclick="Cb.tab('products')"><i class="fas fa-trash-can"></i> Produits supprimés <span id="nProducts"></span></div>
+                </div>
+
+                <div id="panel-units">
+                    <div class="cb-bar" id="periodBar">
+                        <span class="cb-chip" data-p="today" onclick="Cb.period('today')">Aujourd'hui</span>
+                        <span class="cb-chip" data-p="yesterday" onclick="Cb.period('yesterday')">Hier</span>
+                        <span class="cb-chip on" data-p="7" onclick="Cb.period('7')">7 jours</span>
+                        <span class="cb-chip" data-p="30" onclick="Cb.period('30')">30 jours</span>
+                        <span class="cb-chip" data-p="all" onclick="Cb.period('all')">Tout</span>
+                        <div class="form-group"><input type="date" id="from" class="form-control" onchange="Cb.customDates()"></div>
+                        <div class="form-group"><input type="date" id="to" class="form-control" onchange="Cb.customDates()"></div>
+                    </div>
+                    <div class="cb-sum" id="unitSum"></div>
+                    <div id="unitList"><div class="sf-skel sf-skel-card"></div><div class="sf-skel sf-skel-card"></div></div>
+                </div>
+
+                <div id="panel-products" style="display:none;">
+                    <div id="prodList"></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="/js/sf-core.js"></script>
+    <script src="/js/sf-layout.js"></script>
+    <script>
+    const Cb = {
+        user: null, admin: false, units: [], products: [], sel: new Set(), open: new Set(), active: 'units',
+        FROM: { stock: 'Dépôt', presentoir: 'Présentoir', consignation: 'Boutique', reserve: 'Réservé' },
+        async init() {
+            this.user = await SF.Auth.require(['gestion_stock']);
+            if (!this.user) return;
+            this.admin = this.user.role === 'admin';
+            SF.layout({ active: '/corbeille.html' });
+            document.getElementById('tabProducts').style.display = this.admin ? '' : 'none';
+            const q = new URLSearchParams(location.search).get('q');
+            if (q) document.getElementById('q').value = q;
+            this.period('7', true);
+            SF.on('stock:update', () => this.reload());
+            this.reload();
+        },
+        ymd(d) { const p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; },
+        period(k, silent) {
+            const t = new Date(SF.fmt.today() + 'T00:00:00'), from = new Date(t);
+            let f = '', to = this.ymd(t);
+            if (k === 'today') f = to;
+            else if (k === 'yesterday') { from.setDate(from.getDate() - 1); f = to = this.ymd(from); }
+            else if (k === '7' || k === '30') { from.setDate(from.getDate() - (+k - 1)); f = this.ymd(from); }
+            else { f = ''; to = ''; }
+            document.getElementById('from').value = f; document.getElementById('to').value = to;
+            document.querySelectorAll('#periodBar .cb-chip').forEach(c => c.classList.toggle('on', c.dataset.p === k));
+            if (!silent) this.loadUnits();
+        },
+        customDates() { document.querySelectorAll('#periodBar .cb-chip').forEach(c => c.classList.remove('on')); this.loadUnits(); },
+        tab(t) {
+            this.active = t;
+            document.querySelectorAll('#tabs .tab').forEach(b => b.classList.toggle('active', b.dataset.t === t));
+            document.getElementById('panel-units').style.display = t === 'units' ? '' : 'none';
+            document.getElementById('panel-products').style.display = t === 'products' ? '' : 'none';
+        },
+        onSearch() { clearTimeout(this._t); this._t = setTimeout(() => this.reload(), 250); },
+        q() { return document.getElementById('q').value.trim(); },
+        reload() { this.loadUnits(); if (this.admin) this.loadProducts(); },
+        async loadUnits() {
+            const q = this.q();
+            document.getElementById('periodBar').style.opacity = q ? .45 : 1;
+            const qs = new URLSearchParams(q ? { q } : { from: document.getElementById('from').value, to: document.getElementById('to').value });
+            try { this.units = await SF.api('/api/corbeille/units?' + qs); } catch (e) { return SF.toast(e.message, 'error'); }
+            const ids = new Set(this.units.map(u => u.unit_id));
+            this.sel = new Set([...this.sel].filter(id => ids.has(id)));
+            if (q) this.units.forEach(u => this.open.add(u.product_id));
+            this.renderUnits();
+        },
+        async loadProducts() {
+            const q = this.q();
+            try { this.products = await SF.api('/api/corbeille/products' + (q ? '?q=' + encodeURIComponent(q) : '')); } catch (e) { return; }
+            this.renderProducts();
+        },
+        hl(s) {
+            const q = this.q(); s = SF.esc(s || '');
+            if (!q) return s;
+            const i = s.toLowerCase().indexOf(SF.esc(q).toLowerCase());
+            return i < 0 ? s : s.slice(0, i) + '<mark>' + s.slice(i, i + SF.esc(q).length) + '</mark>' + s.slice(i + SF.esc(q).length);
+        },
+        groups() {
+            const m = new Map();
+            this.units.forEach(u => { const k = u.product_id || 0; if (!m.has(k)) m.set(k, { id: k, name: u.product_name || 'Produit supprimé', items: [] }); m.get(k).items.push(u); });
+            return [...m.values()].sort((a, b) => b.items.length - a.items.length || a.name.localeCompare(b.name));
+        },
+        renderUnits() {
+            const n = this.units.length, gs = this.groups(), k = this.sel.size;
+            document.getElementById('nUnits').innerHTML = n ? `<span class="badge-n" style="border-radius:999px;padding:0 6px;font-size:11px;">${n}</span>` : '';
+            document.getElementById('sub').textContent = this.q() ? `Résultats pour « ${this.q()} »` : 'Unités retirées du stock et produits supprimés';
+            document.getElementById('unitSum').innerHTML = n ? `<span><b>${n}</b> unité${n > 1 ? 's' : ''} · <b>${gs.length}</b> produit${gs.length > 1 ? 's' : ''}</span><span class="grow"></span>
+                <button class="btn btn-secondary btn-sm" onclick="Cb.toggleAll()">${k === n ? 'Tout désélectionner' : 'Tout sélectionner'}</button>
+                <button class="btn btn-primary" ${k ? '' : 'disabled'} onclick="Cb.restore()"><i class="fas fa-rotate-left"></i> Remettre au dépôt${k ? ` (${k})` : ''}</button>` : '';
+            const box = document.getElementById('unitList');
+            if (!n) { box.innerHTML = `<div class="cb-empty">${this.q() ? 'Aucune unité retirée ne correspond.' : 'Aucune unité retirée sur cette période.'}</div>`; return; }
+            box.innerHTML = gs.map(g => {
+                const allSel = g.items.every(u => this.sel.has(u.unit_id));
+                return `<div class="cb-group ${this.open.has(g.id) ? 'open' : ''}" data-g="${g.id}">
+                    <div class="cb-gh" onclick="Cb.toggleGroup(${g.id}, event)">
+                        <input type="checkbox" ${allSel ? 'checked' : ''} onclick="event.stopPropagation()" onchange="Cb.selGroup(${g.id}, this.checked)">
+                        <span class="nm" title="${SF.esc(g.name)}">${SF.esc(g.name)}</span>
+                        <span class="n">${g.items.length}</span><i class="fas fa-chevron-right chev"></i>
+                    </div>
+                    <div class="cb-units">${g.items.map(u => `<label class="cb-u">
+                        <input type="checkbox" ${this.sel.has(u.unit_id) ? 'checked' : ''} onchange="Cb.selUnit(${u.unit_id}, this.checked)">
+                        <span class="sn">${this.hl(u.serial || '—')}${u.manufacturer_sn ? `<div class="info" style="font-weight:400;font-size:11px;">SN ${this.hl(u.manufacturer_sn)}</div>` : ''}</span>
+                        <span class="info">${u.from_status ? `<span class="cb-from">${this.FROM[u.from_status] || SF.esc(u.from_status)}</span> ` : ''}${SF.esc(u.retire_note || u.note || '')}${u.active_sale ? ' <span class="cb-warn">· liée à une vente</span>' : ''}</span>
+                        <span class="when">${SF.fmt.datetime(u.retired_at)}${u.retired_by ? '<br>' + SF.esc(u.retired_by) : ''}</span>
+                    </label>`).join('')}</div>
+                </div>`;
+            }).join('');
+        },
+        toggleGroup(id) { if (this.open.has(id)) this.open.delete(id); else this.open.add(id); const el = document.querySelector(`.cb-group[data-g="${id}"]`); if (el) el.classList.toggle('open'); },
+        selGroup(id, on) { this.units.filter(u => (u.product_id || 0) === id).forEach(u => on ? this.sel.add(u.unit_id) : this.sel.delete(u.unit_id)); this.renderUnits(); },
+        selUnit(id, on) { if (on) this.sel.add(id); else this.sel.delete(id); this.renderUnits(); },
+        toggleAll() { this.sel = this.sel.size === this.units.length ? new Set() : new Set(this.units.map(u => u.unit_id)); this.renderUnits(); },
+        async restore() {
+            const ids = [...this.sel]; if (!ids.length) return;
+            if (!await SF.confirm(`Remettre ${ids.length} unité(s) en stock au dépôt ?`, { okLabel: 'Remettre au dépôt', title: 'Restaurer' })) return;
+            try {
+                const r = await SF.api('/api/corbeille/units/restore', { method: 'POST', body: { unit_ids: ids } });
+                SF.toast(`${r.restored} unité(s) remise(s) au dépôt${r.skipped.length ? ` · ${r.skipped.length} ignorée(s) : ${r.skipped.slice(0, 3).join(', ')}` : ''}`, r.skipped.length ? 'warn' : 'success', 5000);
+                this.sel.clear(); this.loadUnits();
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        renderProducts() {
+            const n = this.products.length;
+            document.getElementById('nProducts').innerHTML = n ? `<span class="badge-n" style="border-radius:999px;padding:0 6px;font-size:11px;">${n}</span>` : '';
+            const box = document.getElementById('prodList');
+            if (!n) { box.innerHTML = `<div class="cb-empty">${this.q() ? 'Aucun produit supprimé ne correspond.' : 'Aucun produit supprimé.'}</div>`; return; }
+            box.innerHTML = this.products.map(t => `<div class="cb-prod">
+                <div class="b"><div class="nm">${this.hl(t.product_name || '—')}</div>
+                    <div class="meta">${t.unit_count} unité(s)${t.sold_kept ? ` · dont ${t.sold_kept} déjà vendue(s)` : ''} · supprimé le ${SF.fmt.datetime(t.deleted_at)}${t.deleted_by ? ' par ' + SF.esc(t.deleted_by) : ''}</div>
+                    ${t.matched_count ? `<div class="hits">${t.matched_units.map(u => `<span>${this.hl(u.serial || '')}</span>`).join('')}${t.matched_count > t.matched_units.length ? `<span>+${t.matched_count - t.matched_units.length}</span>` : ''}</div>` : ''}
+                </div>
+                <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                    <button class="btn btn-sm btn-primary" onclick="Cb.restoreProduct(${t.id})"><i class="fas fa-rotate-left"></i> Restaurer</button>
+                    <button class="btn btn-sm btn-danger" title="Purger définitivement" onclick="Cb.purgeProduct(${t.id})"><i class="fas fa-trash"></i></button>
+                </div></div>`).join('');
+        },
+        async restoreProduct(id) {
+            const t = this.products.find(x => x.id === id);
+            if (!await SF.confirm(`Restaurer « ${t ? t.product_name : ''} » et ses unités ?`, { okLabel: 'Restaurer', title: 'Restaurer' })) return;
+            try {
+                const r = await SF.api(`/api/products/trash/${id}/restore`, { method: 'POST', body: {} });
+                SF.toast(`Produit restauré — ${r.restored_units} unité(s)${r.skipped_units ? `, ${r.skipped_units} ignorée(s)` : ''}`, 'success');
+                this.reload();
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        async purgeProduct(id) {
+            if (!await SF.confirm('Purger définitivement cette entrée ? Elle ne pourra plus être restaurée.', { danger: true, okLabel: 'Purger', title: 'Purger' })) return;
+            try { await SF.api(`/api/products/trash/${id}`, { method: 'DELETE' }); SF.toast('Entrée purgée', 'success'); this.loadProducts(); }
+            catch (e) { SF.toast(e.message, 'error'); }
+        }
+    };
+    Cb.init();
+    </script>
+</body>
+</html>

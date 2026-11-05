@@ -1,0 +1,899 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <title>Garantie — STOCKFLOW</title>
+    <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css">
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/sf.css">
+    <script>document.documentElement.setAttribute('data-theme', localStorage.getItem('stockflow-theme') === 'dark' ? 'dark' : 'light'); try { var sfu = JSON.parse(localStorage.getItem('stockflow-ui') || '{}'); for (var k in sfu) document.documentElement.setAttribute('data-' + k, sfu[k]); } catch (e) {}</script>
+    <style>
+        /* ---- Tokens locaux d'étape (adaptés au thème) ---- */
+        :root { --g-wait:#0284c7; --g-wait-bg:rgba(14,165,233,.13); --g-exc:#9333ea; --g-exc-bg:rgba(168,85,247,.13); }
+        [data-theme="dark"] { --g-wait:#38bdf8; --g-wait-bg:rgba(56,189,248,.16); --g-exc:#c084fc; --g-exc-bg:rgba(192,132,252,.16); }
+
+        /* ---- Vue unique : 4 étapes claires, chacune regroupée par fournisseur ---- */
+        .ghelp { font-size:12.5px; color:var(--text-muted); margin:0 0 12px; padding-left:2px; line-height:1.5; }
+
+        .action-bar { display:flex; gap:8px; flex-wrap:wrap; align-items:center; padding:11px 13px; background:var(--bg-input); border-radius:var(--border-radius); margin-bottom:12px; }
+
+        .fbloc { border:1px solid var(--border-color); border-radius:12px; margin-bottom:12px; overflow:hidden; background:var(--bg-card); }
+        .fbloc-h { display:flex; align-items:center; gap:8px; font-weight:700; font-size:13.5px; padding:9px 13px; background:var(--bg-input); border-bottom:1px solid var(--border-color); }
+        .fbloc-h .fcount { margin-left:auto; color:var(--text-muted); font-weight:600; font-size:12px; }
+        /* Menu carte (comme le stock dépôt) : chaque unité est une carte, en grille. */
+        .ucards { display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:10px; padding:12px; }
+        .urow { display:flex; flex-direction:column; gap:7px; padding:12px; border:1px solid var(--border-color); border-radius:10px; background:var(--bg-card); font-size:13px; position:relative; cursor:pointer; transition:border-color .1s, box-shadow .1s; }
+        .urow:hover { border-color:var(--accent); }
+        label.urow:has(input:checked) { border-color:var(--accent); box-shadow:0 0 0 2px var(--accent-glow); }
+        .urow input[type=checkbox] { position:absolute; top:10px; right:10px; width:18px; height:18px; flex:none; cursor:pointer; z-index:1; }
+        .urow .spacer { display:none; }
+        .urow-top { display:flex; align-items:center; gap:8px; padding-right:26px; }
+        .urow-top i { color:var(--text-muted); flex:none; }
+        .userial { font-family:monospace; font-weight:700; overflow:hidden; text-overflow:ellipsis; }
+        .uname { font-weight:600; min-width:0; } .uname small { color:var(--text-muted); display:block; font-size:11px; margin-top:2px; white-space:normal; }
+        .umeta { display:flex; flex-wrap:wrap; gap:6px; align-items:center; font-size:12px; color:var(--text-muted); margin-top:auto; }
+        .gempty { color:var(--text-muted); font-size:13px; padding:12px 4px; }
+        .reason { display:inline-flex; align-items:center; gap:5px; cursor:pointer; max-width:220px; }
+        .reason:hover { color:var(--accent); }
+        .reason i { font-size:9px; opacity:.55; flex:none; }
+        .reason span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .reason-add { display:inline-flex; align-items:center; gap:5px; cursor:pointer; border:1px dashed var(--warning); color:var(--warning-dark); background:rgba(245,158,11,.08); border-radius:6px; padding:2px 8px; font-size:11px; font-weight:700; font-family:inherit; }
+        .reason-add:hover { background:rgba(245,158,11,.18); }
+
+        .gtype { font-size:10.5px; font-weight:700; text-transform:uppercase; padding:2px 8px; border-radius:6px; }
+        .gtype.fournisseur { background:var(--g-wait-bg); color:var(--g-wait); }
+        .gtype.exceptionnel { background:var(--g-exc-bg); color:var(--g-exc); }
+
+        /* ---- Refonte : stat-tiles + onglets + recherche + vue d'ensemble ---- */
+        .stat-row { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; margin-bottom:18px; }
+        .stat-tile { display:flex; align-items:center; gap:12px; width:100%; text-align:left; font:inherit; color:inherit; background:var(--bg-card); border:1px solid var(--border-color); border-radius:var(--border-radius-lg); padding:14px 16px; cursor:pointer; transition:border-color .1s, transform .08s; }
+        button.stat-tile:hover, .stat-tile:hover { border-color:var(--accent); transform:translateY(-1px); }
+        .stat-tile.active { border-color:var(--accent); background:var(--accent-glow); }
+        .stat-tile:focus-visible, .ovstage:focus-visible, .gtab:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+        .stat-tile i { font-size:20px; }
+        .stat-tile .stn { font-size:22px; font-weight:800; line-height:1; }
+        .stat-tile .stl { font-size:11.5px; color:var(--text-muted); margin-top:3px; }
+        .gtoolbar { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:16px; }
+        .search-box { position:relative; flex:1; min-width:200px; max-width:360px; }
+        .search-box input { width:100%; padding:11px 14px 11px 40px; background:var(--bg-input); border:1px solid transparent; border-radius:var(--border-radius); color:var(--text-primary); font-size:14px; }
+        .search-box input:focus { outline:none; border-color:var(--accent); background:var(--bg-card); }
+        .search-box i { position:absolute; left:14px; top:50%; transform:translateY(-50%); color:var(--text-muted); }
+        .gtabs { display:flex; gap:4px; border-bottom:1px solid var(--border-color); margin-bottom:18px; overflow-x:auto; scrollbar-width:none; }
+        .gtabs::-webkit-scrollbar { display:none; }
+        .gtab { padding:12px 15px; border:none; background:none; color:var(--text-secondary); font-family:var(--font-body); font-size:13.5px; font-weight:600; cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-1px; white-space:nowrap; display:flex; align-items:center; gap:7px; }
+        .gtab:hover { color:var(--text-primary); }
+        .gtab.active { color:var(--accent); border-bottom-color:var(--accent); }
+        .gtab .badge-n { background:var(--bg-input); color:var(--text-secondary); border-radius:999px; font-size:11px; font-weight:800; padding:1px 8px; }
+        .gtab.active .badge-n { background:var(--accent); color:var(--accent-contrast); }
+        .gpanel { display:none; } .gpanel.active { display:block; }
+        /* Vue d'ensemble : pipeline par fournisseur */
+        .ovcard { background:var(--bg-card); border:1px solid var(--border-color); border-radius:var(--border-radius-lg); padding:14px 16px; margin-bottom:12px; }
+        .ovcard-h { display:flex; align-items:center; gap:8px; font-weight:800; font-size:14.5px; margin-bottom:12px; }
+        .ovcard-h .ovval { margin-left:auto; font-size:12.5px; font-weight:600; color:var(--text-muted); }
+        .ovstages { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:10px; }
+        .ovstage { display:block; width:100%; text-align:left; font:inherit; color:inherit; background:var(--bg-card); border:1px solid var(--border-color); border-radius:11px; padding:10px 12px; cursor:pointer; transition:border-color .1s; }
+        .ovstage:hover { border-color:var(--accent); }
+        .ovstage .ovn { font-size:20px; font-weight:800; }
+        .ovstage .ovl { font-size:11px; color:var(--text-muted); display:flex; align-items:center; gap:5px; margin-top:2px; }
+        .ovstage.send .ovn { color:var(--warning-dark); } .ovstage.wait .ovn { color:var(--g-wait); }
+        .ovstage.back .ovn { color:var(--success-dark); } .ovstage.exc .ovn { color:var(--g-exc); }
+        .age-badge { font-size:10px; font-weight:700; padding:1px 7px; border-radius:6px; background:var(--bg-input); color:var(--text-muted); margin-left:6px; }
+        .age-badge.warn { background:rgba(245,158,11,.15); color:var(--warning-dark); }
+        .age-badge.over { background:rgba(239,68,68,.15); color:var(--danger); }
+
+        /* Skeletons : classes .sf-skel* partagées (définies dans sf.css). */
+
+        /* Barre d'action FLOTTANTE : elle reste collée en haut de l'écran (sous la barre supérieure)
+           pendant qu'on fait défiler la liste des unités → on peut valider l'action (envoi fournisseur,
+           traitement, réception…) sans devoir remonter tout en haut après avoir coché une unité en bas
+           de liste. Offset = hauteur de la topbar (pattern maison), pour ne pas passer dessous. */
+        .action-bar { position: sticky; top: calc(var(--topbar-height, 0px) + 10px); z-index: 20; box-shadow: 0 3px 12px rgba(0,0,0,.16); }
+
+        /* ---- Responsive ---- */
+        @media (max-width: 640px) {
+            .ucards { grid-template-columns:1fr; padding:10px; }
+            .stat-tile .stn { font-size:20px; }
+            .search-box { max-width:none; }
+            /* Barre d'action flottante sur mobile : compteur centré sur sa propre ligne, puis boutons
+               CENTRÉS et JUSTIFIÉS (chacun s'étire pour remplir la largeur, 2 par ligne). */
+            .action-bar { justify-content:center; text-align:center; }
+            .action-bar > span { flex:1 1 100%; text-align:center; }
+            .action-bar .btn { flex:1 1 140px; justify-content:center; }
+        }
+        @media (max-width: 768px) {
+            /* Recherche pleine largeur, puis fournisseur + PDF (icône) sur une ligne. */
+            .gtoolbar { display:grid; grid-template-columns:1fr auto; gap:8px; margin-bottom:12px; }
+            .gtoolbar .search-box { grid-column:1 / -1; min-width:0; }
+            .gtoolbar .search-box input { min-height:44px; }
+            .gtoolbar select.form-control { max-width:none !important; min-width:0; }
+            .gtoolbar .btn { width:46px; padding:0; justify-content:center; font-size:0; }
+            .gtoolbar .btn i { font-size:15px; }
+            .gtabs { margin:0 -14px 14px; padding:0 14px; scrollbar-width:none; contain:inline-size; }
+            .gtabs::-webkit-scrollbar { display:none; }
+            .gtab { padding:11px 12px; }
+            .ovcard { padding:12px; }
+            .ovstages { grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; }
+            .ovstage { padding:8px 9px; }
+            .ovstage .ovn { font-size:18px; }
+            .ovstage .ovl { font-size:10.5px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar" id="sfSidebar"></aside>
+        <main class="main-content">
+            <header class="page-header">
+                <div class="page-title"><h1>Garantie</h1><p>Suivi clair des garanties fournisseur et exceptionnelles</p></div>
+                <div class="page-actions"><div id="sfTools"></div></div>
+            </header>
+            <div class="page-body">
+                <!-- Récap (cliquable → onglet) -->
+                <div class="card dash-card"><div class="card-header"><h3><i class="fas fa-shield-halved"></i> Garanties fournisseur</h3></div><div class="card-body"><div class="stats-grid" id="gKpis"></div></div></div>
+
+                <div class="gtoolbar">
+                    <div class="search-box"><i class="fas fa-search" aria-hidden="true"></i><input type="text" id="g_search" aria-label="Rechercher une garantie (n° série, produit…)" placeholder="Rechercher (n° série, produit…)" oninput="Garantie.onSearch()"></div>
+                    <select id="f_supplier" class="form-control" style="max-width:220px;" aria-label="Filtrer par fournisseur" onchange="Garantie.reload()"><option value="">Tous les fournisseurs</option></select>
+                    <button class="btn btn-secondary" onclick="Garantie.exportPDF()"><i class="fas fa-file-pdf" aria-hidden="true"></i> Rapport PDF</button>
+                    <button class="btn btn-secondary" onclick="SFReport.as('xlsx', () => Garantie.exportPDF())"><i class="fas fa-file-excel"></i> Excel</button>
+                </div>
+
+                <div class="gtabs" id="gTabs" role="tablist" aria-label="Étapes de garantie">
+                    <button class="gtab active" id="tab-overview" role="tab" aria-selected="true" aria-controls="panel-overview" data-t="overview"><i class="fas fa-diagram-project" aria-hidden="true"></i> Vue d'ensemble</button>
+                    <button class="gtab" id="tab-send" role="tab" aria-selected="false" aria-controls="panel-send" data-t="send"><i class="fas fa-truck-arrow-right" aria-hidden="true"></i> À envoyer <span class="badge-n" id="tabnSend">0</span></button>
+                    <button class="gtab" id="tab-sent" role="tab" aria-selected="false" aria-controls="panel-sent" data-t="sent"><i class="fas fa-industry" aria-hidden="true"></i> En attente <span class="badge-n" id="tabnSent">0</span></button>
+                    <button class="gtab" id="tab-back" role="tab" aria-selected="false" aria-controls="panel-back" data-t="back"><i class="fas fa-rotate-left" aria-hidden="true"></i> Revenues <span class="badge-n" id="tabnBack">0</span></button>
+                    <button class="gtab" id="tab-refval" role="tab" aria-selected="false" aria-controls="panel-refval" data-t="refval"><i class="fas fa-hand-holding-dollar" aria-hidden="true"></i> Remb. à valider <span class="badge-n" id="tabnRefval">0</span></button>
+                    <button class="gtab" id="tab-exc" role="tab" aria-selected="false" aria-controls="panel-exc" data-t="exc"><i class="fas fa-wrench" aria-hidden="true"></i> Exceptionnelle <span class="badge-n" id="tabnExc">0</span></button>
+                    <button class="gtab" id="tab-hist" role="tab" aria-selected="false" aria-controls="panel-hist" data-t="hist"><i class="fas fa-clock-rotate-left" aria-hidden="true"></i> Historique</button>
+                </div>
+
+                <!-- Vue d'ensemble : pipeline par fournisseur -->
+                <div class="gpanel active" id="panel-overview" role="tabpanel" aria-labelledby="tab-overview" tabindex="0"><div id="ovBody"></div></div>
+
+                <!-- À envoyer -->
+                <div class="gpanel" id="panel-send" role="tabpanel" aria-labelledby="tab-send" tabindex="0">
+                    <p class="ghelp"><i class="fas fa-circle-info"></i> Unités <strong>encore couvertes</strong> par la garantie du fournisseur → à lui retourner. Regroupées par fournisseur.</p>
+                    <div style="margin-bottom:12px;">
+                        <button class="btn btn-sm btn-secondary" onclick="Garantie.bonEnvoi()" title="Document à remettre au fournisseur, une page par fournisseur"><i class="fas fa-file-lines"></i> Bon d'envoi fournisseur (PDF)</button>
+                    </div>
+                    <div class="action-bar" id="sendBar" style="display:none;">
+                        <span id="sendSel" style="font-weight:600;"></span>
+                        <button class="btn btn-sm btn-primary" onclick="Garantie.returnSupplier()"><i class="fas fa-truck-arrow-right"></i> Retour au fournisseur</button>
+                        <button class="btn btn-sm btn-secondary" onclick="Garantie.cancelEntry('send-check')" title="Erreur de saisie : remettre au stock dépôt"><i class="fas fa-rotate-left"></i> Annuler → stock dépôt</button>
+                    </div>
+                    <div class="action-bar" id="arenvBar" style="display:none;">
+                        <span id="arenvSel" style="font-weight:600;"></span>
+                        <button class="btn btn-sm btn-primary" onclick="Garantie.confirmSend()"><i class="fas fa-paper-plane"></i> Confirmer l'envoi au fournisseur</button>
+                    </div>
+                    <div id="sendGroups"></div>
+                </div>
+
+                <!-- En attente de réponse -->
+                <div class="gpanel" id="panel-sent" role="tabpanel" aria-labelledby="tab-sent" tabindex="0">
+                    <p class="ghelp"><i class="fas fa-circle-info"></i> Déjà expédiées au fournisseur, en attente de son retour. Deux issues possibles : <strong>l'appareil revient</strong> (« Marquer revenu(s) » → réception, config inchangée) ou le <strong>fournisseur rembourse</strong> la valeur d'achat (« Remboursé » → passe à « Remb. à valider » pour confirmation du stock, puis sort de la garantie). Regroupées par fournisseur.</p>
+                    <p class="ghelp" id="sentNote" style="display:none;"><i class="fas fa-user-shield"></i> Le <strong>responsable des garanties</strong> déclare le retour ou le remboursement ; les remboursements sont <strong>validés par le stock</strong> (onglet « Remb. à valider ») avant de sortir de la garantie.</p>
+                    <div class="action-bar" id="retBar" style="display:none;">
+                        <span id="retSel" style="font-weight:600;"></span>
+                        <button class="btn btn-sm btn-success" onclick="Garantie.markReturned()"><i class="fas fa-rotate-left"></i> Marquer revenu(s) du fournisseur</button>
+                        <button class="btn btn-sm btn-warning" onclick="Garantie.refund()" title="Le fournisseur rembourse la valeur d'achat au lieu de renvoyer l'appareil — sort de la garantie"><i class="fas fa-hand-holding-dollar"></i> Remboursé (fournisseur)</button>
+                    </div>
+                    <div class="action-bar" id="sentBar" style="display:none;">
+                        <span id="sentSel" style="font-weight:600;"></span>
+                        <button class="btn btn-sm btn-success" onclick="Garantie.treat('reintegrer')"><i class="fas fa-rotate-left"></i> Traité — réintégrer au stock</button>
+                        <button class="btn btn-sm btn-secondary" onclick="Garantie.treat('remplace')"><i class="fas fa-right-left"></i> Remplacé</button>
+                        <button class="btn btn-sm btn-warning" id="btnRembourse" style="display:none;" onclick="Garantie.treat('rembourse')" title="Le fournisseur rembourse la valeur d'achat (admin uniquement)"><i class="fas fa-hand-holding-dollar"></i> Remboursé (fournisseur)</button>
+                        <button class="btn btn-sm btn-danger" onclick="Garantie.treat('supprime')"><i class="fas fa-trash"></i> Supprimé</button>
+                    </div>
+                    <div id="sentGroups"></div>
+                </div>
+
+                <!-- Revenues → à réceptionner -->
+                <div class="gpanel" id="panel-back" role="tabpanel" aria-labelledby="tab-back" tabindex="0">
+                    <p class="ghelp"><i class="fas fa-circle-info"></i> Revenues du fournisseur : réceptionnez au stock. « Réception rapide » = date du jour + config/prix inchangés ; « Réceptionner… » = ajuster date, RAM, stockage, prix. Regroupées par fournisseur.</p>
+                    <div class="action-bar" id="backBar" style="display:none;">
+                        <span id="backSel" style="font-weight:600;"></span>
+                        <button class="btn btn-sm btn-success" onclick="Garantie.receiveBatch()"><i class="fas fa-check-double"></i> Réception rapide au stock</button>
+                    </div>
+                    <div id="backGroups"></div>
+                </div>
+
+                <!-- Remboursements à valider par le stock (2ᵉ signature) -->
+                <div class="gpanel" id="panel-refval" role="tabpanel" aria-labelledby="tab-refval" tabindex="0">
+                    <p class="ghelp"><i class="fas fa-circle-info"></i> Remboursements <strong>déclarés par le responsable des garanties</strong>, en attente de <strong>validation par le stock</strong>. Le stock confirme que le fournisseur a réellement remboursé (→ l'unité sort de la garantie) ou refuse (→ repart « En attente »). Regroupés par fournisseur.</p>
+                    <p class="ghelp" id="refvalNote" style="display:none;"><i class="fas fa-user-shield"></i> En attente de validation par le <strong>stock</strong>.</p>
+                    <div class="action-bar" id="refvalBar" style="display:none;">
+                        <span id="refvalSel" style="font-weight:600;"></span>
+                        <button class="btn btn-sm btn-success" onclick="Garantie.refundValidate()"><i class="fas fa-check-double"></i> Valider le remboursement</button>
+                        <button class="btn btn-sm btn-danger" onclick="Garantie.refundReject()"><i class="fas fa-xmark"></i> Refuser</button>
+                    </div>
+                    <div id="refvalGroups"></div>
+                </div>
+
+                <!-- Garantie exceptionnelle (interne) -->
+                <div class="gpanel" id="panel-exc" role="tabpanel" aria-labelledby="tab-exc" tabindex="0">
+                    <p class="ghelp"><i class="fas fa-circle-info"></i> Unités <strong>hors garantie fournisseur</strong> → réparation/traitement en interne (aucun envoi fournisseur).</p>
+                    <div class="action-bar" id="excBar" style="display:none;">
+                        <span id="excSel" style="font-weight:600;"></span>
+                        <button class="btn btn-sm btn-secondary" onclick="Garantie.repair()"><i class="fas fa-wrench"></i> Marquer réparé → stock</button>
+                        <button class="btn btn-sm btn-secondary" onclick="Garantie.cancelEntry('exc-check')" title="Erreur de saisie : remettre au stock dépôt"><i class="fas fa-rotate-left"></i> Annuler → stock dépôt</button>
+                    </div>
+                    <div id="excGroup"></div>
+                </div>
+
+                <!-- Historique + suivi -->
+                <div class="gpanel" id="panel-hist" role="tabpanel" aria-labelledby="tab-hist" tabindex="0">
+                    <h3 style="font-size:14px;margin:4px 0 10px;"><i class="fas fa-list-check"></i> Suivi par n° de série (ordinateurs)</h3>
+                    <div class="table-container">
+                        <table><thead><tr><th>N° série</th><th>Produit</th><th>État</th><th>Fournisseur</th><th>Entrée (par)</th><th>Envoyé (par)</th><th>Retour (par)</th></tr></thead>
+                        <tbody id="suiviBody"><tr><td colspan="7" class="text-center text-muted">Chargement...</td></tr></tbody></table>
+                    </div>
+                    <h3 style="font-size:14px;margin:20px 0 10px;"><i class="fas fa-clock-rotate-left"></i> Historique des traitements</h3>
+                    <div class="table-container">
+                        <table><thead><tr><th>Date</th><th>N° série</th><th>Produit</th><th>Fournisseur</th><th>Type</th><th>Action</th><th>Détails</th><th>Par</th></tr></thead>
+                        <tbody id="histBody"><tr><td colspan="8" class="text-center text-muted">Chargement...</td></tr></tbody></table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modale ré-réception d'une garantie revenue -->
+    <div class="modal-overlay" id="recvModal">
+        <div class="modal" style="max-width:520px;">
+            <div class="modal-header"><h3>Re-réception après retour fournisseur</h3><button class="modal-close" onclick="SF.Modal.close('recvModal')">&times;</button></div>
+            <div class="modal-body">
+                <div id="recvInfo" class="text-muted" style="font-size:12.5px;margin-bottom:12px;"></div>
+                <p class="text-muted" style="font-size:11.5px;margin-bottom:10px;"><i class="fas fa-lock"></i> Le n° de série et le reste de la configuration sont figés. Seuls les champs ci-dessous sont modifiables.</p>
+                <div class="form-row">
+                    <div class="form-group"><label>Date d'entrée</label><input type="date" id="rv_date" class="form-control"></div>
+                    <div class="form-group"><label>Garantie (jours)</label><input type="number" id="rv_warranty" class="form-control" min="0" placeholder="défaut fournisseur"></div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group"><label>RAM</label><input type="text" id="rv_ram" class="form-control"></div>
+                    <div class="form-group"><label>Stockage</label><input type="text" id="rv_storage" class="form-control"></div>
+                    <div class="form-group"><label>Type stockage</label><input type="text" id="rv_storage_type" class="form-control"></div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group"><label>Prix de vente (Ar)</label><input type="number" id="rv_price" class="form-control" min="0"></div>
+                    <div class="form-group" id="rv_purchaseWrap" style="display:none;"><label>Prix d'achat (Ar) — admin</label><input type="number" id="rv_purchase" class="form-control" min="0"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="SF.Modal.close('recvModal')">Annuler</button>
+                <button class="btn btn-success" onclick="Garantie.submitReceive()"><i class="fas fa-check"></i> Réceptionner au stock</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/sf-core.js"></script>
+    <script src="/js/sf-layout.js"></script>
+    <script src="/js/sf-report.js"></script>
+    <script src="/js/sf-garantie-envoi.js"></script>
+    <script>
+    const Garantie = {
+        user: null, depot: [], arenv: [], retour: [], retournee: [], refval: [], suivi: [], hist: [], config: {}, suppliers: [], hasResponsible: false, isStock: false, isResponsible: false,
+        actionLabels: { entree:'Entrée', a_renvoyer:'Confié au responsable', retour_fournisseur:'Retour fournisseur', traite:'Traité', repare:'Réparé', remplace:'Remplacé', supprime:'Supprimé', rembourse:'Remboursé', rembourse_demande:'Remboursement demandé (à valider)', rembourse_refuse:'Remboursement refusé (stock)', retourne:'Revenu du fournisseur', annule:'Annulé (erreur saisie)' },
+        async init() {
+            this.user = await SF.Auth.require();
+            if (!this.user) return;
+            // Page unique gérée à la fois par le stock ET le responsable des garanties (actions selon le rôle).
+            if (!(this.user.role === 'admin' || this.user.role === 'gestion_stock' || this.user.garantie_responsible)) { location.href = '/index.html'; return; }
+            this.isStock = ['admin', 'gestion_stock'].includes(this.user.role);
+            this.isResponsible = !!this.user.garantie_responsible || this.user.role === 'admin';
+            SF.layout({ active: '/garantie.html' });
+            try { this.config = await SF.api('/api/config'); } catch (e) {}
+            try { const st = await SF.api('/api/settings'); this.hasResponsible = !!(st && st.garantie_responsible_id); } catch (e) { this.hasResponsible = false; }
+            try { this.suppliers = await SF.api('/api/suppliers?all=1'); document.getElementById('f_supplier').innerHTML = '<option value="">Tous les fournisseurs</option>' + this.suppliers.map(s => `<option value="${s.id}">${SF.esc(s.name)}</option>`).join(''); } catch (e) { this.suppliers = []; }
+            const tabs = [...document.querySelectorAll('.gtab')];
+            tabs.forEach((t, i) => {
+                t.onclick = () => this.tab(t.dataset.t);
+                // Navigation clavier standard (pattern ARIA tabs) : flèches, Début/Fin.
+                t.onkeydown = e => {
+                    let j = null;
+                    if (e.key === 'ArrowRight') j = (i + 1) % tabs.length;
+                    else if (e.key === 'ArrowLeft') j = (i - 1 + tabs.length) % tabs.length;
+                    else if (e.key === 'Home') j = 0;
+                    else if (e.key === 'End') j = tabs.length - 1;
+                    if (j === null) return;
+                    e.preventDefault(); tabs[j].focus(); this.tab(tabs[j].dataset.t);
+                };
+            });
+            // Le remboursement fournisseur n'est validable que par l'admin.
+            if (this.user.role === 'admin') { const rb = document.getElementById('btnRembourse'); if (rb) rb.style.display = ''; }
+            SF.on('garantie:update', () => this.reload());
+            this.reload();
+        },
+        supParam() { const s = document.getElementById('f_supplier').value; return s ? '&supplier_id=' + s : ''; },
+        // Recherche : debounce léger pour éviter un re-rendu complet à chaque frappe.
+        onSearch() { clearTimeout(this._searchT); this._searchT = setTimeout(() => this.render(), 160); },
+        // Skeletons pendant le premier chargement (pas de flash blanc).
+        showSkeletons() {
+            const many = (n, cls) => Array.from({ length: n }).map(() => `<div class="sf-skel ${cls}"></div>`).join('');
+            document.getElementById('gKpis').innerHTML = Array.from({ length: 4 }).map(() => '<div class="sf-skel" style="height:64px;"></div>').join('');
+            document.getElementById('ovBody').innerHTML = many(2, 'sf-skel-card');
+            ['sendGroups', 'sentGroups', 'backGroups', 'excGroup'].forEach(id => { const el = document.getElementById(id); if (el) el.innerHTML = many(3, 'sf-skel-row'); });
+            document.getElementById('suiviBody').innerHTML = '<tr><td colspan="7"><div class="sf-skel sf-skel-row"></div></td></tr>';
+            document.getElementById('histBody').innerHTML = '<tr><td colspan="8"><div class="sf-skel sf-skel-row"></div></td></tr>';
+        },
+        async reload() {
+            if (!this._loaded) this.showSkeletons();
+            try {
+                const sp = this.supParam();
+                const [depot, arenv, retour, retournee, refval, hist] = await Promise.all([
+                    SF.api('/api/garantie?stage=depot' + sp),
+                    SF.api('/api/garantie?stage=a_renvoyer' + sp),
+                    SF.api('/api/garantie?stage=retour' + sp),
+                    SF.api('/api/garantie?stage=retournee' + sp),
+                    SF.api('/api/garantie?stage=remboursement' + sp),
+                    SF.api('/api/garantie/history?' + sp.replace(/^&/, ''))
+                ]);
+                this.depot = depot; this.arenv = arenv; this.retour = retour; this.retournee = retournee; this.refval = refval; this.hist = hist;
+                try { this.suivi = await SF.api('/api/garantie/suivi'); } catch (e) { this.suivi = []; }
+                this.render();
+                this._loaded = true;
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        // Re-rendu complet (KPIs + vue d'ensemble + onglets). Appelé aussi par la recherche.
+        render() {
+            this.renderKpis(); this.renderOverview();
+            this.renderSend(); this.renderSent(); this.renderBack(); this.renderRefval(); this.renderExc();
+            this.renderSuivi(); this.renderHist();
+        },
+        matchSearch(u) {
+            const q = (document.getElementById('g_search').value || '').trim().toLowerCase();
+            if (!q) return true;
+            return `${this.pname(u)} ${this.specLine(u)} ${u.serial || ''} ${u.supplier_name || ''}`.toLowerCase().includes(q);
+        },
+        tab(name) {
+            this.activeTab = name;
+            document.querySelectorAll('.gtab').forEach(t => {
+                const on = t.dataset.t === name;
+                t.classList.toggle('active', on);
+                t.setAttribute('aria-selected', on ? 'true' : 'false');
+            });
+            document.querySelectorAll('.gpanel').forEach(p => p.classList.toggle('active', p.id === 'panel-' + name));
+        },
+        // Ancienneté (jours) depuis une date + pastille colorée (≥15j = attention, ≥30j = en retard).
+        ageDays(d) { if (!d) return null; return Math.floor((Date.now() - new Date(d).getTime()) / 86400000); },
+        ageBadge(d) {
+            const n = this.ageDays(d);
+            if (n == null) return '';
+            const cls = n >= 30 ? ' over' : n >= 15 ? ' warn' : '';
+            return `<span class="age-badge${cls}" title="Depuis ${n} jour(s)">${n} j</span>`;
+        },
+        specLine(u) { return [u.cpu, u.ram, u.storage ? u.storage + (u.storage_type ? ' ' + u.storage_type : '') : '', u.screen_size ? String(u.screen_size).replace(/"$/, '') + '"' : '', u.gpu].filter(Boolean).join(' · '); },
+        pname(u) { return SF.esc([u.brand, u.model].filter(Boolean).join(' ') || u.product_name || '—'); },
+        // Regroupe une liste d'unités par fournisseur (ordre alphabétique).
+        groupBySupplier(list) {
+            const m = new Map();
+            for (const u of list) {
+                const k = u.supplier_id || 0;
+                if (!m.has(k)) m.set(k, { id: u.supplier_id || null, name: u.supplier_name || 'Sans fournisseur', units: [] });
+                m.get(k).units.push(u);
+            }
+            return [...m.values()].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+        },
+        scrollTo(id) { const el = document.getElementById(id); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); },
+        renderKpis() {
+            const four = this.depot.filter(u => u.garantie_type !== 'exceptionnel');
+            const exc  = this.depot.filter(u => u.garantie_type === 'exceptionnel');
+            const send = four.length + this.arenv.length;
+            const val = arr => (arr || []).reduce((s, u) => s + (u.sale_price || 0), 0);
+            const totalVal = val(four) + val(this.arenv) + val(this.retour) + val(this.retournee) + val(exc);
+            // Badges d'onglets.
+            document.getElementById('tabnSend').textContent = send;
+            document.getElementById('tabnSent').textContent = this.retour.length;
+            document.getElementById('tabnBack').textContent = this.retournee.length;
+            document.getElementById('tabnRefval').textContent = (this.refval || []).length;
+            document.getElementById('tabnExc').textContent = exc.length;
+            document.getElementById('gKpis').innerHTML =
+                SF.tile({ label: 'À envoyer au fournisseur', value: send, icon: 'fa-truck-arrow-right', tone: 'yellow', onclick: "Garantie.tab('send')" })
+                + SF.tile({ label: 'En attente de réponse', value: this.retour.length, icon: 'fa-industry', tone: 'blue', onclick: "Garantie.tab('sent')" })
+                + SF.tile({ label: 'Revenues à réceptionner', value: this.retournee.length, icon: 'fa-rotate-left', tone: 'green', onclick: "Garantie.tab('back')" })
+                + SF.tile({ label: 'Garantie exceptionnelle', value: exc.length, icon: 'fa-wrench', tone: 'violet', onclick: "Garantie.tab('exc')" })
+                + (totalVal > 0 ? SF.tile({ label: 'Valeur en garantie', value: SF.fmt.ar(totalVal), icon: 'fa-coins', tone: 'teal' }) : '');
+        },
+        // Vue d'ensemble : pipeline par fournisseur (À envoyer → En attente → Revenues) + exceptionnelle.
+        renderOverview() {
+            const four = this.depot.filter(u => u.garantie_type !== 'exceptionnel');
+            const exc  = this.depot.filter(u => u.garantie_type === 'exceptionnel');
+            const map = new Map();
+            const bump = (u, key) => {
+                const k = u.supplier_id || 0;
+                if (!map.has(k)) map.set(k, { name: u.supplier_name || 'Sans fournisseur', send: 0, wait: 0, back: 0, val: 0, waitAge: 0 });
+                const r = map.get(k); r[key]++; r.val += (u.sale_price || 0);
+                if (key === 'wait') { const a = this.ageDays(u.updated_at); if (a != null && a > r.waitAge) r.waitAge = a; }
+            };
+            four.concat(this.arenv || []).forEach(u => bump(u, 'send'));
+            (this.retour || []).forEach(u => bump(u, 'wait'));
+            (this.retournee || []).forEach(u => bump(u, 'back'));
+            const rows = [...map.values()].sort((a, b) => String(a.name).localeCompare(String(b.name)));
+            const box = document.getElementById('ovBody');
+            if (!rows.length && !exc.length) { box.innerHTML = '<div class="gempty" style="text-align:center;padding:44px;"><i class="fas fa-circle-check fa-2x" style="color:var(--success);"></i><p style="margin-top:12px;">Aucune garantie en cours. 🎉</p></div>'; return; }
+            box.innerHTML = rows.map(f => `
+                <div class="ovcard">
+                    <div class="ovcard-h"><i class="fas fa-industry"></i> ${SF.esc(f.name)}${f.waitAge >= 30 ? `<span class="age-badge over" style="margin-left:8px;"><i class="fas fa-triangle-exclamation"></i> ${f.waitAge} j en attente</span>` : ''}${f.val ? `<span class="ovval">${SF.fmt.ar(f.val)}</span>` : ''}</div>
+                    <div class="ovstages">
+                        <button type="button" class="ovstage send" onclick="Garantie.tab('send')"><div class="ovn">${f.send}</div><div class="ovl"><i class="fas fa-truck-arrow-right" aria-hidden="true"></i> À envoyer</div></button>
+                        <button type="button" class="ovstage wait" onclick="Garantie.tab('sent')"><div class="ovn">${f.wait}</div><div class="ovl"><i class="fas fa-industry" aria-hidden="true"></i> En attente</div></button>
+                        <button type="button" class="ovstage back" onclick="Garantie.tab('back')"><div class="ovn">${f.back}</div><div class="ovl"><i class="fas fa-rotate-left" aria-hidden="true"></i> Revenues</div></button>
+                    </div>
+                </div>`).join('')
+                + (exc.length ? `<div class="ovcard"><div class="ovcard-h"><i class="fas fa-wrench" style="color:var(--g-exc);" aria-hidden="true"></i> Garantie exceptionnelle (interne)</div>
+                    <div class="ovstages"><button type="button" class="ovstage exc" onclick="Garantie.tab('exc')"><div class="ovn">${exc.length}</div><div class="ovl"><i class="fas fa-wrench" aria-hidden="true"></i> À réparer en interne</div></button></div></div>` : '');
+        },
+        // Chip de motif : affiche la panne, ou une invite « Ajouter le motif » si absent.
+        // stopPropagation : ne pas cocher la case de la ligne (label) au clic.
+        reasonChip(u) {
+            const stop = 'event.preventDefault();event.stopPropagation();';
+            if (u.note) return `<span class="reason" onclick="${stop}Garantie.editReason(${u.id})" title="Modifier le motif : ${SF.esc(u.note)}"><i class="fas fa-pen"></i><span>${SF.esc(u.note)}</span></span>`;
+            return `<button type="button" class="reason-add" onclick="${stop}Garantie.editReason(${u.id})" title="Aucun motif enregistré"><i class="fas fa-circle-exclamation"></i> Ajouter le motif</button>`;
+        },
+        // Saisir / corriger le motif d'une unité en garantie, enregistré côté serveur.
+        async editReason(id) {
+            const u = this.depot.find(x => x.id === id) || (this.arenv || []).find(x => x.id === id) || (this.retour || []).find(x => x.id === id) || (this.retournee || []).find(x => x.id === id);
+            const current = u ? (u.note || '') : '';
+            const reason = await SF.prompt('Motif / panne constatée pour cette unité :', { title: 'Motif de la garantie', okLabel: 'Enregistrer', required: true, multiline: true, defaultValue: current });
+            if (reason == null || !reason.trim()) return;
+            try { await SF.api('/api/garantie/set-reason', { method: 'POST', body: { unit_id: id, reason: reason.trim() } }); SF.toast('Motif enregistré', 'success'); this.reload(); }
+            catch (e) { SF.toast(e.message, 'error'); }
+        },
+        // Ligne d'unité (avec ou sans case à cocher).
+        // Carte d'unité (menu carte comme le stock dépôt), avec ou sans case à cocher.
+        urow(u, checkClass, metaHtml) {
+            const grp = checkClass ? checkClass.replace('-check', '') : '';
+            const chk = checkClass
+                ? `<input type="checkbox" class="${checkClass}" value="${u.id}" onchange="Garantie.updSel('${grp}')">`
+                : '';
+            return `<label class="urow">${chk}
+                <div class="urow-top"><i class="fas fa-${u.is_accessory ? 'plug' : 'laptop'}"></i><span class="userial">${SF.esc(u.serial || '—')}</span></div>
+                <div class="uname">${this.pname(u)}<small>${SF.esc(this.specLine(u))}</small></div>
+                <div class="umeta">${metaHtml}</div></label>`;
+        },
+        fblocks(groups, rowFn) {
+            return groups.map(g => `<div class="fbloc">
+                <div class="fbloc-h"><i class="fas fa-industry"></i> ${SF.esc(g.name)} <span class="fcount">${g.units.length} unité(s)</span></div>
+                <div class="ucards">${g.units.map(rowFn).join('')}</div></div>`).join('');
+        },
+        // ÉTAPE 1 — à envoyer (garantie_fournisseur = action ; garantie_a_renvoyer = chez le responsable, lecture seule).
+        renderSend() {
+            const four = this.depot.filter(u => u.garantie_type !== 'exceptionnel').map(u => ({ ...u, _kind: 'four' }));
+            const arenv = (this.arenv || []).map(u => ({ ...u, _kind: 'arenv' }));
+            const all = [...four, ...arenv].filter(u => this.matchSearch(u));
+            const box = document.getElementById('sendGroups');
+            if (!all.length) { box.innerHTML = '<div class="gempty">Aucune unité à envoyer au fournisseur.</div>'; this.updSel('send'); this.updSel('arenv'); return; }
+            box.innerHTML = this.fblocks(this.groupBySupplier(all), u => {
+                if (u._kind === 'four')
+                    // Flaguée garantie fournisseur : le STOCK la renvoie (ou la confie au responsable).
+                    return this.urow(u, this.isStock ? 'send-check' : '', `${SF.warrantyBadge(u.warranty_end)} ${this.ageBadge(u.updated_at)}${this.reasonChip(u)}`);
+                // Confiée au responsable : le RESPONSABLE confirme l'expédition.
+                return this.urow(u, this.isResponsible ? 'arenv-check' : '',
+                    `<span class="badge badge-info"><i class="fas fa-user-shield"></i> Confié au responsable</span>${this.reasonChip(u)}`);
+            });
+            this.updSel('send'); this.updSel('arenv');
+        },
+        // ÉTAPE 2 — envoyées, en attente de réponse. Lecture seule si un responsable gère le retour.
+        renderSent() {
+            // Note « le responsable déclare le retour » : montrée au stock quand un responsable existe et que l'utilisateur n'est pas ce responsable.
+            document.getElementById('sentNote').style.display = (this.hasResponsible && !this.isResponsible) ? '' : 'none';
+            // Case active selon le rôle : responsable → marquer revenu ; stock sans responsable → traiter directement.
+            const chkClass = this.isResponsible ? 'ret-check' : (this.isStock && !this.hasResponsible ? 'sent-check' : '');
+            const list = (this.retour || []).filter(u => this.matchSearch(u));
+            const box = document.getElementById('sentGroups');
+            if (!list.length) { box.innerHTML = '<div class="gempty">Aucun envoi en attente de réponse.</div>'; this.updSel('sent'); this.updSel('ret'); return; }
+            box.innerHTML = this.fblocks(this.groupBySupplier(list), u => this.urow(u, chkClass, `Envoyé le ${SF.fmt.date(u.updated_at)} ${this.ageBadge(u.updated_at)}${this.reasonChip(u)}`));
+            this.updSel('sent'); this.updSel('ret');
+        },
+        // ÉTAPE 3 — revenues du fournisseur → à réceptionner (bouton par unité).
+        // L'admin peut aussi requalifier en « Remboursé » à ce stade (le fournisseur a finalement
+        // remboursé au lieu de renvoyer) : l'unité sort alors de la garantie.
+        renderBack() {
+            const list = (this.retournee || []).filter(u => this.matchSearch(u));
+            const box = document.getElementById('backGroups');
+            if (!list.length) { box.innerHTML = '<div class="gempty">Aucune unité revenue à réceptionner.</div>'; return; }
+            const canRefund = this.user.role === 'admin';
+            box.innerHTML = this.fblocks(this.groupBySupplier(list), u => `<div class="urow">
+                <div class="urow-top"><i class="fas fa-${u.is_accessory ? 'plug' : 'laptop'}"></i><span class="userial">${SF.esc(u.serial || '—')}</span></div>
+                <div class="uname">${this.pname(u)}<small>${SF.esc(this.specLine(u))}</small></div>
+                <div class="umeta"><button class="btn btn-sm btn-success" onclick="Garantie.receiveReturn(${u.id})"><i class="fas fa-check"></i> Réceptionner</button>${canRefund ? `<button class="btn btn-sm btn-warning" onclick="Garantie.refund([${u.id}])" title="Le fournisseur a finalement remboursé — sort de la garantie (admin)"><i class="fas fa-hand-holding-dollar"></i> Remboursé</button>` : ''}${this.reasonChip(u)}</div></div>`);
+        },
+        // ÉTAPE 3 bis — remboursements déclarés par le responsable, EN ATTENTE de validation du stock.
+        renderRefval() {
+            const list = (this.refval || []).filter(u => this.matchSearch(u));
+            const box = document.getElementById('refvalGroups');
+            const note = document.getElementById('refvalNote');
+            if (note) note.style.display = (list.length && !this.isStock) ? '' : 'none';
+            if (!list.length) { box.innerHTML = '<div class="gempty">Aucun remboursement en attente de validation.</div>'; this.updSel('refval'); return; }
+            box.innerHTML = this.fblocks(this.groupBySupplier(list), u =>
+                this.urow(u, this.isStock ? 'refval-check' : '',
+                    `<span class="badge badge-warning"><i class="fas fa-hand-holding-dollar"></i> À valider</span> ${this.ageBadge(u.updated_at)}${u.note ? `<span class="reason" title="${SF.esc(u.note)}"><i class="fas fa-hand-holding-dollar"></i><span>${SF.esc(u.note)}</span></span>` : ''}`));
+            this.updSel('refval');
+        },
+        // Stock : valider un remboursement déclaré par le responsable → l'unité sort de la garantie.
+        async refundValidate() {
+            const ids = this.selected('refval-check');
+            if (!ids.length) return SF.toast('Sélectionnez au moins une unité', 'error');
+            const body = { unit_ids: ids };
+            if (this.user.role === 'admin') {
+                const amtStr = await SF.prompt('Montant remboursé (Ar). Laissez vide pour conserver le montant proposé / le prix d\'achat :',
+                    { title: 'Valider le remboursement', okLabel: 'Valider', required: false, money: true });
+                if (amtStr == null) return;   // annulé
+                if (String(amtStr).trim()) body.amount = Number(amtStr) || 0;
+            } else if (!await SF.confirm(`Confirmer que le fournisseur a bien remboursé ${ids.length} unité(s) ? Elles sortiront de la garantie.`, { okLabel: 'Valider le remboursement' })) return;
+            try { const r = await SF.api('/api/garantie/refund-validate', { method: 'POST', body }); SF.toast(r.hint || `${r.count} remboursement(s) validé(s)`, 'success'); this.reload(); }
+            catch (e) { SF.toast(e.message, 'error'); }
+        },
+        // Stock : refuser un remboursement (le remboursement n'a pas eu lieu) → repart « En attente ».
+        async refundReject() {
+            const ids = this.selected('refval-check');
+            if (!ids.length) return SF.toast('Sélectionnez au moins une unité', 'error');
+            const reason = await SF.prompt('Motif du refus (le remboursement n\'a pas eu lieu). Les unités repartent « En attente » chez le fournisseur :',
+                { title: 'Refuser le remboursement', okLabel: 'Refuser', required: true, multiline: true });
+            if (reason == null || !reason.trim()) return;
+            try { const r = await SF.api('/api/garantie/refund-reject', { method: 'POST', body: { unit_ids: ids, reason: reason.trim() } }); SF.toast(`${r.count} remboursement(s) refusé(s) — repart « En attente »`, 'success'); this.reload(); }
+            catch (e) { SF.toast(e.message, 'error'); }
+        },
+        // ÉTAPE À PART — garantie exceptionnelle (réparation interne, sans fournisseur).
+        renderExc() {
+            const exc = this.depot.filter(u => u.garantie_type === 'exceptionnel').filter(u => this.matchSearch(u));
+            const box = document.getElementById('excGroup');
+            if (!exc.length) { box.innerHTML = '<div class="gempty">Aucune garantie exceptionnelle.</div>'; this.updSel('exc'); return; }
+            box.innerHTML = `<div class="fbloc">
+                <div class="fbloc-h"><i class="fas fa-wrench"></i> Réparation interne <span class="fcount">${exc.length} unité(s)</span></div>
+                <div class="ucards">${exc.map(u => this.urow(u, 'exc-check', `${SF.warrantyBadge(u.warranty_end)}${this.reasonChip(u)}`)).join('')}</div></div>`;
+            this.updSel('exc');
+        },
+        updSel(which) {
+            const map = {
+                send: ['send-check', 'sendBar', 'sendSel'], arenv: ['arenv-check', 'arenvBar', 'arenvSel'],
+                sent: ['sent-check', 'sentBar', 'sentSel'], ret: ['ret-check', 'retBar', 'retSel'],
+                refval: ['refval-check', 'refvalBar', 'refvalSel'],
+                exc: ['exc-check', 'excBar', 'excSel']
+            };
+            const [cls, barId, selId] = map[which] || map.send;
+            const checked = [...document.querySelectorAll('.' + cls + ':checked')];
+            const bar = document.getElementById(barId); if (bar) bar.style.display = checked.length ? 'flex' : 'none';
+            const sel = document.getElementById(selId); if (sel) sel.textContent = `${checked.length} sélectionnée(s)`;
+        },
+        selected(cls) { return [...document.querySelectorAll('.' + cls + ':checked')].map(c => +c.value); },
+        async returnSupplier() {
+            const ids = this.selected('send-check');
+            if (!ids.length) return SF.toast('Sélectionnez des unités à renvoyer', 'error');
+            // Motif / raison obligatoire pour chaque unité avant l'envoi.
+            const noReason = ids.map(id => this.depot.find(u => u.id === id)).filter(u => u && !(u.note || '').trim());
+            if (noReason.length) return SF.toast(`Motif obligatoire manquant : ${noReason.map(u => u.serial || '#' + u.id).join(', ')}. Cliquez « Ajouter le motif ».`, 'error');
+            const body = { unit_ids: ids };
+            if (this.hasResponsible) {
+                if (!await SF.confirm('Confier ces unités au responsable des garanties pour envoi au fournisseur ?', { okLabel: 'Confier' })) return;
+            } else {
+                const sender = await SF.prompt('Nom de la personne qui renvoie au fournisseur :', { title: 'Renvoi fournisseur', okLabel: 'Renvoyer', required: true });
+                if (sender == null || !sender.trim()) return;
+                body.sender_name = sender;
+            }
+            try { const r = await SF.api('/api/garantie/return-supplier', { method: 'POST', body }); SF.toast(r.to_responsible ? `${r.count} confiée(s) au responsable` : `${r.count} renvoyée(s)`, 'success'); this.reload(); }
+            catch (e) { SF.toast(e.message, 'error'); }
+        },
+        // Responsable : confirmer l'expédition au fournisseur (unités confiées « à renvoyer »).
+        async confirmSend() {
+            const ids = this.selected('arenv-check');
+            if (!ids.length) return SF.toast('Sélectionnez au moins une unité', 'error');
+            // Motif / raison obligatoire avant l'envoi effectif.
+            const noReason = ids.map(id => (this.arenv || []).find(u => u.id === id)).filter(u => u && !(u.note || '').trim());
+            if (noReason.length) return SF.toast(`Motif obligatoire manquant : ${noReason.map(u => u.serial || '#' + u.id).join(', ')}. Ajoutez le motif dans l'onglet « À envoyer ».`, 'error');
+            if (!await SF.confirm(`Confirmer l'envoi de ${ids.length} unité(s) au fournisseur ? Imprimez le bon d'envoi avant.`, { okLabel: 'Confirmer l\'envoi' })) return;
+            try { const r = await SF.api('/api/garantie/confirm-send', { method: 'POST', body: { unit_ids: ids } }); SF.toast(`${r.count} envoyée(s) au fournisseur`, 'success'); this.reload(); }
+            catch (e) { SF.toast(e.message, 'error'); }
+        },
+        // Responsable : déclarer le retour du fournisseur (→ « revenues à réceptionner » côté stock).
+        async markReturned() {
+            const ids = this.selected('ret-check');
+            if (!ids.length) return SF.toast('Sélectionnez au moins une unité', 'error');
+            if (!await SF.confirm(`Marquer ${ids.length} unité(s) comme revenue(s) du fournisseur ? Le stock les re-réceptionnera.`, { okLabel: 'Marquer revenu(s)' })) return;
+            try { const r = await SF.api('/api/garantie/mark-returned', { method: 'POST', body: { unit_ids: ids } }); SF.toast(`${r.count} marquée(s) revenue(s)`, 'success'); this.reload(); }
+            catch (e) { SF.toast(e.message, 'error'); }
+        },
+        // Responsable / admin : le fournisseur rembourse la valeur d'achat au lieu de renvoyer
+        // l'appareil. L'unité SORT de la garantie et reste « remboursée » dans l'historique.
+        async refund(ids) {
+            ids = ids || this.selected('ret-check');
+            if (!ids.length) return SF.toast('Sélectionnez au moins une unité', 'error');
+            const reason = await SF.prompt('Le fournisseur rembourse la valeur d\'achat de ces unités (elles ne reviennent pas au stock, elles sortent de la garantie). Motif du remboursement :',
+                { title: 'Remboursé par le fournisseur', okLabel: 'Continuer', required: true, multiline: true });
+            if (reason == null || !reason.trim()) return;
+            const body = { unit_ids: ids, reason: reason.trim() };
+            // Seul l'admin peut forcer le montant ; sinon le serveur utilise le prix d'achat enregistré.
+            if (this.user.role === 'admin') {
+                const amtStr = await SF.prompt('Montant remboursé (Ar). Laissez vide pour utiliser le prix d\'achat enregistré du produit :',
+                    { title: 'Montant du remboursement', okLabel: 'Valider le remboursement', required: false, money: true });
+                if (amtStr == null) return;
+                body.amount = Number(amtStr) || 0;
+            } else if (!await SF.confirm(`Déclarer le remboursement fournisseur de ${ids.length} unité(s) ? Le stock devra le valider avant qu'elles sortent de la garantie.`, { okLabel: 'Déclarer' })) return;
+            try {
+                const r = await SF.api('/api/garantie/refund', { method: 'POST', body });
+                // Admin : sortie directe de la garantie. Responsable : en attente de validation du stock.
+                SF.toast(r.pending ? `${r.count} remboursement(s) — en attente de validation du stock` : `${r.count} remboursée(s) — sortie(s) de la garantie`, 'success', 4500);
+                if (r.hint && !r.pending) SF.toast(r.hint, 'warn', 5000);
+                this.reload();
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        async repair() {
+            const ids = this.selected('exc-check');
+            if (!ids.length) return SF.toast('Sélectionnez des unités exceptionnelles', 'error');
+            const tech = await SF.prompt('Nom du technicien qui a réparé :', { title: 'Réparation', okLabel: 'Valider', required: true });
+            if (tech == null || !tech.trim()) return;
+            try { const r = await SF.api('/api/garantie/repair', { method: 'POST', body: { unit_ids: ids, technician_name: tech } }); SF.toast(`${r.count} réparée(s) → stock`, 'success'); this.reload(); }
+            catch (e) { SF.toast(e.message, 'error'); }
+        },
+        // Erreur de saisie : annuler l'entrée en garantie et remettre l'unité au stock dépôt.
+        async cancelEntry(cls) {
+            const ids = this.selected(cls);
+            if (!ids.length) return SF.toast('Sélectionnez au moins une unité', 'error');
+            const reason = await SF.prompt(`Annuler l'envoi en garantie de ${ids.length} unité(s) (erreur de saisie) et les remettre au stock dépôt.\nMotif (facultatif) :`, { title: 'Annuler → stock dépôt', okLabel: 'Remettre au stock', required: false, multiline: true });
+            if (reason === null) return;   // annulé
+            try { const r = await SF.api('/api/garantie/cancel-entry', { method: 'POST', body: { unit_ids: ids, reason: reason || '' } }); SF.toast(`${r.count} remise(s) au stock dépôt`, 'success'); this.reload(); }
+            catch (e) { SF.toast(e.message, 'error'); }
+        },
+        async treat(action) {
+            const ids = this.selected('sent-check');
+            if (!ids.length) return SF.toast('Sélectionnez des unités', 'error');
+            let reason = '', amount = null;
+            if (action === 'rembourse') {
+                // Remboursement fournisseur (admin uniquement) : motif + montant (défaut = prix d'achat).
+                reason = await SF.prompt('Le fournisseur rembourse la valeur d\'achat de ces unités (elles ne reviennent pas au stock). Motif du remboursement :',
+                    { title: 'Remboursement fournisseur', okLabel: 'Continuer', required: true, multiline: true });
+                if (reason == null || !reason.trim()) return;
+                const amtStr = await SF.prompt('Montant remboursé (Ar). Laissez vide pour utiliser le prix d\'achat enregistré du produit :',
+                    { title: 'Montant du remboursement', okLabel: 'Valider le remboursement', required: false, money: true });
+                if (amtStr == null) return;   // annulé
+                amount = Number(amtStr) || 0;   // 0 → le serveur utilise le prix d'achat
+            } else if (action !== 'reintegrer') {
+                reason = await SF.prompt(action === 'remplace' ? 'Motif du remplacement :' : 'Motif de la suppression :', { title: action === 'remplace' ? 'Remplacement' : 'Suppression', okLabel: 'Valider', required: true, multiline: true }); if (reason == null || !reason.trim()) return;
+            } else if (!await SF.confirm('Réintégrer ces unités au stock disponible ?', { okLabel: 'Réintégrer' })) return;
+            try {
+                const r = await SF.api('/api/garantie/treat', { method: 'POST', body: { unit_ids: ids, action, reason, amount } });
+                SF.toast(`${r.count} traitée(s)`, 'success');
+                if (r.hint) SF.toast(r.hint, 'warn', 5000);
+                this.reload();
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        receiveReturn(id) {
+            const u = this.retournee.find(x => x.id === id); if (!u) return;
+            this.recvUnit = u;
+            document.getElementById('recvInfo').innerHTML = `<strong>${this.pname(u)}</strong> · N° série <span style="font-family:monospace;">${SF.esc(u.serial)}</span> · ${SF.esc(u.supplier_name || '—')}`;
+            const t = new Date(), pad = n => String(n).padStart(2, '0');
+            document.getElementById('rv_date').value = `${t.getFullYear()}-${pad(t.getMonth() + 1)}-${pad(t.getDate())}`;
+            document.getElementById('rv_warranty').value = '';
+            document.getElementById('rv_ram').value = u.ram || '';
+            document.getElementById('rv_storage').value = u.storage || '';
+            document.getElementById('rv_storage_type').value = u.storage_type || '';
+            document.getElementById('rv_price').value = u.sale_price || 0;
+            document.getElementById('rv_purchaseWrap').style.display = this.user.role === 'admin' ? '' : 'none';
+            document.getElementById('rv_purchase').value = '';
+            SF.Modal.open('recvModal');
+        },
+        async submitReceive() {
+            const u = this.recvUnit; if (!u) return;
+            const body = {
+                unit_id: u.id,
+                entry_date: document.getElementById('rv_date').value,
+                warranty_days: document.getElementById('rv_warranty').value,
+                ram: document.getElementById('rv_ram').value.trim(),
+                storage: document.getElementById('rv_storage').value.trim(),
+                storage_type: document.getElementById('rv_storage_type').value.trim(),
+                sale_price: document.getElementById('rv_price').value
+            };
+            if (this.user.role === 'admin') body.purchase_price = document.getElementById('rv_purchase').value;
+            try { await SF.api('/api/garantie/receive-return', { method: 'POST', body }); SF.toast('Unité re-réceptionnée au stock — étiquette dispo. dans Réception ▸ Garanties revenues', 'success', 4500); SF.Modal.close('recvModal'); this.reload(); }
+            catch (e) { SF.toast(e.message, 'error'); }
+        },
+        // ---- Secondaire : suivi consolidé + historique ----
+        suiviState(st) {
+            if (st === 'garantie_fournisseur' || st === 'garantie_a_renvoyer') return '<span class="badge badge-warning"><i class="fas fa-truck-arrow-right"></i> À envoyer</span>';
+            if (st === 'retour_fournisseur') return '<span class="badge badge-info"><i class="fas fa-industry"></i> Chez le fournisseur</span>';
+            if (st === 'garantie_retournee') return '<span class="badge badge-warning"><i class="fas fa-rotate-left"></i> Revenue à réceptionner</span>';
+            if (st === 'garantie_exceptionnel') return '<span class="badge badge-secondary"><i class="fas fa-wrench"></i> Interne (except.)</span>';
+            return '<span class="badge badge-success"><i class="fas fa-check"></i> Retournée / traitée</span>';
+        },
+        // Suivi par n° de série, SÉPARÉ « non traitées » / « traitées », puis GROUPÉ PAR FOURNISSEUR.
+        renderSuivi() {
+            const b = document.getElementById('suiviBody');
+            const rows = this.suivi || [];
+            if (!rows.length) { b.innerHTML = '<tr><td colspan="7" class="text-center text-muted">Aucun ordinateur avec historique de garantie</td></tr>'; return; }
+            const cell = (date, by) => date ? `${SF.fmt.date(date)}<div class="text-muted" style="font-size:11px;">${SF.esc(by || '—')}</div>` : '<span class="text-muted">—</span>';
+            // « Non traitées » = encore dans le circuit garantie ; « Traitées » = sorties du circuit (réintégrées, remboursées, supprimées, vendues…).
+            const GAR = ['garantie_fournisseur', 'garantie_exceptionnel', 'garantie_a_renvoyer', 'retour_fournisseur', 'garantie_retournee'];
+            const untreated = rows.filter(r => GAR.includes(r.current_status));
+            const treated = rows.filter(r => !GAR.includes(r.current_status));
+            const rowHtml = r => `<tr>
+                <td style="font-family:monospace;">${SF.esc(r.serial || '—')}</td>
+                <td>${SF.esc(r.product_name || '—')}</td>
+                <td>${this.suiviState(r.current_status)}</td>
+                <td>${SF.esc(r.supplier_name || '—')}</td>
+                <td>${cell(r.entry_date, r.entry_by)}</td>
+                <td>${cell(r.sent_date, r.sent_by)}</td>
+                <td>${cell(r.return_date, r.return_by)}</td></tr>`;
+            const groupBySup = list => {
+                const m = new Map();
+                list.forEach(r => { const k = r.supplier_name || 'Sans fournisseur'; if (!m.has(k)) m.set(k, []); m.get(k).push(r); });
+                return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+            };
+            const bucket = (title, icon, list) => {
+                if (!list.length) return '';
+                let h = `<tr><td colspan="7" style="background:var(--bg-input);font-weight:800;padding:8px 10px;"><i class="fas ${icon}"></i> ${title} (${list.length})</td></tr>`;
+                groupBySup(list).forEach(([sup, us]) => {
+                    h += `<tr><td colspan="7" style="background:var(--bg-card);font-weight:700;font-size:12px;color:var(--text-muted);padding:6px 10px 6px 22px;"><i class="fas fa-industry"></i> ${SF.esc(sup)} · ${us.length} unité(s)</td></tr>`;
+                    h += us.map(rowHtml).join('');
+                });
+                return h;
+            };
+            b.innerHTML = bucket('En cours — non traitées', 'fa-hourglass-half', untreated) + bucket('Traitées', 'fa-check-double', treated);
+        },
+        renderHist() {
+            const b = document.getElementById('histBody');
+            if (!this.hist.length) { b.innerHTML = '<tr><td colspan="8" class="text-center text-muted">Aucun historique</td></tr>'; return; }
+            b.innerHTML = this.hist.map(h => `<tr>
+                <td>${SF.fmt.datetime(h.created_at)}</td>
+                <td style="font-family:monospace;">${SF.esc(h.serial)}</td>
+                <td>${this.pname(h)}<div class="text-muted" style="font-size:11px;">${SF.esc(this.specLine(h))}</div></td>
+                <td>${SF.esc(h.supplier_name || '—')}</td>
+                <td><span class="gtype ${h.garantie_type}">${h.garantie_type === 'exceptionnel' ? 'Exceptionnelle' : 'Fournisseur'}</span></td>
+                <td>${this.actionLabels[h.action] || h.action}</td>
+                <td class="text-muted" style="font-size:12px;">${SF.esc([h.sender_name && ('Envoi: ' + h.sender_name), h.technician_name && ('Tech: ' + h.technician_name), (h.amount > 0 ? 'Remboursé: ' + SF.fmt.ar(h.amount) : ''), h.reason].filter(Boolean).join(' · '))}</td>
+                <td>${SF.esc(h.user_name || '')}</td></tr>`).join('');
+        },
+        supplierById(id) { return (this.suppliers || []).find(s => s.id === id) || null; },
+        // Bon de retour en garantie : document à remettre au fournisseur (une page par fournisseur).
+        bonEnvoi() {
+            const four = this.depot.filter(u => u.garantie_type !== 'exceptionnel');
+            const all = [...four, ...(this.arenv || [])];
+            if (!all.length) return SF.toast('Aucune unité à envoyer au fournisseur', 'error');
+            const groups = this.groupBySupplier(all).map(g => {
+                const sup = this.supplierById(g.id) || {};
+                return {
+                    supplier: { name: g.name, phone: sup.phone || '', address: sup.address || '', contact: sup.contact || '' },
+                    units: g.units.map(u => ({
+                        serial: u.serial || '',
+                        designation: [u.brand, u.model].filter(Boolean).join(' ') || u.product_name || '—',
+                        detail: this.specLine(u),
+                        note: u.note || '',
+                        warranty_end: u.warranty_end
+                    }))
+                };
+            });
+            SFGarantieEnvoi.generate({ groups }, this.config);
+        },
+        // ---- Rapport d'audit détaillé, structuré PAR FOURNISSEUR ----
+        // Helpers de formatage partagés par le PDF.
+        pnameR(u) { return [u.brand, u.model].filter(Boolean).join(' ') || u.product_name || '—'; },
+        cfgR(r) { return r.is_accessory ? [r.category, r.subcategory].filter(Boolean).join(' · ') || '—' : (this.specLine(r) || '—'); },
+        // Libellé d'expiration de garantie fournisseur à partir de warranty_end.
+        expLabel(warranty_end) {
+            const d = SF.daysUntil(warranty_end);
+            if (d == null) return '—';
+            if (d < 0)  return `Expirée (${-d} j)`;
+            if (d === 0) return "Expire auj.";
+            return `Active (${d} j)`;
+        },
+        // Détails d'une action d'historique (envoi / technicien / remboursement / motif).
+        histDetail(h) {
+            return [h.sender_name && 'Envoi: ' + h.sender_name, h.technician_name && 'Tech: ' + h.technician_name,
+                    (h.amount > 0 ? 'Remboursé: ' + SF.fmt.ar(h.amount) : ''), h.reason].filter(Boolean).join(' · ') || '—';
+        },
+        exportPDF() {
+            const pname = u => this.pnameR(u), cfg = r => this.cfgR(r);
+            const bySup = arr => [...arr].sort((a, b) => String(a.supplier_name || '').localeCompare(String(b.supplier_name || '')) || String(a.serial || '').localeCompare(String(b.serial || '')));
+            const isExpired = u => { const d = SF.daysUntil(u.warranty_end); return d != null && d < 0; };
+
+            const fournisseur = this.depot.filter(u => u.garantie_type !== 'exceptionnel');
+            const exceptionnel = this.depot.filter(u => u.garantie_type === 'exceptionnel');
+            const traites = this.hist.filter(h => ['traite', 'repare', 'remplace', 'supprime', 'rembourse'].includes(h.action));
+
+            // Unités « en cours » (encore dans le circuit), taguées par état + ordre d'affichage.
+            //  À envoyer → Confié au responsable → Chez le fournisseur (mbola any) → Revenue → Exceptionnelle.
+            const current = [
+                ...fournisseur.map(u => ({ ...u, _etat: 'À envoyer', _ord: 1 })),
+                ...(this.arenv || []).map(u => ({ ...u, _etat: 'Confié au responsable', _ord: 2 })),
+                ...(this.retour || []).map(u => ({ ...u, _etat: 'Chez le fournisseur', _ord: 3 })),
+                ...(this.retournee || []).map(u => ({ ...u, _etat: 'Revenue — à réceptionner', _ord: 4 })),
+                ...exceptionnel.map(u => ({ ...u, _etat: 'Exceptionnelle (interne)', _ord: 5 }))
+            ];
+
+            // Récapitulatif PAR FOURNISSEUR : compteurs des 3 grands états + expirées + valeur en cours.
+            const recap = new Map();
+            const rget = (id, name) => {
+                const k = id || 0;
+                if (!recap.has(k)) recap.set(k, { name: name || 'Sans fournisseur', envoyer: 0, chez: 0, revenue: 0, exc: 0, traite: 0, expire: 0, val: 0 });
+                const o = recap.get(k); if (name && o.name === 'Sans fournisseur') o.name = name; return o;
+            };
+            const val = u => (u.sale_price || 0);
+            fournisseur.forEach(u => { const o = rget(u.supplier_id, u.supplier_name); o.envoyer++; o.val += val(u); if (isExpired(u)) o.expire++; });
+            (this.arenv || []).forEach(u => { const o = rget(u.supplier_id, u.supplier_name); o.envoyer++; o.val += val(u); if (isExpired(u)) o.expire++; });
+            (this.retour || []).forEach(u => { const o = rget(u.supplier_id, u.supplier_name); o.chez++; o.val += val(u); });
+            (this.retournee || []).forEach(u => { const o = rget(u.supplier_id, u.supplier_name); o.revenue++; o.val += val(u); });
+            exceptionnel.forEach(u => { const o = rget(u.supplier_id, u.supplier_name); o.exc++; o.val += val(u); if (isExpired(u)) o.expire++; });
+            traites.forEach(h => { rget(h.supplier_id, h.supplier_name).traite++; });
+            const recapRows = [...recap.values()].sort((a, b) => String(a.name).localeCompare(String(b.name)));
+            const T = recapRows.reduce((t, r) => ({ envoyer: t.envoyer + r.envoyer, chez: t.chez + r.chez, revenue: t.revenue + r.revenue, exc: t.exc + r.exc, traite: t.traite + r.traite, expire: t.expire + r.expire, val: t.val + r.val }),
+                { envoyer: 0, chez: 0, revenue: 0, exc: 0, traite: 0, expire: 0, val: 0 });
+
+            // Un bloc « détail » par fournisseur : toutes ses unités en cours (état + expiration + ancienneté + motif).
+            const currentGroups = this.groupBySupplier(current).map(g => ({
+                ...g, units: [...g.units].sort((a, b) => (a._ord - b._ord) || String(a.serial || '').localeCompare(String(b.serial || '')))
+            }));
+
+            const detailSections = currentGroups.map(g => ({
+                heading: 'Fournisseur : ' + g.name + '  (' + g.units.length + ' unité(s) en cours)',
+                columns: [
+                    { header: 'N° série', key: 'serial', width: 15, format: v => v || '—' },
+                    { header: 'Produit', key: '_p', width: 20, format: (v, r) => pname(r) },
+                    { header: 'Configuration', key: '_c', width: 27, format: (v, r) => cfg(r) },
+                    { header: 'État', key: '_etat', width: 18 },
+                    { header: 'Entrée', key: 'created_at', width: 12, format: (v, r) => SF.fmt.date(r.created_at) },
+                    { header: 'Fin garantie', key: 'warranty_end', width: 13, format: v => SF.fmt.date(v) },
+                    { header: 'Garantie fourn.', key: '_exp', width: 15, format: (v, r) => this.expLabel(r.warranty_end) },
+                    { header: 'Ancienneté', key: '_age', width: 11, format: (v, r) => { const a = this.ageDays(r.updated_at); return a == null ? '—' : a + ' j'; } },
+                    { header: 'Motif / panne', key: 'note', width: 24, format: v => v || '—' }
+                ],
+                rows: g.units,
+                totals: { _p: g.units.length + ' unité(s)', _exp: g.units.filter(isExpired).length ? g.units.filter(isExpired).length + ' expirée(s)' : '' }
+            }));
+
+            const supSel = document.getElementById('f_supplier').selectedOptions[0];
+            SFReport.build({
+                company: this.config,
+                title: "Rapport d'audit — Garanties",
+                period: (supSel && supSel.value ? 'Fournisseur : ' + supSel.textContent : 'Tous les fournisseurs') + '  ·  Détail par fournisseur',
+                filename: 'Rapport-garantie-fournisseurs.pdf',
+                note: "À envoyer = à retourner · Chez le fournisseur = en attente de retour · Revenue = à réceptionner · Traitée = clôturée · Expirée = couverture fournisseur dépassée.",
+                summary: [
+                    { label: 'À envoyer au fournisseur', value: T.envoyer },
+                    { label: 'Chez le fournisseur (en attente)', value: T.chez },
+                    { label: 'Revenues à réceptionner', value: T.revenue },
+                    { label: 'Exceptionnelles (interne)', value: T.exc },
+                    { label: 'Déjà traitées', value: T.traite },
+                    { label: 'Dont garantie expirée', value: T.expire },
+                    { label: 'Valeur en cours', value: SF.fmt.ar(T.val) }
+                ],
+                sections: [
+                    // 1) Vue d'ensemble par fournisseur.
+                    { heading: 'Récapitulatif par fournisseur',
+                      note: 'Répartition des unités en cours et déjà traitées, par fournisseur.',
+                      columns: [
+                          { header: 'Fournisseur', key: 'name', width: 28 },
+                          { header: 'À envoyer', key: 'envoyer', width: 13, align: 'center' },
+                          { header: 'Chez fourn.', key: 'chez', width: 13, align: 'center' },
+                          { header: 'Revenues', key: 'revenue', width: 12, align: 'center' },
+                          { header: 'Except.', key: 'exc', width: 11, align: 'center' },
+                          { header: 'Traitées', key: 'traite', width: 12, align: 'center' },
+                          { header: 'Dont expirées', key: 'expire', width: 14, align: 'center' },
+                          { header: 'Valeur en cours', key: 'val', width: 20, align: 'right', format: v => SF.fmt.ar(v) }
+                      ], rows: recapRows,
+                      totals: { name: 'TOTAL (' + recapRows.length + ' fournisseur·s)', envoyer: String(T.envoyer), chez: String(T.chez), revenue: String(T.revenue), exc: String(T.exc), traite: String(T.traite), expire: String(T.expire), val: SF.fmt.ar(T.val) } },
+                    // 2) Détail par fournisseur (une section chacun).
+                    ...detailSections,
+                    // 3) Historique des traitements, groupé par fournisseur.
+                    { heading: 'Historique des traitements (déjà traitées) — par fournisseur',
+                      note: traites.length ? '' : 'Aucune garantie clôturée sur la période.',
+                      columns: [
+                          { header: 'Fournisseur', key: 'supplier_name', width: 20, format: v => v || '—' },
+                          { header: 'Date', key: 'created_at', width: 15, format: v => SF.fmt.date(v) },
+                          { header: 'N° série', key: 'serial', width: 16, format: v => v || '—' },
+                          { header: 'Produit', key: '_p', width: 22, format: (v, h) => pname(h) },
+                          { header: 'Configuration', key: '_c', width: 26, format: (v, h) => cfg(h) },
+                          { header: 'Action', key: 'action', width: 15, format: v => this.actionLabels[v] || v },
+                          { header: 'Détails', key: '_d', width: 26, format: (v, h) => this.histDetail(h) },
+                          { header: 'Par', key: 'user_name', width: 15, format: v => v || '—' }
+                      ], rows: bySup(traites),
+                      totals: traites.length ? { _p: traites.length + ' traitement(s)' } : null }
+                ]
+            });
+        }
+    };
+    Garantie.init();
+    </script>
+</body>
+</html>

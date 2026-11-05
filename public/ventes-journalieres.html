@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <title>Rapport journalier — STOCKFLOW</title>
+    <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css">
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/sf.css">
+    <script>document.documentElement.setAttribute('data-theme', localStorage.getItem('stockflow-theme') === 'dark' ? 'dark' : 'light'); try { var sfu = JSON.parse(localStorage.getItem('stockflow-ui') || '{}'); for (var k in sfu) document.documentElement.setAttribute('data-' + k, sfu[k]); } catch (e) {}</script>
+    <style>
+        .filters { display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; margin-bottom:18px; }
+        .filters .form-group { margin-bottom:0; } .filters .form-control { min-width:150px; }
+        /* Récapitulatif : familles × (boutique / livraison payée / livraison non payée). */
+        .rj-recap th, .rj-recap td { text-align:center; }
+        .rj-recap th:first-child, .rj-recap td:first-child { text-align:left; }
+        .rj-recap .q { font-size:17px; font-weight:700; color:var(--text-primary); line-height:1.2; }
+        .rj-recap .a { display:block; margin-top:2px; font-size:12px; color:var(--text-muted); white-space:nowrap; }
+        .rj-recap td.np .q { color:var(--warning-dark); }
+        .rj-recap tfoot td { border-top:2px solid var(--border-color); }
+        .rj-cash { display:flex; flex-wrap:wrap; gap:6px 22px; margin-top:12px; font-size:13px; color:var(--text-secondary); }
+        .rj-cash b { color:var(--text-primary); }
+        /* Listes : un bloc par canal et état de paiement. */
+        .rj-card { margin-top:18px; }
+        .rj-card .card-header h3 .cnt { font-size:13px; font-weight:500; color:var(--text-muted); }
+        .rj-group + .rj-group { margin-top:18px; }
+        .rj-gh { display:flex; align-items:center; flex-wrap:wrap; gap:8px; padding:8px 12px; margin-bottom:8px;
+                 border-radius:8px; background:var(--neutral-soft); font-size:13px; font-weight:600; color:var(--text-primary); }
+        .rj-gh > i { color:var(--text-muted); }
+        .rj-gh .meta { margin-left:auto; font-weight:500; color:var(--text-muted); white-space:nowrap; }
+        .pay { display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:700; padding:2px 9px; border-radius:20px; white-space:nowrap; }
+        .pay.ok { background:#ecf6f1; color:#05603a; }
+        .pay.no { background:#fcf3e6; color:#8a4606; }
+        :root[data-theme="dark"] .pay.ok { background:rgba(47,165,122,.16); color:#8fd8bc; }
+        :root[data-theme="dark"] .pay.no { background:rgba(224,160,70,.15); color:#f0c98d; }
+        .etat { display:inline-block; font-size:10.5px; font-weight:700; padding:2px 8px; border-radius:20px; }
+        .etat.echange { background:#fcf3e6; color:#8a4606; }
+        .etat.retour { background:var(--neutral-soft); color:var(--neutral-ink); }
+        .etat.annule { background:#fbeeed; color:#a12a22; }
+        tr.exrow td { color:var(--text-muted); }
+        .price-strike { text-decoration:line-through; opacity:.7; }
+        .mono { font-family:monospace; }
+        .kv { background:var(--bg-input); border-radius:12px; padding:14px; margin-bottom:14px; font-size:13px; line-height:1.85; }
+        .empty { padding:22px; text-align:center; color:var(--text-muted); }
+        @media (max-width:768px) {
+            .rj-gh { margin:0 0 8px; }
+            .rj-gh .meta { margin-left:0; width:100%; }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar" id="sfSidebar"></aside>
+        <main class="main-content">
+            <header class="page-header">
+                <div class="page-title"><h1>Rapport journalier</h1></div>
+                <div class="page-actions">
+                    <button class="btn btn-secondary" onclick="VJ.exportPDF()"><i class="fas fa-file-pdf"></i> Rapport PDF</button>
+                    <button class="btn btn-secondary" onclick="SFReport.as('xlsx', () => VJ.exportPDF())"><i class="fas fa-file-excel"></i> Excel</button>
+                    <div id="sfTools"></div>
+                </div>
+            </header>
+            <div class="page-body">
+                <div class="card"><div class="card-body">
+                    <div class="filters">
+                        <div class="form-group"><label>Du</label><input type="date" id="f_from" class="form-control" onchange="VJ.load()"></div>
+                        <div class="form-group"><label>Au</label><input type="date" id="f_to" class="form-control" onchange="VJ.load()"></div>
+                        <div class="form-group"><label>&nbsp;</label><button class="btn btn-secondary" onclick="VJ.today()"><i class="fas fa-calendar-day"></i> Aujourd'hui</button></div>
+                        <div class="form-group" style="flex:1;min-width:180px;"><label>Recherche</label><input type="text" id="f_q" class="form-control" placeholder="Modèle, n° série, client, responsable, vente…" oninput="VJ.render()"></div>
+                    </div>
+                    <div id="recap"><div class="sf-skel sf-skel-card"></div></div>
+                </div></div>
+
+                <div class="card rj-card">
+                    <div class="card-header"><h3><i class="fas fa-laptop"></i> Ordinateurs vendus <span class="cnt" id="ordiCnt"></span></h3></div>
+                    <div class="card-body" id="ordiBody"><div class="sf-skel sf-skel-card"></div></div>
+                </div>
+                <div class="card rj-card">
+                    <div class="card-header"><h3><i class="fas fa-headphones"></i> Accessoires vendus <span class="cnt" id="accCnt"></span></h3></div>
+                    <div class="card-body" id="accBody"><div class="sf-skel sf-skel-card"></div></div>
+                </div>
+                <div class="card rj-card" id="excCard" style="display:none;">
+                    <div class="card-header"><h3><i class="fas fa-rotate-left"></i> Retours et annulations <span class="cnt" id="excCnt"></span></h3></div>
+                    <div class="card-body" id="excBody"></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modale : détail de la vente + parcours de l'article -->
+    <div class="modal-overlay" id="detModal">
+        <div class="modal" style="max-width:580px;">
+            <div class="modal-header"><h3 id="dmTitle">Détail</h3><button class="modal-close" onclick="SF.Modal.close('detModal')">&times;</button></div>
+            <div class="modal-body" id="dmBody"></div>
+        </div>
+    </div>
+
+    <script src="/js/sf-core.js"></script>
+    <script src="/js/sf-layout.js"></script>
+    <script src="/js/sf-report.js"></script>
+    <script>
+    // Rapport journalier (caisse + stock) : tous les articles vendus, ordinateurs et accessoires
+    // séparés, chacun réparti en boutique / livraison payée / livraison non payée, avec le
+    // responsable de chaque vente. Les montants cumulés ne sont visibles que caisse + admin.
+    const VJ = {
+        user: null, config: {}, data: {},
+        GROUPS: [
+            { key: 'boutique', label: 'Boutique', icon: 'fa-store', pay: true },
+            { key: 'liv_ok', label: 'Livraison', icon: 'fa-truck', pay: true },
+            { key: 'liv_np', label: 'Livraison', icon: 'fa-truck', pay: false }
+        ],
+        PAY: { especes: 'Espèces', mvola: 'MVola', orange: 'Orange Money', airtel: 'Airtel Money', virement: 'Virement bancaire', orange_money: 'Orange Money', airtel_money: 'Airtel Money', carte: 'Carte', cheque: 'Chèque', mixte: 'Mixte' },
+        actionLabels: {
+            reception: 'Réception', envoi_installation: 'Envoi installation', installation_terminee: 'Installation terminée',
+            presentoir: 'Mise en présentoir', presentoir_retrait: 'Retrait présentoir', sortie_boutique: 'Sortie boutique',
+            reservation: 'Réservation', reservation_annulee: 'Réservation annulée', consignation_retour: 'Retour boutique réceptionné',
+            retour_boutique: 'Retour boutique', vente: 'Vente', vente_echange: 'Vente (échange)', retour_vente: 'Retour de vente',
+            echange_retour: 'Retour pour échange', retour_receptionne: 'Retour réceptionné', acompte_reserve: 'Avance (layaway)',
+            livraison_sortie: 'Sortie livraison', livraison_livree: 'Livrée', livraison_retour: 'Retour livraison',
+            retour_livraison: 'Retour livraison', admin_correction: 'Correction admin', inventaire_retire: 'Retiré (inventaire)',
+            upgrade_consomme: 'Composant monté (upgrade)', echange_sortie: 'Échange — sortie', echange_garantie: 'Échange → garantie',
+            defectueux: 'Stock défectueux'
+        },
+        async init() {
+            this.user = await SF.Auth.require(['gestion_stock', 'caisse']); if (!this.user) return;
+            SF.layout({ active: '/ventes-journalieres.html' });
+            try { this.config = await SF.api('/api/config'); } catch (e) {}
+            this.today(false);
+            SF.on('sale:new', () => this.load());
+            SF.on('stock:update', () => this.load());
+            SF.on('delivery:update', () => this.load());
+            this.load();
+        },
+        today(reload = true) {
+            const t = SF.fmt.today();
+            document.getElementById('f_from').value = t;
+            document.getElementById('f_to').value = t;
+            if (reload) this.load();
+        },
+        async load() {
+            const q = new URLSearchParams();
+            ['from', 'to'].forEach(k => { const v = document.getElementById('f_' + k).value; if (v) q.set(k, v); });
+            try { this.data = await SF.api('/api/ventes-journalieres?' + q.toString()); this.render(); }
+            catch (e) { SF.toast(e.message, 'error'); }
+        },
+
+        // ---- Classement ----
+        // Responsable de la vente : le commercial attribué, sinon le caissier.
+        resp(r) { return r.commercial_name || r.cashier_name || '—'; },
+        // Payé : boutique = encaissé ; livraison = vente terminée ou paiement déclaré.
+        isPaid(r) { return r.channel !== 'livraison' || r.sale_status === 'completed' || r.delivery_payment_status === 'paye'; },
+        groupOf(r) { return r.channel !== 'livraison' ? 'boutique' : (this.isPaid(r) ? 'liv_ok' : 'liv_np'); },
+        amount(list) { return list.reduce((t, r) => t + (r.is_gift ? 0 : (Number(r.unit_price) || 0)), 0); },
+        canCA() { return !!(this.data.recap || {}).can_see_ca; },
+        // Articles vendus (payés ou non) d'une famille ; les retours / annulations sont à part.
+        sold(kind) {
+            const d = this.data;
+            return kind === 'ordi' ? [].concat(d.ordinateurs || [], d.ordiLivraison || []) : [].concat(d.accessoires || [], d.accLivraison || []);
+        },
+        exceptions() { return [].concat(this.data.ordiExceptions || [], this.data.accExceptions || []); },
+        matchQ(r) {
+            const s = (document.getElementById('f_q').value || '').trim().toLowerCase();
+            if (!s) return true;
+            return [r.brand, r.model, r.product_name, r.pname, r.serial, r.client_name, this.resp(r), r.cashier_name,
+                    r.sale_number != null ? '#' + r.sale_number : '', r.delivery_number != null ? '#' + r.delivery_number : '']
+                .join(' ').toLowerCase().includes(s);
+        },
+        payBadge(ok) {
+            return ok ? '<span class="pay ok"><i class="fas fa-check"></i> Payé</span>'
+                      : '<span class="pay no"><i class="fas fa-hourglass-half"></i> Non payé</span>';
+        },
+        name(r) { return [r.brand, r.model].filter(Boolean).join(' ') || r.pname || r.product_name || '—'; },
+        ref(r) { return '#' + r.sale_number + (r.delivery_number ? ' · livr. #' + r.delivery_number : ''); },
+
+        // ---- Rendu ----
+        render() { this.renderRecap(); this.renderFamily('ordi'); this.renderFamily('acc'); this.renderExceptions(); },
+        renderRecap() {
+            const ca = this.canCA();
+            const by = (list, g) => list.filter(r => this.groupOf(r) === g);
+            const cell = (list, np) => `<td class="${np && list.length ? 'np' : ''}"><span class="q">${list.length}</span>${ca ? `<span class="a">${SF.fmt.ar(this.amount(list))}</span>` : ''}</td>`;
+            const line = (label, L) => `<td><b>${label}</b></td>${cell(by(L, 'boutique'))}${cell(by(L, 'liv_ok'))}${cell(by(L, 'liv_np'), true)}${cell(L)}`;
+            const ordi = this.sold('ordi'), acc = this.sold('acc'), all = ordi.concat(acc);
+            const exc = this.exceptions().length;
+            const notes = [];
+            if (ca) {
+                notes.push(`<span>Payé : <b>${SF.fmt.ar(this.amount(all.filter(r => this.isPaid(r))))}</b></span>`);
+                notes.push(`<span>Non payé : <b>${SF.fmt.ar(this.amount(by(all, 'liv_np')))}</b></span>`);
+            }
+            if (exc) notes.push(`<span>Retours / annulations : <b>${exc}</b></span>`);
+            document.getElementById('recap').innerHTML = `<div class="table-container"><table class="rj-recap">
+                <thead><tr><th>Famille</th><th>Boutique</th><th>Livraison payée</th><th>Livraison non payée</th><th>Total</th></tr></thead>
+                <tbody><tr>${line('Ordinateurs', ordi)}</tr><tr>${line('Accessoires', acc)}</tr></tbody>
+                <tfoot><tr>${line('Total', all)}</tr></tfoot>
+            </table></div>${notes.length ? `<div class="rj-cash">${notes.join('')}</div>` : ''}`;
+        },
+        row(r) {
+            const price = r.is_gift ? '<span class="badge badge-secondary">Offert</span>' : SF.fmt.ar(r.unit_price);
+            return `<tr class="clk" onclick="VJ.openOrdi(${r.unit_id}, ${r.sale_id})">
+                <td class="sf-nowrap">${SF.fmt.datetime(r.sold_at)}</td>
+                <td>${SF.esc(this.name(r))}${r.etat === 'echange' ? ' <span class="etat echange">Échange</span>' : ''}${r.returned && r.etat === 'vente' ? ' <span class="etat retour">Échangé</span>' : ''}${r.color ? ` · <span class="text-muted">${SF.esc(r.color)}</span>` : ''}</td>
+                <td class="mono">${SF.esc(r.serial || '—')}</td>
+                <td>${SF.esc(r.client_name || '—')}</td>
+                <td>${SF.esc(this.resp(r))}</td>
+                <td class="text-muted">${this.ref(r)}</td>
+                <td class="sf-nowrap">${price}</td></tr>`;
+        },
+        renderFamily(kind) {
+            const ca = this.canCA();
+            const list = this.sold(kind).filter(r => this.matchQ(r));
+            const np = list.filter(r => !this.isPaid(r)).length;
+            const box = document.getElementById(kind === 'ordi' ? 'ordiBody' : 'accBody');
+            document.getElementById(kind === 'ordi' ? 'ordiCnt' : 'accCnt').textContent =
+                list.length ? `(${list.length}${np ? ' · ' + np + ' non payé' + (np > 1 ? 's' : '') : ''})` : '';
+            if (!list.length) { box.innerHTML = `<div class="empty">Aucun ${kind === 'ordi' ? 'ordinateur' : 'accessoire'} vendu sur cette période.</div>`; return; }
+            const col = kind === 'ordi' ? 'Ordinateur' : 'Accessoire';
+            box.innerHTML = this.GROUPS.map(g => {
+                const rows = list.filter(r => this.groupOf(r) === g.key);
+                if (!rows.length) return '';
+                return `<div class="rj-group">
+                    <div class="rj-gh"><i class="fas ${g.icon}"></i> ${g.label} ${this.payBadge(g.pay)}
+                        <span class="meta">${rows.length} article${rows.length > 1 ? 's' : ''}${ca ? ' · ' + SF.fmt.ar(this.amount(rows)) : ''}</span></div>
+                    <div class="table-container"><table>
+                        <thead><tr><th>Heure</th><th>${col}</th><th>N° série</th><th>Client</th><th>Responsable</th><th>Vente</th><th>Prix</th></tr></thead>
+                        <tbody>${rows.map(r => this.row(r)).join('')}</tbody>
+                    </table></div>
+                </div>`;
+            }).join('');
+        },
+        renderExceptions() {
+            const list = this.exceptions().filter(r => this.matchQ(r));
+            const card = document.getElementById('excCard');
+            card.style.display = list.length ? '' : 'none';
+            if (!list.length) return;
+            document.getElementById('excCnt').textContent = `(${list.length})`;
+            const etat = r => r.etat === 'annule' ? '<span class="etat annule">Annulé</span>' : '<span class="etat retour">Retour</span>';
+            document.getElementById('excBody').innerHTML = `<div class="table-container"><table>
+                <thead><tr><th>Heure</th><th>Article</th><th>N° série</th><th>Client</th><th>Responsable</th><th>État</th><th>Prix</th></tr></thead>
+                <tbody>${list.map(r => `<tr class="clk exrow" onclick="VJ.openOrdi(${r.unit_id}, ${r.sale_id})">
+                    <td class="sf-nowrap">${SF.fmt.datetime(r.sold_at)}</td>
+                    <td>${SF.esc(this.name(r))}</td>
+                    <td class="mono">${SF.esc(r.serial || '—')}</td>
+                    <td>${SF.esc(r.client_name || '—')}</td>
+                    <td>${SF.esc(this.resp(r))}</td>
+                    <td>${etat(r)} <span class="text-muted">${this.ref(r)}</span></td>
+                    <td class="sf-nowrap"><span class="price-strike">${r.is_gift ? 'Offert' : SF.fmt.ar(r.unit_price)}</span></td></tr>`).join('')}</tbody>
+            </table></div>`;
+        },
+
+        // ---- Détail : vente + parcours complet de l'article ----
+        async openOrdi(unitId, saleId) {
+            const all = [].concat(this.sold('ordi'), this.sold('acc'), this.exceptions());
+            const r = all.find(x => x.unit_id === unitId && x.sale_id === saleId) || {};
+            const exc = r.etat === 'annule' || r.etat === 'retour';
+            SF.Modal.open('detModal');
+            document.getElementById('dmTitle').textContent = (r.is_accessory ? 'Accessoire' : 'Ordinateur') + ' — détail & parcours';
+            document.getElementById('dmBody').innerHTML = SF.skel.lines(4);
+            try {
+                const d = await SF.api('/api/units/' + unitId + '/movements');
+                const chan = r.channel === 'livraison' ? `<span class="badge badge-secondary"><i class="fas fa-truck"></i> Livraison${r.delivery_number ? ' #' + r.delivery_number : ''}</span>`
+                                                       : '<span class="badge badge-secondary"><i class="fas fa-store"></i> Boutique</span>';
+                const head = `<div class="kv">
+                    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
+                        <strong>${SF.esc([d.unit.brand, d.unit.model].filter(Boolean).join(' ') || d.unit.product_name || '—')}</strong> ${chan}</div>
+                    <div class="mono text-muted" style="font-size:12px;">${SF.esc(d.unit.serial || '—')}${d.unit.manufacturer_sn ? ' · SN ' + SF.esc(d.unit.manufacturer_sn) : ''}</div>
+                    <div><strong>Vente #${r.sale_number}</strong> · ${SF.fmt.datetime(r.sold_at)}</div>
+                    <div><i class="fas fa-user"></i> Client : ${SF.esc(r.client_name || '—')}</div>
+                    <div><i class="fas fa-user-tie"></i> Responsable : ${SF.esc(this.resp(r))}${r.cashier_name && r.cashier_name !== this.resp(r) ? ` · <span class="text-muted">caisse : ${SF.esc(r.cashier_name)}</span>` : ''}</div>
+                    <div><i class="fas fa-money-bill-wave"></i> ${SF.esc(this.PAY[r.payment_method] || r.payment_method || '—')} · ${exc ? (r.etat === 'annule' ? '<span class="etat annule">Annulé</span>' : '<span class="etat retour">Retour</span>') : this.payBadge(this.isPaid(r))}</div>
+                    <div><i class="fas fa-tag"></i> Prix : ${r.is_gift ? 'Offert' : SF.fmt.ar(r.unit_price)}</div>
+                </div>`;
+                const IN = ['stock', 'preparation', 'presentoir', 'reserve', 'consignation', 'acompte'];
+                const items = d.movements.map(m => {
+                    const fromIn = IN.includes(m.from_status), toIn = IN.includes(m.to_status);
+                    const dir = (m.to_status === 'stock' && m.action === 'reception') || (toIn && !fromIn) ? 'in' : (fromIn && !toIn ? 'out' : 'other');
+                    const flow = `${SF.UNIT_STATUS[m.from_status] || m.from_status || '—'} → ${SF.UNIT_STATUS[m.to_status] || m.to_status}`;
+                    return `<li><span class="dot ${dir}"></span>
+                        <div class="when">${SF.fmt.datetime(m.created_at)}</div>
+                        <div class="what">${SF.esc(this.actionLabels[m.action] || m.action)}</div>
+                        <div class="flow">${SF.esc(flow)}</div>
+                        <div class="who"><i class="fas fa-user" style="font-size:10px;"></i> ${SF.esc(m.user_name || '—')}</div>
+                        ${m.note ? `<div class="note">${SF.esc(m.note)}</div>` : ''}</li>`;
+                }).join('');
+                document.getElementById('dmBody').innerHTML = head + `<ul class="tl">${items}</ul>`;
+            } catch (e) { document.getElementById('dmBody').innerHTML = `<div class="text-danger">${SF.esc(e.message)}</div>`; }
+        },
+
+        // ---- Rapport PDF : même découpage que la page ----
+        exportPDF() {
+            const r = this.data.recap || {}, ca = this.canCA();
+            const per = r.date_from === r.date_to ? `Jour : ${SF.fmt.date(r.date_from)}` : `Période : ${SF.fmt.date(r.date_from)} — ${SF.fmt.date(r.date_to)}`;
+            const fams = [{ k: 'ordi', l: 'Ordinateurs', col: 'Ordinateur' }, { k: 'acc', l: 'Accessoires', col: 'Accessoire' }];
+            const gLabel = { boutique: 'Boutique', liv_ok: 'Livraison payée', liv_np: 'Livraison non payée' };
+            const sections = [];
+            fams.forEach(f => {
+                const L = this.sold(f.k).filter(x => this.matchQ(x));
+                this.GROUPS.forEach(g => {
+                    const rows = L.filter(x => this.groupOf(x) === g.key);
+                    if (!rows.length) return;
+                    sections.push({
+                        heading: `${f.l} — ${gLabel[g.key]} (${rows.length}${ca ? ' · ' + SFReport.ar(this.amount(rows)) : ''})`,
+                        columns: [
+                            { header: 'Heure', key: 'sold_at', width: 22, format: v => SF.fmt.datetime(v) },
+                            { header: f.col, key: '_n', width: 34, format: (v, x) => this.name(x) },
+                            { header: 'N° série', key: 'serial', width: 22, format: v => v || '—' },
+                            { header: 'Client', key: 'client_name', width: 24, format: v => v || '—' },
+                            { header: 'Responsable', key: '_r', width: 22, format: (v, x) => this.resp(x) },
+                            { header: 'Vente', key: '_v', width: 20, format: (v, x) => this.ref(x) },
+                            { header: 'Prix', key: 'unit_price', width: 18, format: (v, x) => x.is_gift ? 'Offert' : SFReport.ar(v) }
+                        ],
+                        rows
+                    });
+                });
+            });
+            if (!sections.length) return SF.toast('Rien à exporter', 'error');
+            const all = this.sold('ordi').concat(this.sold('acc')).filter(x => this.matchQ(x));
+            const n = g => all.filter(x => this.groupOf(x) === g).length;
+            const summary = [
+                { label: 'Ordinateurs', value: this.sold('ordi').filter(x => this.matchQ(x)).length },
+                { label: 'Accessoires', value: this.sold('acc').filter(x => this.matchQ(x)).length },
+                { label: 'Boutique', value: n('boutique') },
+                { label: 'Livraison payée', value: n('liv_ok') },
+                { label: 'Livraison non payée', value: n('liv_np') }
+            ];
+            if (ca) {
+                summary.push({ label: 'Payé', value: SFReport.ar(this.amount(all.filter(x => this.isPaid(x)))) });
+                summary.push({ label: 'Non payé', value: SFReport.ar(this.amount(all.filter(x => !this.isPaid(x)))) });
+            }
+            SFReport.build({ company: this.config || {}, title: 'Rapport journalier des ventes', period: per, filename: 'Rapport-journalier.pdf', summary, sections });
+        }
+    };
+    VJ.init();
+    </script>
+</body>
+</html>

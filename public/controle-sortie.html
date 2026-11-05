@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <title>Contrôle de sortie — STOCKFLOW</title>
+    <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css">
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/sf.css">
+    <script>document.documentElement.setAttribute('data-theme', localStorage.getItem('stockflow-theme') === 'dark' ? 'dark' : 'light'); try { var sfu = JSON.parse(localStorage.getItem('stockflow-ui') || '{}'); for (var k in sfu) document.documentElement.setAttribute('data-' + k, sfu[k]); } catch (e) {}</script>
+    <style>
+        .cs-wrap { max-width:900px; margin:0 auto; }
+        .cs-search { display:flex; gap:10px; align-items:stretch; }
+        .cs-search input { flex:1; min-width:0; font-size:20px; font-weight:700; letter-spacing:.5px; padding:16px 18px; border:2px solid var(--accent); border-radius:14px; background:var(--bg-card); color:var(--text-primary); font-family:var(--font-body); }
+        .cs-search input:focus { outline:none; box-shadow:0 0 0 4px var(--accent-glow); }
+        .cs-search .btn { padding:0 22px; font-size:16px; border-radius:14px; }
+        .cs-hint { font-size:12.5px; color:var(--text-muted); margin-top:8px; }
+        .cs-banner { border-radius:16px; padding:18px 20px; margin:18px 0 14px; display:flex; gap:16px; align-items:center; color:#fff; }
+        .cs-banner i.big { font-size:40px; }
+        .cs-banner .t { font-size:26px; font-weight:900; letter-spacing:.5px; line-height:1.1; }
+        .cs-banner .d { font-size:15px; margin-top:4px; opacity:.95; }
+        .cs-banner.paid { background:#15803d; } .cs-banner.cod { background:#c2410c; } .cs-banner.block { background:#b91c1c; }
+        .cs-warn { border-radius:12px; padding:12px 14px; margin-bottom:14px; background:rgba(229,72,77,.1); border:1px solid rgba(229,72,77,.35); color:var(--danger); font-weight:600; font-size:14px; }
+        .cs-info { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:10px 18px; font-size:14px; }
+        .cs-info .k { font-size:11px; text-transform:uppercase; letter-spacing:.4px; color:var(--text-muted); font-weight:700; }
+        .cs-info .v { font-weight:700; color:var(--text-primary); margin-top:2px; }
+        .cs-item { display:flex; align-items:center; gap:14px; padding:14px 12px; border:2px solid var(--border-color); border-radius:12px; margin-bottom:10px; cursor:pointer; background:var(--bg-card); user-select:none; }
+        .cs-item .box { width:34px; height:34px; border-radius:9px; border:2px solid var(--border-color); display:flex; align-items:center; justify-content:center; font-size:18px; color:transparent; flex-shrink:0; }
+        .cs-item.ok { border-color:#16a34a; background:rgba(22,163,74,.07); }
+        .cs-item.ok .box { background:#16a34a; border-color:#16a34a; color:#fff; }
+        .cs-item.ret { opacity:.5; cursor:default; }
+        .cs-item .nm { font-weight:800; font-size:15px; color:var(--text-primary); }
+        .cs-item .sp { font-size:12.5px; color:var(--text-muted); margin-top:2px; }
+        .cs-item .sr { font-family:monospace; font-size:15px; font-weight:700; margin-left:auto; text-align:right; white-space:nowrap; }
+        .cs-progress { font-size:14px; font-weight:700; }
+        .cs-acts { display:flex; gap:10px; flex-wrap:wrap; margin-top:14px; }
+        .cs-acts .btn { flex:1; min-width:200px; padding:16px; font-size:16px; border-radius:14px; }
+        .cs-hist td { font-size:13px; }
+        .st-ok { color:var(--success-dark); font-weight:700; } .st-ano { color:var(--danger); font-weight:700; }
+        .cs-tools { display:flex; gap:12px; align-items:center; justify-content:space-between; flex-wrap:wrap; margin-bottom:12px; }
+        .cs-tools .btn { padding:12px 18px; font-size:15px; border-radius:12px; }
+        .cs-manual { font-size:13px; color:var(--text-muted); cursor:pointer; text-decoration:underline dotted; text-underline-offset:3px; }
+        .cs-pend { display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:10px; }
+        .cs-pc { border:2px solid var(--border-color); border-left-width:7px; border-radius:12px; padding:12px 14px; cursor:pointer; background:var(--bg-card); }
+        .cs-pc:hover { box-shadow:0 2px 10px rgba(0,0,0,.08); }
+        .cs-pc.paid { border-left-color:#15803d; } .cs-pc.cod { border-left-color:#c2410c; } .cs-pc.block { border-left-color:#b91c1c; }
+        .cs-pc .r1 { display:flex; justify-content:space-between; gap:8px; align-items:baseline; }
+        .cs-pc .ref { font-family:monospace; font-weight:800; font-size:15px; color:var(--text-primary); }
+        .cs-pc .hr { font-size:12.5px; color:var(--text-muted); white-space:nowrap; }
+        .cs-pc .cl { font-weight:700; font-size:14.5px; margin-top:4px; color:var(--text-primary); }
+        .cs-pc .it { font-size:12.5px; color:var(--text-muted); margin-top:3px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .cs-pc .lb { font-size:12px; font-weight:800; margin-top:6px; letter-spacing:.3px; }
+        .cs-pc.paid .lb { color:#15803d; } .cs-pc.cod .lb { color:#c2410c; } .cs-pc.block .lb { color:#b91c1c; }
+        .cs-filt { display:flex; gap:6px; flex-wrap:wrap; }
+        .cs-filt button { border:1px solid var(--border-color); background:var(--bg-card); color:var(--text-secondary); border-radius:999px; padding:5px 12px; font-size:13px; font-weight:600; cursor:pointer; }
+        .cs-filt button.on { background:var(--accent); border-color:var(--accent); color:#fff; }
+        @media (max-width:600px){ .cs-banner .t{ font-size:21px; } .cs-search .btn span{ display:none; } }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar" id="sfSidebar"></aside>
+        <main class="main-content">
+            <header class="page-header">
+                <div class="page-title"><h1>Contrôle de sortie</h1><p>Touchez une vente ou une livraison dans « À contrôler » pour la vérifier</p></div>
+                <div class="page-actions"><div id="sfTools"></div></div>
+            </header>
+            <div class="page-body"><div class="cs-wrap">
+                <div class="cs-tools">
+                    <button class="btn btn-secondary" onclick="Cs.camLookup()"><i class="fas fa-camera"></i> Scanner une facture</button>
+                    <a class="cs-manual" onclick="Cs.toggleManual()"><i class="fas fa-keyboard"></i> Saisir une référence</a>
+                </div>
+                <div class="card" id="manualBox" style="display:none;"><div class="card-body">
+                    <div class="cs-search">
+                        <input type="text" id="q" placeholder="Réf. facture (ex. 20261016-0002)" autocomplete="off"
+                               onkeydown="if(event.key==='Enter'){event.preventDefault();Cs.lookup();}">
+                        <button class="btn btn-primary" onclick="Cs.lookup()"><i class="fas fa-magnifying-glass"></i> <span>Vérifier</span></button>
+                    </div>
+                    <div class="cs-hint"><i class="fas fa-circle-info"></i> Référence, n° du jour, ou n° de série d'un article (cas exceptionnel : la facture n'est pas dans la liste).</div>
+                </div></div>
+
+                <div id="result"></div>
+
+                <div class="card" style="margin-top:18px;" id="pendCard">
+                    <div class="card-header"><h3><i class="fas fa-list-check"></i> À contrôler <span class="badge badge-warning" id="pendN">0</span></h3>
+                        <div class="cs-filt" id="pendFilt">
+                            <button class="on" data-k="" onclick="Cs.setFilt('')">Tout</button>
+                            <button data-k="client" onclick="Cs.setFilt('client')">Ventes</button>
+                            <button data-k="livraison" onclick="Cs.setFilt('livraison')">Livraisons</button>
+                        </div></div>
+                    <div class="card-body"><div id="pending"></div></div>
+                </div>
+
+                <div class="card" style="margin-top:18px;">
+                    <div class="card-header"><h3><i class="fas fa-clock-rotate-left"></i> Sorties contrôlées</h3>
+                        <input type="date" id="hdate" class="form-control" style="width:auto;" onchange="Cs.loadHistory()"></div>
+                    <div class="card-body"><div id="history"></div></div>
+                </div>
+            </div></div>
+        </main>
+    </div>
+
+    <script src="/js/sf-core.js"></script>
+    <script src="/js/sf-layout.js"></script>
+    <script>
+    const Cs = {
+        data: null, checked: new Set(),
+        async init() {
+            const u = await SF.Auth.require(['securite']); if (!u) return;
+            SF.layout({ active: '/controle-sortie.html' });
+            document.getElementById('hdate').value = SF.fmt.today();
+            SF.on('exit:update', () => { this.loadHistory(); this.loadPending(); });
+            ['sale:new', 'delivery:update', 'stock:update'].forEach(ev => SF.on(ev, () => this.loadPending()));
+            this.loadHistory(); this.loadPending();
+            setInterval(() => this.loadPending(), 60000);
+        },
+        async lookup() {
+            const q = document.getElementById('q').value.trim();
+            if (!q) return SF.toast('Scannez ou saisissez la référence de la facture', 'warn');
+            const box = document.getElementById('result');
+            box.innerHTML = '<div class="sf-skel sf-skel-card" style="margin-top:18px;"></div>';
+            try { this.data = await SF.api('/api/exit-check/lookup?q=' + encodeURIComponent(q)); this.checked = new Set(); this.render(); }
+            catch (e) { this.data = null; box.innerHTML = `<div class="cs-banner block"><i class="fas fa-circle-xmark big"></i><div><div class="t">INTROUVABLE</div><div class="d">${SF.esc(e.message)}</div></div></div>`; }
+        },
+        items() { return (this.data.items || []).filter(it => !it.returned); },
+        render() {
+            const d = this.data, s = d.sale, box = document.getElementById('result');
+            const cls = d.block ? 'block' : d.state === 'cod' ? 'cod' : 'paid';
+            const icon = d.block ? 'fa-hand' : d.state === 'cod' ? 'fa-truck-fast' : 'fa-circle-check';
+            const prev = d.previous || [];
+            const its = this.items();
+            box.innerHTML = `
+                <div class="cs-banner ${cls}"><i class="fas ${icon} big"></i><div><div class="t">${SF.esc(d.label)}</div><div class="d">${SF.esc(d.detail || '')}</div></div></div>
+                ${prev.length ? `<div class="cs-warn"><i class="fas fa-triangle-exclamation"></i> Facture DÉJÀ contrôlée ${prev.length} fois — dernière : ${SF.fmt.datetime(prev[0].checked_at)} par ${SF.esc(prev[0].checked_by_name || '—')}${prev[0].status === 'anomalie' ? ' (anomalie)' : ''}. Vérifiez qu'il ne s'agit pas d'une seconde sortie.</div>` : ''}
+                <div class="card"><div class="card-body">
+                    <div class="cs-info">
+                        <div><div class="k">Facture</div><div class="v">${SF.esc(s.ref)} · n° ${SF.esc(s.sale_number)}</div></div>
+                        <div><div class="k">Date</div><div class="v">${SF.fmt.datetime(s.created_at)}</div></div>
+                        <div><div class="k">Client</div><div class="v">${SF.esc(s.client_name || '—')}${s.client_phone ? `<div style="font-weight:500;font-size:13px;">${SF.esc(s.client_phone)}</div>` : ''}</div></div>
+                        <div><div class="k">${d.delivery ? 'Livraison' : 'Vendeur'}</div><div class="v">${d.delivery ? `#${SF.esc(d.delivery.number)}${d.delivery.livreur ? ' · ' + SF.esc(d.delivery.livreur) : ''}` : SF.esc(s.commercial_name || s.cashier_name || '—')}</div></div>
+                        <div><div class="k">Total facture</div><div class="v">${SF.fmt.ar(s.total)}</div></div>
+                    </div>
+                </div></div>
+                <div class="card"><div class="card-header"><h3><i class="fas fa-boxes-stacked"></i> Articles à vérifier</h3><span class="cs-progress" id="prog"></span></div>
+                    <div class="card-body">
+                        ${its.length ? `<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px;"><span class="text-muted" style="font-size:13px;flex:1;min-width:180px;">Touchez chaque article vérifié, ou scannez son étiquette.</span><button class="btn btn-secondary btn-sm" onclick="SF.CamScan.open(v => Cs.scanItem(v))"><i class="fas fa-barcode"></i> Scanner un article</button></div>` : ''}
+                        ${(d.items || []).map(it => `<div class="cs-item ${it.returned ? 'ret' : ''}" data-id="${it.id}" ${it.returned ? '' : `onclick="Cs.toggle(${it.id})"`}>
+                            <div class="box"><i class="fas fa-check"></i></div>
+                            <div><div class="nm">${SF.esc(it.name)}${it.returned ? ' <span class="badge badge-danger">Retourné</span>' : ''}</div>${it.spec ? `<div class="sp">${SF.esc(it.spec)}</div>` : ''}</div>
+                            <div class="sr">${SF.esc(it.serial || '—')}${it.sn ? `<div class="sp">SN ${SF.esc(it.sn)}</div>` : ''}${it.router ? `<div class="sp">Routeur ${SF.esc(it.router)}</div>` : ''}</div>
+                        </div>`).join('') || '<div class="text-muted" style="padding:10px;">Aucun article physique sur cette facture.</div>'}
+                        ${s.client_pc ? `<div class="sp" style="margin-top:6px;"><i class="fas fa-laptop-medical"></i> Ordinateur du client (atelier) : <b>${SF.esc(s.client_pc)}</b></div>` : ''}
+                        ${(d.services || []).length ? `<div class="text-muted" style="font-size:12.5px;margin-top:6px;"><i class="fas fa-screwdriver-wrench"></i> Services : ${SF.esc(d.services.join(', '))}</div>` : ''}
+                        <div class="form-group" style="margin-top:12px;"><label>Remarque (obligatoire si un article n'est pas vérifié ou en cas d'anomalie)</label><input type="text" id="note" class="form-control" style="font-size:16px;"></div>
+                        <div class="cs-acts">
+                            <button class="btn btn-primary" id="okBtn" ${d.block ? 'disabled' : ''} onclick="Cs.submit(false)"><i class="fas fa-door-open"></i> Valider la sortie</button>
+                            <button class="btn btn-danger" onclick="Cs.submit(true)"><i class="fas fa-triangle-exclamation"></i> Signaler une anomalie</button>
+                        </div>
+                    </div></div>`;
+            this.progress();
+            box.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        },
+        toggle(id) { this.checked.has(id) ? this.checked.delete(id) : this.checked.add(id); this.progress(); },
+        scanItem(v) {
+            v = String(v || '').trim().toUpperCase(); if (!v) return;
+            const it = this.items().find(x => String(x.serial || '').toUpperCase() === v || String(x.sn || '').toUpperCase() === v || String(x.router || '').toUpperCase() === v);
+            if (!it) return SF.toast(`${v} n'est PAS sur cette facture`, 'error');
+            this.checked.add(it.id); this.progress(); SF.toast('Article vérifié', 'success');
+        },
+        progress() {
+            const its = this.items();
+            document.querySelectorAll('.cs-item[data-id]').forEach(el => el.classList.toggle('ok', this.checked.has(+el.dataset.id)));
+            const p = document.getElementById('prog');
+            if (p) p.innerHTML = its.length ? `${this.checked.size} / ${its.length} vérifié(s)` : '';
+        },
+        async submit(anomaly) {
+            const d = this.data; if (!d) return;
+            const note = document.getElementById('note').value.trim();
+            const total = this.items().length, checked = this.checked.size;
+            if (anomaly && !note) { document.getElementById('note').focus(); return SF.toast("Décrivez l'anomalie dans la remarque", 'warn'); }
+            if (!anomaly && checked < total && !note) { document.getElementById('note').focus(); return SF.toast('Cochez tous les articles, ou expliquez dans la remarque', 'warn'); }
+            try {
+                const r = await SF.api('/api/exit-check', { method: 'POST', body: { sale_id: d.sale.id, anomaly, note, items_total: total, items_checked: checked } });
+                SF.toast(anomaly ? 'Anomalie signalée à l\'administrateur' : `Sortie enregistrée à ${String(r.checked_at).slice(11, 16)}`, anomaly ? 'warn' : 'success');
+                this.data = null;
+                document.getElementById('result').innerHTML = '';
+                document.getElementById('q').value = '';
+                this.loadHistory(); this.loadPending();
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        pending: [], filt: '',
+        setFilt(k) { this.filt = k; document.querySelectorAll('#pendFilt button').forEach(b => b.classList.toggle('on', b.dataset.k === k)); this.renderPending(); },
+        async loadPending() {
+            clearTimeout(this._pt);
+            this._pt = setTimeout(async () => {
+                try { this.pending = await SF.api('/api/exit-check/pending'); this.renderPending(); }
+                catch (e) { document.getElementById('pending').innerHTML = `<div class="text-muted">${SF.esc(e.message)}</div>`; }
+            }, 300);
+        },
+        renderPending() {
+            const list = this.pending.filter(r => !this.filt || r.kind === this.filt);
+            document.getElementById('pendN').textContent = this.pending.length;
+            const hm = r => r.released_at ? new Date(r.released_at).toTimeString().slice(0, 5) : String(r.created_at || '').slice(11, 16);
+            document.getElementById('pending').innerHTML = list.length ? `<div class="cs-pend">${list.map(r => {
+                const cls = r.block ? 'block' : r.state === 'cod' ? 'cod' : 'paid';
+                const lbl = r.state === 'cod' ? `À LA LIVRAISON · ${SF.fmt.ar(r.due)}` : r.label;
+                return `<div class="cs-pc ${cls}" onclick="Cs.open('${SF.esc(r.ref)}')">
+                    <div class="r1"><span class="ref">${SF.esc(r.ref)}</span><span class="hr"><i class="far fa-clock"></i> ${hm(r)}</span></div>
+                    <div class="cl">${r.kind === 'livraison' ? `<span class="badge badge-info"><i class="fas fa-truck"></i> Livraison #${SF.esc(r.delivery_number)}</span> ` : ''}${SF.esc(r.client_name || '—')}</div>
+                    ${r.exchange ? `<div class="it" style="color:var(--warning-dark,#b45309);font-weight:700;"><i class="fas fa-right-left"></i> Pièce de remplacement ${SF.esc(r.exchange.new)} (remplace ${SF.esc(r.exchange.old)})${r.exchange.by ? ' — ' + SF.esc(r.exchange.by) : ''}</div>` : ''}
+                    ${r.livreur ? `<div class="it"><i class="fas fa-motorcycle"></i> ${SF.esc(r.livreur)}</div>` : ''}
+                    <div class="it" title="${SF.esc(r.items.join(', '))}"><i class="fas fa-box"></i> ${r.items.length} article(s) : ${SF.esc(r.items.join(', '))}</div>
+                    <div class="lb">${r.block ? '<i class="fas fa-hand"></i> ' : ''}${SF.esc(lbl)}${r.anomaly ? ' · <span style="color:var(--danger)">anomalie signalée</span>' : ''}</div>
+                </div>`; }).join('')}</div>`
+                : `<div class="text-muted" style="padding:16px;text-align:center;"><i class="fas fa-circle-check" style="color:var(--success);"></i> Rien à contrôler pour le moment.</div>`;
+        },
+        open(ref) { document.getElementById('q').value = ref; this.lookup(); },
+        camLookup() { SF.CamScan.open(v => { document.getElementById('q').value = v; this.lookup(); }); },
+        toggleManual() {
+            const b = document.getElementById('manualBox'), show = b.style.display === 'none';
+            b.style.display = show ? '' : 'none';
+            if (show) document.getElementById('q').focus();
+        },
+        async loadHistory() {
+            const box = document.getElementById('history');
+            try {
+                const rows = await SF.api('/api/exit-check/history?date=' + document.getElementById('hdate').value);
+                const stLbl = { paid: 'Payé', cod: 'À la livraison', balance: 'Reste à payer', not_released: 'Non sorti du stock', invalid: 'Annulée / retournée' };
+                box.innerHTML = rows.length ? `<div class="table-container"><table class="cs-hist">
+                    <thead><tr><th>Heure</th><th>Facture</th><th>Client</th><th>Type</th><th>Paiement</th><th>Articles</th><th>Contrôle</th><th>Agent</th></tr></thead>
+                    <tbody>${rows.map(r => `<tr>
+                        <td><b>${String(r.checked_at || '').slice(11, 16)}</b></td>
+                        <td>${SF.esc(r.sale_ref || '—')}</td>
+                        <td>${SF.esc(r.client_name || '—')}</td>
+                        <td>${r.kind === 'livraison' ? '<span class="badge badge-info">Livraison</span>' : '<span class="badge badge-secondary">Client</span>'}</td>
+                        <td>${stLbl[r.payment_state] || r.payment_state}${r.amount_due > 0 ? `<div class="text-muted" style="font-size:11.5px;">${SF.fmt.ar(r.amount_due)}</div>` : ''}</td>
+                        <td>${r.items_checked}/${r.items_total}</td>
+                        <td>${r.status === 'ok' ? '<span class="st-ok"><i class="fas fa-check"></i> Sortie</span>' : '<span class="st-ano"><i class="fas fa-triangle-exclamation"></i> Anomalie</span>'}${r.note ? `<div class="text-muted" style="font-size:11.5px;">${SF.esc(r.note)}</div>` : ''}</td>
+                        <td class="text-muted">${SF.esc(r.checked_by_name || '')}</td></tr>`).join('')}</tbody></table></div>`
+                    : '<div class="text-muted" style="padding:16px;text-align:center;">Aucune sortie contrôlée ce jour.</div>';
+            } catch (e) { box.innerHTML = `<div class="text-muted">${SF.esc(e.message)}</div>`; }
+        }
+    };
+    Cs.init();
+    </script>
+</body>
+</html>

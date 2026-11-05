@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <title>Trésorerie — STOCKFLOW</title>
+    <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css">
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/sf.css">
+    <script>document.documentElement.setAttribute('data-theme', localStorage.getItem('stockflow-theme') === 'dark' ? 'dark' : 'light'); try { var sfu = JSON.parse(localStorage.getItem('stockflow-ui') || '{}'); for (var k in sfu) document.documentElement.setAttribute('data-' + k, sfu[k]); } catch (e) {}</script>
+    <style>
+        .kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:14px; margin-bottom:18px; }
+        .kpi { background:var(--bg-card); border:1px solid var(--border-color); border-radius:var(--border-radius-lg); padding:16px; }
+        .kpi h4 { font-size:12px; color:var(--text-muted); font-weight:600; }
+        .kpi .v { font-size:20px; font-weight:800; color:var(--text-primary); margin-top:4px; }
+        .kpi.accent { background:linear-gradient(120deg,var(--accent-glow),transparent); }
+        .grid2 { display:grid; grid-template-columns:1.4fr 1fr; gap:16px; align-items:start; }
+        .range-btns { display:flex; gap:6px; flex-wrap:wrap; }
+        .range-btns button { padding:6px 12px; border-radius:999px; border:1px solid var(--border-color); background:var(--bg-card); color:var(--text-secondary); font-size:12.5px; font-weight:600; cursor:pointer; }
+        .range-btns button.active { background:var(--accent); color:var(--accent-contrast); border-color:var(--accent); }
+        .mv-row { display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid var(--border-light); font-size:13px; }
+        @media (max-width:900px){ .grid2{ grid-template-columns:1fr; } }
+        .tr-chart { height:260px; }
+        @media (max-width:768px){ .tr-chart { height:220px; } }
+        /* Onglets Caisse du jour | Historique */
+        .tr-tabs { display:flex; gap:6px; border-bottom:1px solid var(--border-color); margin-bottom:18px; }
+        .tr-tab { padding:12px 18px; border:none; background:none; color:var(--text-secondary); font-family:var(--font-body); font-size:14px; font-weight:600; cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-1px; display:flex; align-items:center; gap:8px; }
+        .tr-tab:hover { color:var(--text-primary); }
+        .tr-tab.active { color:var(--accent); border-bottom-color:var(--accent); }
+        /* Historique : filtres + sous-onglets + tableaux */
+        .filters { display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; margin-bottom:16px; }
+        .filters .form-group { margin-bottom:0; } .filters .form-control { min-width:140px; }
+        .tabs { display:flex; gap:6px; margin-bottom:14px; flex-wrap:wrap; }
+        .tab-btn { padding:8px 16px; border-radius:999px; border:1px solid var(--border-color); background:var(--bg-card); color:var(--text-secondary); font-size:13px; font-weight:600; cursor:pointer; }
+        .tab-btn.active { background:var(--accent); color:var(--accent-contrast); border-color:var(--accent); }
+        .tab-pane { display:none; } .tab-pane.active { display:block; }
+        .amt-in { color:var(--success-dark); font-weight:700; } .amt-out { color:var(--danger); font-weight:700; }
+        /* ── Caisse du jour ── */
+        .tr-daybar { display:flex; align-items:center; gap:12px; flex-wrap:wrap; background:var(--bg-card); border:1px solid var(--border-color); border-radius:var(--border-radius-lg); padding:12px 16px; margin-bottom:16px; box-shadow:var(--shadow-xs); }
+        .tr-daynav { display:flex; align-items:center; gap:8px; }
+        .tr-daynav .btn { padding:7px 11px; }
+        .tr-dayname { font-size:16px; font-weight:800; color:var(--text-primary); min-width:0; text-transform:capitalize; }
+        .tr-daynav input[type=date] { width:auto; padding:6px 10px; font-size:13px; }
+        .tr-status { display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:700; padding:5px 11px; border-radius:999px; }
+        .tr-status.open { background:var(--accent-glow); color:var(--accent-dark); }
+        .tr-status.closed { background:rgba(22,163,74,.12); color:var(--success-dark); }
+        .tr-status.past { background:rgba(245,158,11,.15); color:var(--warning-dark); }
+        .tr-dayacts { margin-left:auto; display:flex; gap:8px; flex-wrap:wrap; }
+        .tr-grid { display:grid; grid-template-columns:1.25fr 1fr; gap:16px; align-items:start; margin-bottom:16px; }
+        @media (max-width:900px){ .tr-grid{ grid-template-columns:1fr; } .tr-dayacts{ margin-left:0; width:100%; } .tr-dayacts .btn{ flex:1; } }
+        .tr-tbl { width:100%; border-collapse:collapse; font-size:13.5px; }
+        .tr-tbl td, .tr-tbl th { padding:9px 4px; border-bottom:1px solid var(--border-light); text-align:left; }
+        .tr-tbl th { font-size:11px; text-transform:uppercase; letter-spacing:.4px; color:var(--text-muted); font-weight:700; }
+        .tr-tbl .r { text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; }
+        .tr-tbl tr.zero td { color:var(--text-muted); }
+        .tr-tbl tr.zero .tr-ico { opacity:.45; }
+        .tr-tbl tfoot td { border-bottom:none; font-weight:700; }
+        .tr-tbl tfoot tr.net td { font-size:15px; font-weight:800; border-top:2px solid var(--border-color); }
+        .tr-ico { width:28px; height:28px; border-radius:8px; display:inline-flex; align-items:center; justify-content:center; font-size:12.5px; margin-right:8px; vertical-align:middle; }
+        .tr-bar { height:6px; border-radius:999px; background:var(--bg-input); overflow:hidden; min-width:60px; }
+        .tr-bar span { display:block; height:100%; background:var(--accent); border-radius:999px; }
+        .tr-ledger .ln { display:flex; justify-content:space-between; align-items:center; padding:9px 0; border-bottom:1px dashed var(--border-light); font-size:13.5px; }
+        .tr-ledger .ln span:first-child { color:var(--text-secondary); }
+        .tr-ledger .ln b { font-variant-numeric:tabular-nums; }
+        .tr-ledger .ln.plus b { color:var(--success-dark); } .tr-ledger .ln.minus b { color:var(--danger); }
+        .tr-ledger .tot { display:flex; justify-content:space-between; align-items:baseline; margin-top:10px; padding:12px 14px; border-radius:10px; background:var(--accent-glow); }
+        .tr-ledger .tot span { font-weight:700; color:var(--accent-dark); }
+        .tr-ledger .tot b { font-size:20px; font-weight:800; color:var(--accent-dark); font-variant-numeric:tabular-nums; }
+        .tr-ledger .hint { font-size:11.5px; color:var(--text-muted); margin-top:8px; line-height:1.5; }
+        .mv-tag { font-size:11px; font-weight:700; padding:3px 8px; border-radius:6px; white-space:nowrap; }
+        .mv-tag.fond { background:rgba(37,99,235,.12); color:#2563eb; }
+        .mv-tag.depense { background:rgba(229,72,77,.12); color:var(--danger); }
+        .mv-tag.remboursement { background:rgba(124,58,237,.12); color:#7c3aed; }
+        .card-header .hdr-acts { display:flex; gap:8px; }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar" id="sfSidebar"></aside>
+        <main class="main-content">
+            <header class="page-header">
+                <div class="page-title"><h1>Trésorerie</h1><p>Recettes, dépenses et clôture</p></div>
+                <div class="page-actions">
+                    <button class="btn btn-secondary" id="chPdfBtn" style="display:none;" onclick="Ch.exportPDF()"><i class="fas fa-file-pdf"></i> Rapport PDF</button>
+                    <button class="btn btn-secondary" id="chXlsBtn" style="display:none;" onclick="SFReport.as('xlsx', () => Ch.exportPDF())"><i class="fas fa-file-excel"></i> Excel</button>
+                    <div id="sfTools"></div>
+                </div>
+            </header>
+            <div class="page-body">
+                <div class="tr-tabs">
+                    <button class="tr-tab active" data-t="jour"><i class="fas fa-wallet"></i> Caisse du jour</button>
+                    <button class="tr-tab" data-t="historique"><i class="fas fa-clock-rotate-left"></i> Historique</button>
+                </div>
+
+                <!-- Onglet CAISSE DU JOUR -->
+                <div id="panel-jour">
+                    <!-- Journée : navigation, statut, actions -->
+                    <div class="tr-daybar">
+                        <div class="tr-daynav">
+                            <button class="btn btn-secondary" title="Jour précédent" onclick="Treasury.shift(-1)"><i class="fas fa-chevron-left"></i></button>
+                            <input type="date" id="tdate" class="form-control" onchange="Treasury.load()">
+                            <button class="btn btn-secondary" id="nextDay" title="Jour suivant" onclick="Treasury.shift(1)"><i class="fas fa-chevron-right"></i></button>
+                            <button class="btn btn-secondary" id="todayBtn" onclick="Treasury.goToday()">Aujourd'hui</button>
+                        </div>
+                        <div class="tr-dayname" id="dayName"></div>
+                        <span class="tr-status" id="dayStatus"></span>
+                        <div class="tr-dayacts">
+                            <button class="btn btn-secondary" onclick="Treasury.exportPDF()"><i class="fas fa-file-pdf"></i> Rapport du jour</button>
+                            <button class="btn btn-primary" onclick="Treasury.openClose()" id="closeBtn"><i class="fas fa-lock"></i> Clôturer la caisse</button>
+                        </div>
+                    </div>
+
+                    <!-- Chiffres clés -->
+                    <div class="card dash-card"><div class="card-header"><h3><i class="fas fa-cash-register"></i> Synthèse de la journée</h3></div><div class="card-body"><div class="stats-grid" id="kpis"></div></div></div>
+
+                    <div class="tr-grid">
+                        <div class="card"><div class="card-header"><h3><i class="fas fa-layer-group"></i> Recettes par mode de paiement</h3></div>
+                            <div class="card-body" id="byMethod"></div></div>
+                        <div class="card"><div class="card-header"><h3><i class="fas fa-scale-balanced"></i> Contrôle des espèces</h3></div>
+                            <div class="card-body tr-ledger" id="cashCheck"></div></div>
+                    </div>
+
+                    <!-- Mouvements de caisse -->
+                    <div class="card" style="margin-bottom:16px;">
+                        <div class="card-header"><h3><i class="fas fa-arrow-right-arrow-left"></i> Mouvements de caisse</h3>
+                            <div class="hdr-acts" id="mvButtons">
+                                <button class="btn btn-sm btn-secondary" onclick="Treasury.addMovement('fond')"><i class="fas fa-plus"></i> Fond de caisse</button>
+                                <button class="btn btn-sm btn-secondary" onclick="Treasury.addMovement('depense')"><i class="fas fa-minus"></i> Dépense</button>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div id="pastNote" style="display:none;border-left:3px solid var(--warning);background:rgba(245,158,11,.08);border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:12.5px;color:var(--warning-dark);"></div>
+                            <div id="movements"></div>
+                        </div>
+                    </div>
+
+                    <!-- Évolution -->
+                    <div class="card chart-card">
+                        <div class="card-header"><h3><i class="fas fa-chart-area"></i> Évolution du chiffre d'affaires</h3>
+                            <div class="range-btns" id="ranges">
+                                <button data-r="7d" class="active">7 jours</button><button data-r="1m">1 mois</button>
+                                <button data-r="3m">3 mois</button><button data-r="6m">6 mois</button><button data-r="global">Global</button>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-legend"><span><i style="background:var(--accent);"></i> Chiffre d'affaires (encaissé)</span><span><i style="background:var(--accent-2,#f9c440);"></i> Nombre de ventes</span></div>
+                            <div class="tr-chart" style="position:relative;"><canvas id="chart"></canvas></div>
+                            <div class="crecap" id="chartRecap"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Onglet HISTORIQUE (tous les mouvements passés) -->
+                <div id="panel-historique" style="display:none;">
+                    <div class="filters">
+                        <div class="form-group"><label>Du</label><input type="date" id="f_from" class="form-control" onchange="Ch.load()"></div>
+                        <div class="form-group"><label>Au</label><input type="date" id="f_to" class="form-control" onchange="Ch.load()"></div>
+                        <button class="btn btn-secondary" onclick="Ch.quick('today')">Aujourd'hui</button>
+                        <button class="btn btn-secondary" onclick="Ch.quick('month')">Ce mois</button>
+                    </div>
+                    <div class="card dash-card"><div class="card-header"><h3><i class="fas fa-calculator"></i> Totaux de la période</h3></div><div class="card-body"><div class="stats-grid" id="chKpis"></div></div></div>
+                    <div class="tabs">
+                        <button class="tab-btn active" data-tab="ventes"><i class="fas fa-receipt"></i> Ventes</button>
+                        <button class="tab-btn" data-tab="retours"><i class="fas fa-rotate-left"></i> Retours / remboursements</button>
+                        <button class="tab-btn" data-tab="caisse"><i class="fas fa-wallet"></i> Fond / dépenses</button>
+                    </div>
+                    <div class="tab-pane active" id="tab-ventes">
+                        <div class="card"><div class="card-body"><div class="table-container">
+                            <table><thead><tr><th>Date</th><th>Vente</th><th>Client</th><th>Articles</th><th>Canal</th><th>Paiement</th><th class="text-right">Montant</th></tr></thead>
+                            <tbody id="ventesBody"></tbody></table></div></div></div>
+                    </div>
+                    <div class="tab-pane" id="tab-retours">
+                        <div class="card"><div class="card-body"><div class="table-container">
+                            <table><thead><tr><th>Date</th><th>N° série</th><th>Type</th><th>Destination</th><th>Motif</th><th>Par</th><th class="text-right">Remboursé</th></tr></thead>
+                            <tbody id="retoursBody"></tbody></table></div></div></div>
+                    </div>
+                    <div class="tab-pane" id="tab-caisse">
+                        <div class="card"><div class="card-body"><div class="table-container">
+                            <table><thead><tr><th>Date</th><th>Type</th><th>Motif</th><th>Mode</th><th>Par</th><th class="text-right">Montant</th></tr></thead>
+                            <tbody id="caisseBody"></tbody></table></div></div></div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modale mouvement -->
+    <div class="modal-overlay" id="mvModal">
+        <div class="modal" style="max-width:420px;">
+            <div class="modal-header"><h3 id="mvTitle">Mouvement</h3><button class="modal-close" onclick="SF.Modal.close('mvModal')">&times;</button></div>
+            <div class="modal-body">
+                <div class="form-group"><label>Montant (Ar) *</label><input type="text" inputmode="numeric" id="mv_amount" class="form-control money-input"></div>
+                <div class="form-group"><label>Motif *</label><input type="text" id="mv_reason" class="form-control" placeholder="Obligatoire"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="SF.Modal.close('mvModal')">Annuler</button>
+                <button class="btn btn-primary" onclick="Treasury.saveMovement()">Enregistrer</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modale clôture -->
+    <div class="modal-overlay" id="closeModal">
+        <div class="modal" style="max-width:460px;">
+            <div class="modal-header"><h3>Clôture de caisse</h3><button class="modal-close" onclick="SF.Modal.close('closeModal')">&times;</button></div>
+            <div class="modal-body" id="closeBody"></div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="SF.Modal.close('closeModal')">Annuler</button>
+                <button class="btn btn-primary" onclick="Treasury.confirmClose()"><i class="fas fa-lock"></i> Confirmer & clôturer</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/sf-core.js"></script>
+    <script src="/js/sf-chart.js"></script>
+    <script src="/js/sf-layout.js"></script>
+    <script src="/js/sf-pay.js"></script>
+    <script src="/js/sf-report.js"></script>
+    <script>
+    const Treasury = {
+        user: null, summary: null, chart: null, mvKind: 'fond', range: '7d', config: {},
+        start() {
+            document.getElementById('tdate').value = SF.fmt.today();
+            document.querySelectorAll('#ranges button').forEach(b => b.onclick = () => { this.range = b.dataset.r; document.querySelectorAll('#ranges button').forEach(x => x.classList.toggle('active', x === b)); this.loadChart(); });
+            SF.on('sale:new', () => this.load());
+            this.load(); this.loadChart();
+        },
+        get date() { return document.getElementById('tdate').value || SF.fmt.today(); },
+        shift(n) {
+            const d = new Date(Date.parse(this.date + 'T00:00:00Z') + n * 86400000).toISOString().slice(0, 10);
+            if (d > SF.fmt.today()) return;
+            document.getElementById('tdate').value = d; this.load();
+        },
+        goToday() { document.getElementById('tdate').value = SF.fmt.today(); this.load(); },
+        async load() {
+            try {
+                this.summary = await SF.api('/api/treasury/summary?date=' + this.date);
+                this.renderKpis(); this.loadMovements();
+                // Sécurité : seul l'admin modifie une journée passée ou clôturée.
+                const today = SF.fmt.today();
+                const isAdmin = this.user.role === 'admin';
+                const editable = isAdmin || (this.date === today && !this.summary.closed);
+                this.editable = editable;   // autorise modification/suppression des fonds & dépenses
+                document.getElementById('mvButtons').style.display = editable ? 'flex' : 'none';
+                // Barre du jour : nom de la journée, statut, navigation.
+                const dt = new Date(this.date + 'T12:00:00');
+                document.getElementById('dayName').textContent = dt.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+                const st = document.getElementById('dayStatus');
+                if (this.summary.closed) { st.className = 'tr-status closed'; st.innerHTML = '<i class="fas fa-lock"></i> Clôturée'; }
+                else if (this.date === today) { st.className = 'tr-status open'; st.innerHTML = '<i class="fas fa-circle" style="font-size:8px;"></i> Caisse ouverte'; }
+                else { st.className = 'tr-status past'; st.innerHTML = '<i class="fas fa-triangle-exclamation"></i> Non clôturée'; }
+                document.getElementById('nextDay').disabled = this.date >= today;
+                document.getElementById('todayBtn').style.display = this.date === today ? 'none' : '';
+                document.getElementById('pastNote').style.display = editable ? 'none' : 'block';
+                document.getElementById('pastNote').innerHTML = this.summary.closed
+                    ? '<i class="fas fa-lock"></i> Caisse clôturée — seul un administrateur peut la modifier.'
+                    : '<i class="fas fa-lock"></i> Journée passée — seul un administrateur peut la modifier.';
+                const closeBtn = document.getElementById('closeBtn');
+                closeBtn.innerHTML = this.summary.closed ? '<i class="fas fa-check"></i> Caisse clôturée' : '<i class="fas fa-lock"></i> Clôturer la caisse';
+                // Clôture : possible seulement aujourd'hui (caisse) ou n'importe quand (admin).
+                closeBtn.style.display = (this.summary.closed || (!isAdmin && this.date !== today)) ? 'none' : '';
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        // Opérateurs mobile money : libellé + ordre d'affichage.
+        mmOps: [['orange_money', 'Orange Money'], ['mvola', 'MVola'], ['airtel_money', 'Airtel Money']],
+        renderKpis() {
+            const s = this.summary;
+            const pend = s.pending_deliveries || [];
+            const pendAmt = pend.reduce((t, d) => t + (d.total || 0), 0);
+            const gross = (s.cash_sales || 0) + (s.mm_sales || 0) + (s.cheque_sales || 0) + (s.virement_sales || 0);
+            document.getElementById('kpis').innerHTML =
+                SF.tile({ label: "Chiffre d'affaires du jour", value: SF.fmt.ar(s.ca), icon: 'fa-sack-dollar', cls: 'accent',
+                          sub: (s.refunds_total ? `encaissé ${SF.fmt.ar(gross)} − remb. ${SF.fmt.ar(s.refunds_total)}` : 'argent reçu ce jour') })
+                + SF.tile({ label: 'Espèces attendues en caisse', value: SF.fmt.ar(s.expected_cash), icon: 'fa-wallet', tone: 'green', sub: 'à compter à la clôture' })
+                + SF.tile({ label: 'Ventes', value: s.sales_count, icon: 'fa-receipt', tone: 'blue', sub: 'ventes du jour' })
+                + SF.tile({ label: 'Livraisons à encaisser', value: SF.fmt.ar(pendAmt), icon: 'fa-truck-fast', tone: 'yellow',
+                          sub: `${pend.length} livraison(s) en cours — hors recette`, onclick: "location.href='/encaissement.html'" });
+            this.renderByMethod(); this.renderCashCheck();
+        },
+        // Recettes du jour par mode de paiement (chaque mode repart de 0 chaque jour).
+        renderByMethod() {
+            const s = this.summary, mm = s.mm_by_method || {};
+            const rows = [
+                ['Espèces', 'fa-money-bill-wave', 'rgba(22,163,74,.12)', '#16a34a', s.cash_sales || 0],
+                ['MVola', 'fa-mobile-screen', 'rgba(234,179,8,.15)', '#a16207', mm.mvola || 0],
+                ['Orange Money', 'fa-mobile-screen', 'rgba(249,115,22,.13)', '#c2410c', mm.orange_money || 0],
+                ['Airtel Money', 'fa-mobile-screen', 'rgba(229,72,77,.12)', '#dc2626', mm.airtel_money || 0],
+                ['Chèque', 'fa-money-check', 'rgba(124,58,237,.12)', '#7c3aed', s.cheque_sales || 0],
+                ['Virement bancaire', 'fa-building-columns', 'rgba(37,99,235,.12)', '#2563eb', s.virement_sales || 0]
+            ];
+            const total = rows.reduce((t, r) => t + r[4], 0);
+            const pct = v => total > 0 ? Math.round(v / total * 100) : 0;
+            document.getElementById('byMethod').innerHTML = `<table class="tr-tbl">
+                <thead><tr><th>Mode</th><th style="width:34%;">Part</th><th class="r">Montant</th></tr></thead>
+                <tbody>${rows.map(([l, ic, bg, fg, v]) => `<tr class="${v ? '' : 'zero'}">
+                    <td><span class="tr-ico" style="background:${bg};color:${fg};"><i class="fas ${ic}"></i></span>${l}</td>
+                    <td><div style="display:flex;align-items:center;gap:8px;"><div class="tr-bar" style="flex:1;"><span style="width:${pct(v)}%;"></span></div><span class="text-muted" style="font-size:11.5px;width:34px;text-align:right;">${pct(v)} %</span></div></td>
+                    <td class="r">${SF.fmt.ar(v)}</td></tr>`).join('')}</tbody>
+                <tfoot>
+                    <tr><td colspan="2">Total encaissé</td><td class="r">${SF.fmt.ar(total)}</td></tr>
+                    ${s.refunds_total ? `<tr><td colspan="2" style="color:var(--danger);">Remboursements</td><td class="r" style="color:var(--danger);">− ${SF.fmt.ar(s.refunds_total)}</td></tr>` : ''}
+                    <tr class="net"><td colspan="2">Chiffre d'affaires du jour</td><td class="r">${SF.fmt.ar(s.ca)}</td></tr>
+                </tfoot></table>`;
+        },
+        // Contrôle des espèces : ce qui doit se trouver physiquement dans le tiroir.
+        renderCashCheck() {
+            const s = this.summary;
+            const ln = (cls, l, v, sign) => `<div class="ln ${v ? cls : ''}"><span>${l}</span><b>${v ? sign : ''}${SF.fmt.ar(v)}</b></div>`;
+            const c = s.closure || {};
+            const an = s.anomalies || [];
+            document.getElementById('cashCheck').innerHTML =
+                ln('', 'Fond de caisse (espèces)', s.cash_fond != null ? s.cash_fond : (s.fond_total || 0), '')
+                + ln('plus', 'Encaissé en espèces (ventes, avances, acomptes, reste atelier)', s.cash_sales || 0, '+ ')
+                + ln('minus', 'Dépenses payées en espèces', s.cash_expenses != null ? s.cash_expenses : (s.expenses_total || 0), '− ')
+                + ln('minus', 'Remboursements en espèces', s.cash_refunds != null ? s.cash_refunds : (s.refunds_total || 0), '− ')
+                + `<div class="tot"><span>Espèces attendues</span><b>${SF.fmt.ar(s.expected_cash)}</b></div>`
+                + (s.closed && c.counted_cash != null ? `<div class="ln"><span>Espèces comptées à la clôture</span><b>${SF.fmt.ar(c.counted_cash)}</b></div>
+                    <div class="tot" style="color:${c.ecart ? (c.ecart < 0 ? 'var(--danger)' : '#b45309') : 'var(--success-dark)'}"><span>Écart</span><b>${c.ecart > 0 ? '+ ' : ''}${SF.fmt.ar(c.ecart || 0)}</b></div>
+                    ${c.note ? `<div class="hint"><i class="fas fa-comment"></i> ${SF.esc(c.note)}</div>` : ''}` : '')
+                + (an.length ? `<div style="margin-top:10px;padding:9px 11px;border-radius:8px;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.45);font-size:12.5px;line-height:1.55;">
+                    <b style="color:#b45309;"><i class="fas fa-triangle-exclamation"></i> À vérifier avant de clôturer (${an.length})</b>
+                    ${an.map(a => `<div style="margin-top:5px;">• ${SF.esc(a.message)}</div>`).join('')}</div>` : '')
+                + `<div class="hint"><i class="fas fa-circle-info"></i> Mobile money, chèques et virements ne sont pas dans le tiroir : ils figurent dans « Recettes par mode de paiement ».</div>`;
+        },
+        async loadMovements() {
+            try {
+                const mv = await SF.api('/api/treasury/movements?date=' + this.date);
+                this.mvList = mv;
+                const box = document.getElementById('movements');
+                if (!mv.length) { box.innerHTML = '<div class="text-muted" style="padding:18px;text-align:center;font-size:13px;"><i class="fas fa-inbox"></i> Aucun fond de caisse, dépense ni remboursement ce jour.</div>'; return; }
+                const label = { fond: 'Fond de caisse', depense: 'Dépense', remboursement: 'Remboursement' };
+                const time = v => { const m = /\d{2}:\d{2}/.exec(String(v || '')); return m ? m[0] : '—'; };
+                box.innerHTML = `<div class="table-container"><table class="tr-tbl">
+                    <thead><tr><th style="width:60px;">Heure</th><th>Type</th><th>Motif</th><th>Par</th><th class="r">Montant</th><th style="width:70px;"></th></tr></thead>
+                    <tbody>${mv.map(m => {
+                        // Fond & dépense : modifiables/supprimables tant que la caisse n'est pas clôturée.
+                        // Remboursements : liés à une vente/retour → non modifiables ici.
+                        const canEdit = this.editable && (m.kind === 'fond' || m.kind === 'depense');
+                        const actions = canEdit ? `<div style="display:flex;gap:5px;justify-content:flex-end;">
+                            <button class="btn btn-secondary" style="padding:4px 8px;font-size:11px;" title="Modifier" onclick="Treasury.editMovement(${m.id})"><i class="fas fa-pen"></i></button>
+                            <button class="btn btn-danger" style="padding:4px 8px;font-size:11px;" title="Supprimer" onclick="Treasury.deleteMovement(${m.id})"><i class="fas fa-trash"></i></button></div>` : '';
+                        return `<tr><td class="text-muted">${time(m.created_at)}</td>
+                            <td><span class="mv-tag ${m.kind}">${label[m.kind] || m.kind}</span></td>
+                            <td>${SF.esc(m.reason || '—')}</td>
+                            <td class="text-muted">${SF.esc(m.user_name || '—')}</td>
+                            <td class="r ${m.amount < 0 ? 'amt-out' : 'amt-in'}">${m.amount < 0 ? '− ' : '+ '}${SF.fmt.ar(Math.abs(m.amount))}</td>
+                            <td>${actions}</td></tr>`;
+                    }).join('')}</tbody></table></div>`;
+            } catch (e) {}
+        },
+        addMovement(kind) {
+            this.mvKind = kind; this.mvEditId = null;
+            document.getElementById('mvTitle').textContent = kind === 'fond' ? 'Ajouter un fond de caisse' : 'Ajouter une dépense';
+            document.getElementById('mv_amount').value = ''; document.getElementById('mv_reason').value = '';
+            SF.Modal.open('mvModal');
+        },
+        editMovement(id) {
+            const m = (this.mvList || []).find(x => x.id === id); if (!m) return;
+            this.mvKind = m.kind; this.mvEditId = id;
+            document.getElementById('mvTitle').textContent = m.kind === 'fond' ? 'Modifier le fond de caisse' : 'Modifier la dépense';
+            SF.money.set(document.getElementById('mv_amount'), Math.abs(m.amount));
+            document.getElementById('mv_reason').value = m.reason || '';
+            SF.Modal.open('mvModal');
+        },
+        async deleteMovement(id) {
+            const m = (this.mvList || []).find(x => x.id === id); if (!m) return;
+            const kindLabel = m.kind === 'fond' ? 'fond de caisse' : 'dépense';
+            if (!await SF.confirm(`Supprimer ce mouvement (${kindLabel} · ${SF.fmt.ar(Math.abs(m.amount))}) ?`, { okLabel: 'Supprimer' })) return;
+            try { await SF.api('/api/treasury/movement/' + id, { method: 'DELETE' }); SF.toast('Mouvement supprimé', 'success'); this.load(); }
+            catch (e) { SF.toast(e.message, 'error'); }
+        },
+        async saveMovement() {
+            const amount = SF.money.val(document.getElementById('mv_amount'));
+            const reason = document.getElementById('mv_reason').value.trim();
+            if (!amount || amount <= 0) return SF.toast('Montant invalide', 'error');
+            if (!reason) return SF.toast('Motif obligatoire', 'error');
+            try {
+                if (this.mvEditId) {
+                    await SF.api('/api/treasury/movement/' + this.mvEditId, { method: 'PUT', body: { amount, reason } });
+                    SF.toast('Mouvement modifié', 'success');
+                } else {
+                    await SF.api('/api/treasury/movement?date=' + this.date, { method: 'POST', body: { kind: this.mvKind, amount, reason } });
+                    SF.toast('Mouvement enregistré', 'success');
+                }
+                SF.Modal.close('mvModal'); this.load();
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        async loadChart() {
+            try { this.chart = await SF.SalesChart.load({ canvas: document.getElementById('chart'), recap: document.getElementById('chartRecap'), range: this.range, prev: this.chart }); } catch (e) {}
+        },
+        openClose() {
+            const s = this.summary;
+            document.getElementById('closeBody').innerHTML = `
+                <div style="font-size:13.5px;line-height:2;">
+                    <div style="display:flex;justify-content:space-between;"><span>Ventes</span><b>${s.sales_count}</b></div>
+                    <div style="display:flex;justify-content:space-between;"><span>Chiffre d'affaires</span><b>${SF.fmt.ar(s.ca)}</b></div>
+                    <div style="display:flex;justify-content:space-between;"><span>Espèces</span><b>${SF.fmt.ar(s.cash_sales)}</b></div>
+                    ${this.mmOps.filter(([op]) => ((s.mm_by_method || {})[op] || 0) > 0).map(([op, label]) =>
+                        `<div style="display:flex;justify-content:space-between;"><span>${label}</span><b>${SF.fmt.ar(s.mm_by_method[op])}</b></div>`).join('')}
+                    <div style="display:flex;justify-content:space-between;"><span>Chèque</span><b>${SF.fmt.ar(s.cheque_sales)}</b></div>
+                    <div style="display:flex;justify-content:space-between;"><span>Virement bancaire</span><b>${SF.fmt.ar(s.virement_sales || 0)}</b></div>
+                    <div style="display:flex;justify-content:space-between;"><span>Fond de caisse</span><b>${SF.fmt.ar(s.fond_total)}</b></div>
+                    <div style="display:flex;justify-content:space-between;color:var(--danger);"><span>Dépenses</span><b>-${SF.fmt.ar(s.expenses_total)}</b></div>
+                    <div style="display:flex;justify-content:space-between;color:var(--danger);"><span>Remboursements</span><b>-${SF.fmt.ar(s.refunds_total)}</b></div>
+                    <hr style="border-color:var(--border-color);margin:8px 0;">
+                    <div style="display:flex;justify-content:space-between;font-size:16px;"><span><b>Encaisse attendue</b></span><b>${SF.fmt.ar(s.expected_cash)}</b></div>
+                </div>
+                ${(s.anomalies || []).length ? `<div style="margin-top:10px;padding:9px 11px;border-radius:8px;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.45);font-size:12.5px;line-height:1.5;">
+                    <b style="color:#b45309;"><i class="fas fa-triangle-exclamation"></i> À vérifier</b>${s.anomalies.map(a => `<div style="margin-top:4px;">• ${SF.esc(a.message)}</div>`).join('')}</div>` : ''}
+                <div class="form-group" style="margin:14px 0 8px;"><label><b>Espèces comptées dans le tiroir (Ar) *</b></label>
+                    <input type="text" inputmode="numeric" id="cl_counted" class="form-control money-input" data-keypad placeholder="Comptez les billets et pièces" style="font-size:18px;font-weight:700;text-align:right;" oninput="Treasury.closeEcart()"></div>
+                <div id="cl_ecart" style="display:none;justify-content:space-between;align-items:center;padding:10px 12px;border-radius:10px;font-weight:700;"></div>
+                <div class="form-group" style="margin:8px 0 0;"><label>Note <span id="cl_note_req" style="display:none;color:var(--danger);">* (obligatoire en cas d'écart)</span></label>
+                    <textarea id="cl_note" class="form-control" rows="2" placeholder="Ex. : 2 000 Ar rendus en trop au client de 15 h"></textarea></div>`;
+            SF.Modal.open('closeModal');
+        },
+        closeEcart() {
+            const raw = String(document.getElementById('cl_counted').value).replace(/[^\d]/g, '');
+            const box = document.getElementById('cl_ecart');
+            if (!raw) { box.style.display = 'none'; document.getElementById('cl_note_req').style.display = 'none'; return; }
+            const e = +raw - Math.round(this.summary.expected_cash);
+            box.style.display = 'flex';
+            box.style.background = e === 0 ? 'rgba(22,163,74,.1)' : e < 0 ? 'rgba(220,38,38,.1)' : 'rgba(245,158,11,.12)';
+            box.style.color = e === 0 ? 'var(--success-dark)' : e < 0 ? 'var(--danger)' : '#b45309';
+            box.innerHTML = `<span>${e === 0 ? 'Caisse juste' : e < 0 ? 'Manque' : 'Excédent'}</span><span>${e === 0 ? '<i class="fas fa-check"></i>' : (e > 0 ? '+ ' : '− ') + SF.fmt.ar(Math.abs(e))}</span>`;
+            document.getElementById('cl_note_req').style.display = e === 0 ? 'none' : '';
+        },
+        async confirmClose() {
+            try {
+                const counted = String(document.getElementById('cl_counted').value).replace(/[^\d]/g, '');
+                if (!counted) { document.getElementById('cl_counted').focus(); return SF.toast('Saisissez les espèces comptées dans le tiroir', 'error'); }
+                await SF.api('/api/treasury/close?date=' + this.date, { method: 'POST', body: { counted_cash: +counted, note: document.getElementById('cl_note').value.trim() } });
+                SF.toast('Caisse clôturée', 'success'); SF.Modal.close('closeModal');
+                this.exportPDF(); this.load();
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        async exportPDF() {
+            const s = this.summary;
+            let movements = [], sales = [];
+            try { movements = await SF.api('/api/treasury/movements?date=' + this.date); } catch (e) {}
+            try { sales = (await SF.api(`/api/sales?from=${this.date}&to=${this.date}`)).filter(x => x.sale_date === this.date && x.status === 'completed'); } catch (e) {}
+            const mvLabel = { fond: 'Fond de caisse', depense: 'Dépense', remboursement: 'Remboursement' };
+            SFReport.build({
+                company: this.config,
+                title: 'Rapport de caisse',
+                period: 'Journée du ' + SF.fmt.date(this.date) + (s.closed ? ' — CLÔTURÉE' : ''),
+                filename: 'Cloture-caisse-' + this.date + '.pdf',
+                summary: [
+                    { label: "Chiffre d'affaires", value: SFReport.ar(s.ca) },
+                    { label: 'Ventes', value: s.sales_count },
+                    { label: 'Espèces', value: SFReport.ar(s.cash_sales) },
+                    // Un poste par opérateur mobile money présent ce jour ; repli « Mobile Money » global si aucun détail.
+                    ...(this.mmOps.some(([op]) => ((s.mm_by_method || {})[op] || 0) > 0)
+                        ? this.mmOps.filter(([op]) => (s.mm_by_method[op] || 0) > 0).map(([op, label]) => ({ label, value: SFReport.ar(s.mm_by_method[op]) }))
+                        : [{ label: 'Mobile Money', value: SFReport.ar(s.mm_sales) }]),
+                    { label: 'Chèque', value: SFReport.ar(s.cheque_sales) },
+                    { label: 'Virement', value: SFReport.ar(s.virement_sales || 0) },
+                    { label: 'Fond de caisse', value: SFReport.ar(s.fond_total) },
+                    { label: 'Dépenses', value: '-' + SFReport.ar(s.expenses_total) },
+                    { label: 'ENCAISSE ATTENDUE', value: SFReport.ar(s.expected_cash) }
+                ],
+                sections: [
+                    { heading: 'Ventes de la journée',
+                      columns: [
+                          { header: 'Date & heure', key: 'created_at', width: 22, format: v => SF.fmt.datetime(v) },
+                          { header: 'N°', key: 'sale_number', width: 8, format: v => '#' + v },
+                          { header: 'Client', key: 'client_name', width: 22, format: v => v || '—' },
+                          { header: 'Contact', key: 'client_phone', width: 16, format: v => v || '—' },
+                          { header: 'Commercial', key: 'commercial_name', width: 20, format: v => v || '—' },
+                          { header: 'Articles', key: 'items_summary', width: 34, format: v => v || '—' },
+                          { header: 'Paiement', key: 'payment_method', width: 22, format: (v, r) => ({ especes: 'Espèces', mvola: 'MVola', orange_money: 'Orange Money', airtel_money: 'Airtel Money', cheque: 'Chèque', virement: 'Virement' }[v] || v) + (r.payment_ref ? ' · ' + r.payment_ref : '') },
+                          { header: 'Total', key: 'total', width: 16, align: 'right', format: v => SFReport.fmtNum(v) }
+                      ], rows: sales,
+                      totals: { payment_method: "CHIFFRE D'AFFAIRES", total: SFReport.fmtNum(s.ca) } },
+                    { heading: 'Mouvements de caisse (fond, dépenses, remboursements)',
+                      columns: [
+                          { header: 'Date & heure', key: 'created_at', width: 22, format: v => SF.fmt.datetime(v) },
+                          { header: 'Type', key: 'kind', width: 22, format: v => mvLabel[v] || v },
+                          { header: 'Motif', key: 'reason', width: 60, format: v => v || '—' },
+                          { header: 'Par', key: 'user_name', width: 22, format: v => v || '—' },
+                          { header: 'Montant', key: 'amount', width: 18, align: 'right', format: v => (v < 0 ? '-' : '+') + SFReport.fmtNum(Math.abs(v)) }
+                      ], rows: movements }
+                ],
+                note: `Rapport arrêté au ${SF.fmt.date(this.date)} — Espèces attendues en caisse : ${SFReport.ar(s.expected_cash)}. Fond ${SFReport.ar(s.fond_total)} + ventes espèces ${SFReport.ar(s.cash_sales)} − dépenses ${SFReport.ar(s.expenses_total)} − remboursements ${SFReport.ar(s.refunds_total)}.`
+            });
+        }
+    };
+
+    /* ============ Onglet HISTORIQUE (mouvements passés) ============ */
+    const Ch = {
+        user: null, data: null, config: {}, _loaded: false,
+        payLabels: { especes: 'Espèces', mvola: 'MVola', orange_money: 'Orange Money', airtel_money: 'Airtel Money', cheque: 'Chèque', virement: 'Virement bancaire', mixte: 'Mixte' },
+        kindLabels: { fond: 'Fond de caisse', depense: 'Dépense', remboursement: 'Remboursement' },
+        retLabels: { remboursement: 'Remboursement', retour_stock: 'Retour stock', garantie: 'Garantie', echange: 'Échange', refacture: 'Annulé (nouvelle facture)' },
+        start() {
+            document.querySelectorAll('.tab-btn').forEach(b => b.onclick = () => this.switchTab(b.dataset.tab));
+            SF.on('sale:new', () => { if (Page.active === 'historique') this.load(); });
+        },
+        switchTab(t) {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === t));
+            document.querySelectorAll('.tab-pane').forEach(p => p.classList.toggle('active', p.id === 'tab-' + t));
+        },
+        quick(mode) {
+            const t = new Date(), pad = n => String(n).padStart(2, '0');
+            const today = `${t.getFullYear()}-${pad(t.getMonth() + 1)}-${pad(t.getDate())}`;
+            if (mode === 'today') { document.getElementById('f_from').value = today; document.getElementById('f_to').value = today; }
+            else { document.getElementById('f_from').value = `${t.getFullYear()}-${pad(t.getMonth() + 1)}-01`; document.getElementById('f_to').value = today; }
+            this.load();
+        },
+        async load() {
+            const q = new URLSearchParams();
+            ['from', 'to'].forEach(k => { const v = document.getElementById('f_' + k).value; if (v) q.set(k, v); });
+            try { this.data = await SF.api('/api/caisse/history?' + q.toString()); this.render(); }
+            catch (e) { SF.toast(e.message, 'error'); }
+        },
+        render() {
+            const d = this.data, t = d.totals;
+            document.getElementById('chKpis').innerHTML =
+                SF.tile({ label: 'Ventes encaissées', value: t.ventes_count, icon: 'fa-receipt', tone: 'teal' })
+                + SF.tile({ label: 'Total ventes (encaissé)', value: SF.fmt.ar(t.ventes), icon: 'fa-sack-dollar', tone: 'green' })
+                + (t.pending_count ? SF.tile({ label: 'À encaisser (non compté)', value: SF.fmt.ar(t.pending_amount), icon: 'fa-hourglass-half', tone: 'yellow', title: 'Livraisons non encore encaissées — hors recette' }) : '')
+                + SF.tile({ label: 'Remboursements', value: SF.fmt.ar(t.remboursements), icon: 'fa-rotate-left', tone: 'violet' })
+                + SF.tile({ label: 'Dépenses', value: SF.fmt.ar(t.depenses), icon: 'fa-arrow-down', tone: 'coral' })
+                + SF.tile({ label: 'Fond de caisse', value: SF.fmt.ar(t.fond), icon: 'fa-piggy-bank', tone: 'blue' });
+            // Statut de vente : seules les ventes 'completed' comptent dans la recette (encaissées).
+            const stTag = { completed: '', en_livraison: '<span class="badge badge-warning">À encaisser</span>', annulee: '<span class="badge badge-danger">Annulée</span>', returned: '<span class="badge badge-secondary">Retour</span>', exchanged: '<span class="badge badge-info">Échangée</span>' };
+            document.getElementById('ventesBody').innerHTML = d.sales.length ? d.sales.map(s => `<tr${s.status !== 'completed' ? ' style="opacity:.55;"' : ''}>
+                <td class="text-muted" style="font-size:12.5px;">${SF.fmt.datetime(s.created_at)}</td>
+                <td>#${s.sale_number || s.id}</td>
+                <td>${SF.esc(s.client_name || '—')}</td>
+                <td class="text-muted" style="font-size:12px;">${SF.esc(s.items_summary || '—')}</td>
+                <td>${s.channel === 'livraison' ? '<span class="badge badge-info">Livraison</span>' : '<span class="badge badge-secondary">Boutique</span>'}${stTag[s.status] ? ' ' + stTag[s.status] : ''}</td>
+                <td>${this.payLabels[s.payment_method] || s.payment_method}${s.payment_ref ? '<div class="text-muted" style="font-size:11px;">' + SF.esc(s.payment_ref) + '</div>' : ''}</td>
+                <td class="text-right ${s.status === 'completed' ? 'amt-in' : 'text-muted'}">${SF.fmt.ar(s.total)}${s.status !== 'completed' ? ' <span class="text-muted" style="font-size:10px;">(hors recette)</span>' : ''}</td></tr>`).join('') : '<tr><td colspan="7" class="text-center text-muted">Aucune vente</td></tr>';
+            document.getElementById('retoursBody').innerHTML = d.returns.length ? d.returns.map(r => `<tr>
+                <td class="text-muted" style="font-size:12.5px;">${SF.fmt.datetime(r.created_at)}</td>
+                <td style="font-family:monospace;">${SF.esc(r.serial || '—')}</td>
+                <td>${this.retLabels[r.type] || r.type}</td>
+                <td class="text-muted">${SF.esc(r.destination || '—')}</td>
+                <td class="text-muted" style="font-size:12px;">${SF.esc(r.reason || '')}</td>
+                <td>${SF.esc(r.user_name || '')}</td>
+                <td class="text-right ${r.refund_amount ? 'amt-out' : ''}">${r.refund_amount ? SF.fmt.ar(r.refund_amount) : '—'}</td></tr>`).join('') : '<tr><td colspan="7" class="text-center text-muted">Aucun retour</td></tr>';
+            document.getElementById('caisseBody').innerHTML = d.cash.length ? d.cash.map(c => `<tr>
+                <td class="text-muted" style="font-size:12.5px;">${SF.fmt.datetime(c.created_at)}</td>
+                <td>${this.kindLabels[c.kind] || c.kind}</td>
+                <td class="text-muted" style="font-size:12px;">${SF.esc(c.reason || '')}</td>
+                <td>${this.payLabels[c.method] || c.method || '—'}</td>
+                <td>${SF.esc(c.user_name || '')}</td>
+                <td class="text-right ${c.amount >= 0 ? 'amt-in' : 'amt-out'}">${SF.fmt.ar(c.amount)}</td></tr>`).join('') : '<tr><td colspan="6" class="text-center text-muted">Aucun mouvement</td></tr>';
+        },
+        exportPDF() {
+            if (!this.data) return SF.toast('Rien à exporter', 'error');
+            const d = this.data, t = d.totals;
+            const from = document.getElementById('f_from').value, to = document.getElementById('f_to').value;
+            SFReport.build({
+                company: this.config,
+                title: 'Historique de caisse',
+                period: `Période : ${from ? SF.fmt.date(from) : '…'} — ${to ? SF.fmt.date(to) : '…'}`,
+                filename: 'Historique-caisse.pdf',
+                summary: [
+                    { label: 'Ventes', value: t.ventes_count },
+                    { label: 'Total ventes', value: SFReport.ar(t.ventes) },
+                    { label: 'Remboursements', value: SFReport.ar(t.remboursements) },
+                    { label: 'Dépenses', value: SFReport.ar(t.depenses) },
+                    { label: 'Fond', value: SFReport.ar(t.fond) }
+                ],
+                sections: [
+                    { heading: 'Ventes', columns: [
+                        { header: 'Date', key: 'created_at', width: 22, format: v => SF.fmt.datetime(v) },
+                        { header: 'Vente', key: '_n', width: 12, format: (v, s) => '#' + (s.sale_number || s.id) },
+                        { header: 'Client', key: 'client_name', width: 26, format: v => v || '—' },
+                        { header: 'Articles', key: 'items_summary', width: 44, format: v => v || '—' },
+                        { header: 'Canal', key: 'channel', width: 16, format: v => v === 'livraison' ? 'Livraison' : 'Boutique' },
+                        { header: 'Paiement', key: 'payment_method', width: 18, format: v => this.payLabels[v] || v },
+                        { header: 'Montant', key: 'total', width: 22, align: 'right', format: v => SFReport.fmtNum(v) }
+                    ], rows: d.sales, totals: { payment_method: 'TOTAL', total: SFReport.fmtNum(t.ventes) } },
+                    { heading: 'Retours / remboursements', columns: [
+                        { header: 'Date', key: 'created_at', width: 22, format: v => SF.fmt.datetime(v) },
+                        { header: 'N° série', key: 'serial', width: 20, format: v => v || '—' },
+                        { header: 'Type', key: 'type', width: 22, format: v => this.retLabels[v] || v },
+                        { header: 'Motif', key: 'reason', width: 40, format: v => v || '—' },
+                        { header: 'Par', key: 'user_name', width: 22, format: v => v || '—' },
+                        { header: 'Remboursé', key: 'refund_amount', width: 22, align: 'right', format: v => v ? SFReport.fmtNum(v) : '—' }
+                    ], rows: d.returns },
+                    { heading: 'Fond / dépenses', columns: [
+                        { header: 'Date', key: 'created_at', width: 24, format: v => SF.fmt.datetime(v) },
+                        { header: 'Type', key: 'kind', width: 22, format: v => this.kindLabels[v] || v },
+                        { header: 'Motif', key: 'reason', width: 44, format: v => v || '—' },
+                        { header: 'Mode', key: 'method', width: 18, format: v => this.payLabels[v] || v || '—' },
+                        { header: 'Par', key: 'user_name', width: 22, format: v => v || '—' },
+                        { header: 'Montant', key: 'amount', width: 22, align: 'right', format: v => SFReport.fmtNum(v) }
+                    ], rows: d.cash }
+                ]
+            });
+        }
+    };
+
+    /* ============ Contrôleur d'onglets ============ */
+    const Page = {
+        user: null, config: {}, active: 'jour',
+        async init() {
+            this.user = await SF.Auth.require(['caisse']);
+            if (!this.user) return;
+            SF.layout({ active: '/treasury.html' });
+            try { this.config = await SF.api('/api/config'); } catch (e) {}
+            Treasury.user = Ch.user = this.user;
+            Treasury.config = Ch.config = this.config;
+            document.querySelectorAll('.tr-tab').forEach(t => t.onclick = () => this.tab(t.dataset.t));
+            Treasury.start();
+            Ch.start();
+            this.tab(location.hash === '#historique' ? 'historique' : 'jour');
+        },
+        tab(name) {
+            this.active = name;
+            document.querySelectorAll('.tr-tab').forEach(t => t.classList.toggle('active', t.dataset.t === name));
+            document.getElementById('panel-jour').style.display = name === 'jour' ? '' : 'none';
+            document.getElementById('panel-historique').style.display = name === 'historique' ? '' : 'none';
+            ['chPdfBtn', 'chXlsBtn'].forEach(id => document.getElementById(id).style.display = name === 'historique' ? '' : 'none');
+            const sub = document.querySelector('.page-title p');
+            if (sub) sub.textContent = name === 'jour' ? 'Recettes, dépenses et clôture' : 'Tous les mouvements passés par la caisse';
+            if (name === 'historique' && !Ch._loaded) { Ch._loaded = true; Ch.quick('today'); }
+        }
+    };
+
+    Page.init();
+    </script>
+</body>
+</html>

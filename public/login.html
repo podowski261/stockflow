@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <title>Connexion — STOCKFLOW</title>
+    <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css">
+    <link href="/vendor/fonts/orbitron-rajdhani.css" rel="stylesheet">
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/sf.css">
+    <style>
+        /* Connexion — épurée : barre du logo en haut, formulaire étroit centré sur fond blanc. */
+        .login-page { min-height: 100vh; display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; padding: 0; background: var(--bg-card); overflow-x: hidden; }
+        .login-page::before { display: none; }
+        .login-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; height: 68px; padding: 0 32px; border-bottom: 1px solid var(--border-color); }
+        .login-top .sf-logo { height: 34px; width: 180px; }
+        .login-theme { width: 36px; height: 36px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-secondary); font-size: 14px; cursor: pointer; }
+        .login-theme:hover { color: var(--text-primary); border-color: #b4bcc8; }
+        .login-main { flex: 1; display: flex; justify-content: center; align-items: flex-start; padding: 10vh 20px 40px; }
+        .login-container { width: 100%; max-width: 360px; padding: 0; margin: 0; background: transparent; border: none; border-radius: 0; box-shadow: none; }
+        .login-title { font-size: 30px; font-weight: 600; color: var(--text-primary); margin: 0 0 26px; letter-spacing: -0.02em; }
+        .login-sub { font-size: 14px; color: var(--text-secondary); margin: -20px 0 28px; }
+        .login-error { display: none; align-items: center; gap: 9px; padding: 10px 12px; margin-bottom: 16px; border-radius: 8px; background: #fbeeed; border: 1px solid #f2d0cd; color: #a12a22; font-size: 13px; }
+        .login-error.show { display: flex; }
+        .login-success { display: none; align-items: center; gap: 9px; padding: 10px 12px; margin-bottom: 16px; border-radius: 8px; background: var(--accent-soft); border: 1px solid var(--accent-light); color: var(--accent-dark); font-size: 13px; }
+        .login-success.show { display: flex; }
+        :root[data-theme="dark"] .login-error { background: rgba(239,122,114,.12); border-color: rgba(239,122,114,.3); color: #f3b2ad; }
+        .code-role { display: none; align-items: center; gap: 8px; margin: -6px 0 16px; padding: 9px 12px; border-radius: 8px; background: var(--neutral-soft); border: 1px solid var(--border-color); color: var(--text-primary); font-size: 12.5px; font-weight: 600; }
+        .code-role.show { display: flex; }
+        .code-role i { color: var(--text-muted); }
+        .hidden { display: none !important; }
+        .login-form .form-group { margin-bottom: 16px; }
+        .login-form label { display: block; font-size: 13px; font-weight: 500; color: var(--text-primary); margin-bottom: 6px; text-transform: none; letter-spacing: 0; }
+        .input-wrapper { position: relative; display: flex; align-items: center; }
+        .input-icon { display: none; }
+        .login-form .input-wrapper input { width: 100%; height: 42px; padding: 9px 40px 9px 12px; background: var(--bg-input); border: 1px solid var(--input-border); border-radius: 8px; font-family: var(--font-body); font-size: 14px; color: var(--text-primary); box-shadow: none; transition: border-color .15s, box-shadow .15s; }
+        .login-form .input-wrapper input:hover { border-color: #b4bcc8; }
+        .login-form .input-wrapper input:focus { outline: none; background: var(--bg-input); border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+        .login-form input::placeholder { color: var(--text-dark); }
+        .password-toggle { position: absolute; right: 5px; top: 50%; transform: translateY(-50%); width: 32px; height: 32px; padding: 0; border: none; background: transparent; color: var(--text-dark); border-radius: 6px; cursor: pointer; }
+        .password-toggle:hover { color: var(--text-primary); background: var(--bg-card-hover); }
+        .login-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin: 2px 0 20px; font-size: 13px; }
+        .login-form .login-remember { display: inline-flex; align-items: center; gap: 8px; margin: 0; font-size: 13px; font-weight: 400; color: var(--text-secondary); cursor: pointer; }
+        .login-remember input { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); }
+        .login-row a, .login-switch a { color: var(--accent-dark); font-weight: 500; cursor: pointer; text-decoration: none; }
+        .login-row a:hover, .login-switch a:hover { text-decoration: underline; }
+        .login-form .btn[type="submit"] { width: 100%; min-height: 44px; margin-top: 4px; padding: 10px 16px; font-size: 14px; font-weight: 600; letter-spacing: 0; text-transform: none; font-family: var(--font-body);
+            background: var(--accent); color: #fff; border: 1px solid var(--accent); border-radius: 8px; box-shadow: var(--shadow-xs); }
+        .login-form .btn[type="submit"]:hover { background: var(--accent-hover); border-color: var(--accent-hover); color: #fff; box-shadow: var(--shadow-xs); }
+        .login-switch { text-align: center; margin-top: 22px; font-size: 13.5px; color: var(--text-secondary); }
+        .login-switch a i { font-size: 11px; margin-left: 2px; }
+        .login-foot { text-align: center; padding: 18px; font-size: 11.5px; color: var(--text-dark); }
+        .spinner-btn { display: inline-block; width: 15px; height: 15px; border: 2px solid rgba(255, 255, 255, 0.35); border-top-color: #fff; border-radius: 50%; animation: spin 0.7s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @media (max-width: 600px) {
+            .login-top { height: 60px; padding: 0 16px; }
+            .login-top .sf-logo { height: 30px; width: 150px; }
+            .login-main { padding: 7vh 20px 32px; }
+            .login-title { font-size: 26px; }
+        }
+    </style>
+    <script>
+        document.documentElement.setAttribute('data-theme',
+            localStorage.getItem('stockflow-theme') === 'dark' ? 'dark' : 'light'); try { var sfu = JSON.parse(localStorage.getItem('stockflow-ui') || '{}'); for (var k in sfu) document.documentElement.setAttribute('data-' + k, sfu[k]); } catch (e) {}
+    </script>
+</head>
+<body class="login-page">
+    <header class="login-top">
+        <span class="sf-logo"></span>
+        <button type="button" class="login-theme" onclick="LoginTheme.toggle()" title="Changer de thème"><i class="fas fa-moon" id="themeIcon"></i></button>
+    </header>
+
+    <main class="login-main">
+        <div class="login-container">
+            <div class="login-error" id="loginError">
+                <i class="fas fa-exclamation-triangle"></i>
+                <span id="errorMessage">Identifiants incorrects</span>
+            </div>
+
+            <!-- ===== Vue connexion ===== -->
+            <div id="loginView">
+                <h1 class="login-title">Connexion</h1>
+                <p class="login-sub">Bon retour parmi nous 👋</p>
+                <form class="login-form" id="loginForm" autocomplete="off">
+                    <div class="form-group">
+                        <label for="username">Identifiant</label>
+                        <div class="input-wrapper">
+                            <input type="text" id="username" name="username" required autocomplete="username" autofocus placeholder="Votre identifiant">
+                            <i class="fas fa-user input-icon"></i>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="password">Mot de passe</label>
+                        <div class="input-wrapper">
+                            <input type="password" id="password" name="password" required autocomplete="current-password" placeholder="Votre mot de passe">
+                            <i class="fas fa-lock input-icon"></i>
+                            <button type="button" class="password-toggle" onclick="togglePassword('password','toggleIcon')" title="Afficher/Masquer">
+                                <i class="fas fa-eye" id="toggleIcon"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="login-row">
+                        <label class="login-remember"><input type="checkbox" id="rememberMe"> Se souvenir de moi</label>
+                        <a onclick="showForgot()">Mot de passe oublié ?</a>
+                    </div>
+                    <button type="submit" id="submitBtn" class="btn btn-primary"><span>Se connecter</span></button>
+                </form>
+                <div class="login-switch">Pas encore de compte ? <a onclick="showRegister()">Créer un compte <i class="fas fa-arrow-up-right-from-square"></i></a></div>
+            </div>
+
+            <!-- ===== Vue création de compte ===== -->
+            <div id="registerView" class="hidden">
+                <h1 class="login-title">Créer un compte</h1>
+                <div class="login-success" id="regSuccess"><i class="fas fa-check-circle"></i><span id="regSuccessMsg"></span></div>
+                <form class="login-form" id="registerForm" autocomplete="off">
+                    <div class="form-group">
+                        <label for="regCode">Code d'invitation</label>
+                        <div class="input-wrapper">
+                            <input type="text" id="regCode" required placeholder="XXXX-XXXX" autocomplete="off" style="text-transform:uppercase;letter-spacing:1px;">
+                            <i class="fas fa-key input-icon"></i>
+                        </div>
+                    </div>
+                    <div class="code-role" id="codeRole"><i class="fas fa-user-tag"></i><span id="codeRoleLabel"></span></div>
+                    <div class="form-group">
+                        <label for="regFullName">Nom complet</label>
+                        <div class="input-wrapper">
+                            <input type="text" id="regFullName" required autocomplete="name">
+                            <i class="fas fa-id-card input-icon"></i>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="regUsername">Identifiant souhaité</label>
+                        <div class="input-wrapper">
+                            <input type="text" id="regUsername" required autocomplete="off">
+                            <i class="fas fa-user input-icon"></i>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="regPassword">Mot de passe</label>
+                        <div class="input-wrapper">
+                            <input type="password" id="regPassword" required autocomplete="new-password">
+                            <i class="fas fa-lock input-icon"></i>
+                            <button type="button" class="password-toggle" onclick="togglePassword('regPassword','regToggleIcon')" title="Afficher/Masquer">
+                                <i class="fas fa-eye" id="regToggleIcon"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <button type="submit" id="regSubmitBtn" class="btn btn-primary">
+                        <i class="fas fa-user-plus"></i> <span>Créer mon compte</span>
+                    </button>
+                </form>
+                <div class="login-switch"><a onclick="showLogin()">Retour à la connexion</a></div>
+            </div>
+
+            <!-- ===== Vue mot de passe oublié (question secrète) ===== -->
+            <div id="forgotView" class="hidden">
+                <h1 class="login-title">Mot de passe oublié</h1>
+                <div class="login-success" id="forgotSuccess"><i class="fas fa-check-circle"></i><span id="forgotSuccessMsg"></span></div>
+                <!-- Étape 1 : identifiant -->
+                <form class="login-form" id="forgotStep1" autocomplete="off">
+                    <div class="form-group">
+                        <label for="forgotUser">Identifiant</label>
+                        <div class="input-wrapper">
+                            <input type="text" id="forgotUser" required autocomplete="username">
+                            <i class="fas fa-user input-icon"></i>
+                        </div>
+                    </div>
+                    <button type="submit" id="forgotBtn1" class="btn btn-primary"><i class="fas fa-arrow-right"></i> <span>Continuer</span></button>
+                </form>
+                <!-- Étape 2 : question + réponse + nouveau mot de passe -->
+                <form class="login-form hidden" id="forgotStep2" autocomplete="off">
+                    <div class="code-role show" id="forgotQuestion" style="margin-bottom:16px;"><i class="fas fa-key"></i><span></span></div>
+                    <div class="form-group">
+                        <label for="forgotAnswer">Votre réponse</label>
+                        <div class="input-wrapper">
+                            <input type="text" id="forgotAnswer" required autocomplete="off">
+                            <i class="fas fa-comment-dots input-icon"></i>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="forgotNew">Nouveau mot de passe</label>
+                        <div class="input-wrapper">
+                            <input type="password" id="forgotNew" required autocomplete="new-password">
+                            <i class="fas fa-lock input-icon"></i>
+                            <button type="button" class="password-toggle" onclick="togglePassword('forgotNew','forgotNewIcon')" title="Afficher/Masquer"><i class="fas fa-eye" id="forgotNewIcon"></i></button>
+                        </div>
+                    </div>
+                    <button type="submit" id="forgotBtn2" class="btn btn-primary"><i class="fas fa-rotate-left"></i> <span>Réinitialiser</span></button>
+                </form>
+                <div class="login-switch"><a onclick="showLogin()">Retour à la connexion</a></div>
+            </div>
+
+        </div>
+    </main>
+    <footer class="login-foot">© 2026 STOCKFLOW · Infinity Store</footer>
+
+    <script>
+    try { sessionStorage.removeItem('sf-user2'); } catch (e) {}   // changement de compte : oublier l'utilisateur mémorisé
+        const LoginTheme = {
+            KEY: 'stockflow-theme',
+            get() { return localStorage.getItem(this.KEY) === 'dark' ? 'dark' : 'light'; },
+            apply(m) { document.documentElement.setAttribute('data-theme', m); const i = document.getElementById('themeIcon'); if (i) i.className = m === 'dark' ? 'fas fa-sun' : 'fas fa-moon'; },
+            toggle() { const n = this.get() === 'dark' ? 'light' : 'dark'; localStorage.setItem(this.KEY, n); this.apply(n); }
+        };
+        LoginTheme.apply(LoginTheme.get());
+
+        function togglePassword(inputId, iconId) {
+            const p = document.getElementById(inputId || 'password'), i = document.getElementById(iconId || 'toggleIcon');
+            if (p.type === 'password') { p.type = 'text'; i.classList.replace('fa-eye', 'fa-eye-slash'); }
+            else { p.type = 'password'; i.classList.replace('fa-eye-slash', 'fa-eye'); }
+        }
+
+        function hideError() { document.getElementById('loginError').classList.remove('show'); }
+        function showError(msg) {
+            document.getElementById('errorMessage').textContent = msg;
+            document.getElementById('loginError').classList.add('show');
+        }
+        function showRegister() {
+            hideError();
+            document.getElementById('loginView').classList.add('hidden');
+            document.getElementById('forgotView').classList.add('hidden');
+            document.getElementById('registerView').classList.remove('hidden');
+            document.getElementById('regCode').focus();
+        }
+        function showLogin() {
+            hideError();
+            document.getElementById('registerView').classList.add('hidden');
+            document.getElementById('forgotView').classList.add('hidden');
+            document.getElementById('loginView').classList.remove('hidden');
+            document.getElementById('username').focus();
+        }
+        let forgotUsername = '';
+        function showForgot() {
+            hideError();
+            document.getElementById('loginView').classList.add('hidden');
+            document.getElementById('registerView').classList.add('hidden');
+            document.getElementById('forgotView').classList.remove('hidden');
+            document.getElementById('forgotStep2').classList.add('hidden');
+            document.getElementById('forgotStep1').classList.remove('hidden');
+            document.getElementById('forgotSuccess').classList.remove('show');
+            document.getElementById('forgotUser').focus();
+        }
+
+        async function checkSession() {
+            try {
+                const r = await fetch('/api/session', { credentials: 'include' });
+                if (r.ok) { const d = await r.json(); location.href = d.user.home || '/index.html'; }
+            } catch (e) {}
+        }
+        checkSession();
+
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value;
+            const errorDiv = document.getElementById('loginError');
+            const errorMessage = document.getElementById('errorMessage');
+            const submitBtn = document.getElementById('submitBtn');
+            if (!username || !password) { errorMessage.textContent = 'Veuillez remplir tous les champs'; errorDiv.classList.add('show'); return; }
+            errorDiv.classList.remove('show');
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<div class="spinner-btn"></div> <span>Connexion...</span>';
+            try {
+                const response = await fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ username, password }) });
+                const data = await response.json();
+                if (response.ok && data.success) {
+                    try { if (document.getElementById('rememberMe').checked) localStorage.setItem('stockflow-remember-user', username); else localStorage.removeItem('stockflow-remember-user'); } catch (e) {}
+                    submitBtn.innerHTML = '<i class="fas fa-check"></i> <span>Connecté !</span>';
+                    setTimeout(() => { location.href = data.user.home || '/index.html'; }, 600);
+                } else {
+                    errorMessage.textContent = data.error || 'Identifiants incorrects';
+                    errorDiv.classList.add('show');
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = '<span>Se connecter</span>';
+                    document.getElementById('password').value = '';
+                    document.getElementById('password').focus();
+                }
+            } catch (error) {
+                errorMessage.textContent = 'Erreur de connexion au serveur.';
+                errorDiv.classList.add('show');
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<span>Se connecter</span>';
+            }
+        });
+        ['username', 'password'].forEach(id => document.getElementById(id).addEventListener('input', hideError));
+        try {
+            const remembered = localStorage.getItem('stockflow-remember-user');
+            if (remembered) {
+                document.getElementById('username').value = remembered;
+                document.getElementById('rememberMe').checked = true;
+                setTimeout(() => document.getElementById('password').focus(), 0);
+            }
+        } catch (e) {}
+
+        // ===== Création de compte =====
+        const regCode = document.getElementById('regCode');
+        const codeRole = document.getElementById('codeRole');
+        const codeRoleLabel = document.getElementById('codeRoleLabel');
+        let codeCheckTimer = null, lastCheckedRole = null;
+
+        function normCode(v) { return String(v || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); }
+
+        async function checkCode() {
+            const raw = normCode(regCode.value);
+            codeRole.classList.remove('show'); lastCheckedRole = null;
+            if (raw.length < 8) return;
+            try {
+                const r = await fetch('/api/register/check?code=' + encodeURIComponent(raw), { credentials: 'include' });
+                const d = await r.json();
+                if (r.ok && d.valid) {
+                    codeRoleLabel.textContent = 'Rôle attribué : ' + d.role_label;
+                    codeRole.classList.add('show');
+                    lastCheckedRole = d.role;
+                    hideError();
+                }
+            } catch (e) {}
+        }
+        regCode.addEventListener('input', () => {
+            hideError();
+            clearTimeout(codeCheckTimer);
+            codeCheckTimer = setTimeout(checkCode, 350);
+        });
+
+        document.getElementById('registerForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            hideError();
+            document.getElementById('regSuccess').classList.remove('show');
+            const code = normCode(regCode.value);
+            const full_name = document.getElementById('regFullName').value.trim();
+            const username = document.getElementById('regUsername').value.trim();
+            const password = document.getElementById('regPassword').value;
+            const btn = document.getElementById('regSubmitBtn');
+            if (!code || !full_name || !username || !password) { showError('Veuillez remplir tous les champs'); return; }
+            if (password.length < 6) { showError('Le mot de passe doit contenir au moins 6 caractères'); return; }
+            btn.disabled = true;
+            btn.innerHTML = '<div class="spinner-btn"></div> <span>Création...</span>';
+            try {
+                const r = await fetch('/api/register', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+                    body: JSON.stringify({ code, full_name, username, password })
+                });
+                const d = await r.json();
+                if (r.ok && d.success) {
+                    document.getElementById('registerForm').reset();
+                    codeRole.classList.remove('show');
+                    document.getElementById('regSuccessMsg').textContent = 'Compte créé ! Vous pouvez maintenant vous connecter.';
+                    document.getElementById('regSuccess').classList.add('show');
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fas fa-user-plus"></i> <span>Créer mon compte</span>';
+                    setTimeout(() => {
+                        showLogin();
+                        document.getElementById('username').value = username;
+                        document.getElementById('password').focus();
+                    }, 1500);
+                } else {
+                    showError(d.error || 'Création impossible');
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fas fa-user-plus"></i> <span>Créer mon compte</span>';
+                }
+            } catch (err) {
+                showError('Erreur de connexion au serveur.');
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-user-plus"></i> <span>Créer mon compte</span>';
+            }
+        });
+        ['regFullName', 'regUsername', 'regPassword'].forEach(id => document.getElementById(id).addEventListener('input', hideError));
+
+        // ===== Mot de passe oublié : étape 1 (identifiant → question) =====
+        document.getElementById('forgotStep1').addEventListener('submit', async (e) => {
+            e.preventDefault(); hideError();
+            const username = document.getElementById('forgotUser').value.trim();
+            if (!username) { showError('Entrez votre identifiant'); return; }
+            const btn = document.getElementById('forgotBtn1');
+            btn.disabled = true; btn.innerHTML = '<div class="spinner-btn"></div> <span>Vérification...</span>';
+            try {
+                const r = await fetch('/api/forgot/question', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ username }) });
+                const d = await r.json();
+                if (r.ok && d.question) {
+                    forgotUsername = username;
+                    document.querySelector('#forgotQuestion span').textContent = d.question;
+                    document.getElementById('forgotStep1').classList.add('hidden');
+                    document.getElementById('forgotStep2').classList.remove('hidden');
+                    document.getElementById('forgotAnswer').focus();
+                } else showError(d.error || 'Compte introuvable');
+            } catch (err) { showError('Erreur de connexion au serveur.'); }
+            finally { btn.disabled = false; btn.innerHTML = '<i class="fas fa-arrow-right"></i> <span>Continuer</span>'; }
+        });
+
+        // ===== Mot de passe oublié : étape 2 (réponse → nouveau mot de passe) =====
+        document.getElementById('forgotStep2').addEventListener('submit', async (e) => {
+            e.preventDefault(); hideError();
+            const answer = document.getElementById('forgotAnswer').value.trim();
+            const new_password = document.getElementById('forgotNew').value;
+            if (!answer || !new_password) { showError('Remplissez tous les champs'); return; }
+            if (new_password.length < 6) { showError('Le mot de passe doit contenir au moins 6 caractères'); return; }
+            const btn = document.getElementById('forgotBtn2');
+            btn.disabled = true; btn.innerHTML = '<div class="spinner-btn"></div> <span>Réinitialisation...</span>';
+            try {
+                const r = await fetch('/api/forgot/reset', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ username: forgotUsername, answer, new_password }) });
+                const d = await r.json();
+                if (r.ok && d.success) {
+                    document.getElementById('forgotStep2').classList.add('hidden');
+                    document.getElementById('forgotSuccessMsg').textContent = 'Mot de passe réinitialisé ! Vous pouvez vous connecter.';
+                    document.getElementById('forgotSuccess').classList.add('show');
+                    setTimeout(() => {
+                        showLogin();
+                        document.getElementById('username').value = forgotUsername;
+                        document.getElementById('password').focus();
+                    }, 1600);
+                } else showError(d.error || 'Réinitialisation impossible');
+            } catch (err) { showError('Erreur de connexion au serveur.'); }
+            finally { btn.disabled = false; btn.innerHTML = '<i class="fas fa-rotate-left"></i> <span>Réinitialiser</span>'; }
+        });
+        ['forgotUser', 'forgotAnswer', 'forgotNew'].forEach(id => document.getElementById(id).addEventListener('input', hideError));
+    </script>
+</body>
+</html>

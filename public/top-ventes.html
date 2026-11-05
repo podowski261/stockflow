@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <title>Top ventes — STOCKFLOW</title>
+    <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css">
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/sf.css">
+    <script>document.documentElement.setAttribute('data-theme', localStorage.getItem('stockflow-theme') === 'dark' ? 'dark' : 'light'); try { var sfu = JSON.parse(localStorage.getItem('stockflow-ui') || '{}'); for (var k in sfu) document.documentElement.setAttribute('data-' + k, sfu[k]); } catch (e) {}</script>
+    <style>
+        .tv-top { display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; align-items:center; }
+        .tv-week { display:flex; align-items:center; gap:8px; }
+        .tv-week .lbl { font-size:16px; font-weight:800; color:var(--text-primary); min-width:220px; text-align:center; }
+        .tv-week .btn-icon { width:36px; height:36px; flex-shrink:0; }
+        .tv-pick { display:flex; gap:8px; align-items:center; }
+        .tv-bar { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:12px; }
+        .tv-bar .search { flex:1; min-width:220px; position:relative; }
+        .tv-bar .search input { padding-left:34px; }
+        .tv-bar .search i { position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-muted); }
+        .tv-seg { display:inline-flex; border:1px solid var(--border-color); border-radius:10px; overflow:hidden; }
+        .tv-seg button { border:0; background:var(--bg-card); color:var(--text-secondary); padding:7px 12px; font-size:13px; font-weight:600; cursor:pointer; }
+        .tv-seg button.on { background:var(--accent); color:#fff; }
+        .tv-tbl { width:100%; border-collapse:collapse; font-size:13px; }
+        .tv-tbl th { font-size:11px; text-transform:uppercase; letter-spacing:.3px; color:var(--text-muted); font-weight:700; padding:8px 6px; border-bottom:1px solid var(--border-color); text-align:left; white-space:nowrap; }
+        .tv-tbl td { padding:8px 6px; border-bottom:1px solid var(--border-color); vertical-align:middle; }
+        .tv-tbl .c { text-align:center; } .tv-tbl .r { text-align:right; white-space:nowrap; }
+        .tv-tbl th.c { text-align:center; } .tv-tbl th.r { text-align:right; }
+        .tv-tbl tr.click { cursor:pointer; } .tv-tbl tr.click:hover td { background:var(--bg-input); }
+        .tv-tbl .d0 { color:var(--text-muted); opacity:.45; }
+        .tv-tbl .tot { font-weight:800; font-size:14px; color:var(--text-primary); }
+        .tv-tbl tfoot td { font-weight:800; border-top:2px solid var(--border-color); border-bottom:0; }
+        .tv-rank { width:26px; height:26px; border-radius:8px; display:inline-flex; align-items:center; justify-content:center; font-weight:800; font-size:12px; background:var(--bg-input); color:var(--text-secondary); }
+        .tv-rank.r1 { background:#f5c518; color:#4a3a00; } .tv-rank.r2 { background:#cfd6dd; color:#333; } .tv-rank.r3 { background:#e3a26b; color:#4a2600; }
+        .tv-nm { font-weight:700; color:var(--text-primary); } .tv-sp { font-size:11.5px; color:var(--text-muted); }
+        .tv-share { height:6px; border-radius:4px; background:var(--bg-input); overflow:hidden; min-width:60px; margin-top:4px; }
+        .tv-share span { display:block; height:100%; background:var(--accent); }
+        .tv-today { color:var(--accent); }
+        .tv-dl { display:none; font-size:11.5px; color:var(--text-muted); margin-top:3px; }
+        .tv-dl b { color:var(--text-primary); }
+        #tiles .scard .val.sm { font-size:15px; line-height:1.25; word-break:break-word; }
+        /* Modale : répartition d'un produit */
+        .tv-ms { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:14px; }
+        .tv-ms div { background:var(--bg-input); border-radius:12px; padding:10px 12px; }
+        .tv-ms .k { font-size:11px; text-transform:uppercase; letter-spacing:.3px; color:var(--text-muted); font-weight:700; }
+        .tv-ms .v { font-size:18px; font-weight:800; color:var(--text-primary); margin-top:2px; }
+        .tv-chart { display:grid; grid-template-columns:repeat(7,1fr); gap:6px; align-items:end; height:120px; margin:4px 0 16px; }
+        .tv-chart .col { display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%; gap:4px; }
+        .tv-chart .bar { width:100%; max-width:38px; background:var(--accent); border-radius:6px 6px 2px 2px; min-height:2px; }
+        .tv-chart .bar.z { background:var(--border-color); }
+        .tv-chart .n { font-size:12px; font-weight:800; color:var(--text-primary); }
+        .tv-chart .d { font-size:11px; color:var(--text-muted); }
+        .tv-h4 { font-size:13px; font-weight:800; color:var(--text-primary); margin:0 0 8px; }
+        @media (max-width:700px) {
+            .tv-week { width:100%; } .tv-week .lbl { flex:1; min-width:0; font-size:14.5px; }
+            .tv-pick { width:100%; } .tv-pick input { flex:1; width:auto !important; }
+            .tv-bar .search { min-width:100%; } .tv-seg { width:100%; } .tv-seg button { flex:1; }
+            .tv-tbl .dc { display:none; }
+            .tv-tbl { min-width:0 !important; font-size:12.5px; } .tv-tbl .tv-nm { word-break:break-word; }
+            .tv-tbl .tv-share { min-width:0; }
+            .tv-dl { display:block; }
+            .tv-tbl td, .tv-tbl th { padding:8px 4px; }
+            .tv-ms .v { font-size:15px; }
+            #tiles .stats-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+            .page-actions .m-lbl { display:none; }
+        }
+            .tv-ex { font-size:11.5px; font-weight:600; color:#b45309; margin-top:3px; }
+        .tv-ex i { font-size:10px; margin-right:3px; }
+        .tv-exbox { display:flex; gap:10px; align-items:flex-start; margin:12px 0 4px; padding:10px 12px; border-radius:10px; background:rgba(217,119,6,.1); border:1px solid rgba(217,119,6,.35); font-size:13px; line-height:1.55; }
+        .tv-exbox > i { color:#b45309; margin-top:3px; }
+        .tv-gsearch { position:relative; margin-bottom:6px; }
+        .tv-gsearch > i { position:absolute; left:16px; top:50%; transform:translateY(-50%); color:var(--text-muted); font-size:15px; }
+        .tv-gsearch input { height:48px; padding-left:44px; padding-right:44px; font-size:14.5px; border-radius:14px; box-shadow:0 2px 10px rgba(0,0,0,.04); }
+        .tv-gsearch input::-webkit-search-cancel-button { display:none; }
+        .tv-gclear { position:absolute; right:8px; top:50%; transform:translateY(-50%); width:32px; height:32px; border:none; border-radius:50%; background:var(--bg-input); color:var(--text-secondary); cursor:pointer; display:none; }
+        .tv-gsearch.has .tv-gclear { display:block; }
+        .tv-ginfo { font-size:12.5px; color:var(--text-muted); margin:0 4px 12px; min-height:4px; }
+        .tv-ginfo b { color:var(--text-primary); }
+        .tv-ginfo .chip { display:inline-block; padding:1px 8px; border-radius:999px; background:var(--accent-glow); color:var(--accent-dark); font-weight:700; margin:2px 3px 0 0; cursor:pointer; }
+        @media (max-width:700px) { .tv-gsearch input { font-size:16px; } }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar" id="sfSidebar"></aside>
+        <main class="main-content">
+            <header class="page-header">
+                <div class="page-title"><h1>Top ventes</h1><p>Produits les plus vendus de la semaine et ventes par commercial</p></div>
+                <div class="page-actions">
+                    <button class="btn btn-secondary" title="Rapport PDF de la semaine" onclick="Tv.exportPDF()"><i class="fas fa-file-pdf"></i><span class="m-lbl"> PDF</span></button>
+                    <button class="btn btn-secondary" title="Exporter la semaine en Excel" onclick="Tv.exportExcel()"><i class="fas fa-file-excel"></i><span class="m-lbl"> Excel</span></button>
+                    <div id="sfTools"></div>
+                </div>
+            </header>
+            <div class="page-body">
+                <div class="card"><div class="card-body tv-top">
+                    <div class="tv-week">
+                        <button class="btn btn-secondary btn-icon" title="Semaine précédente" onclick="Tv.shift(-7)"><i class="fas fa-chevron-left"></i></button>
+                        <div class="lbl" id="wkLbl"></div>
+                        <button class="btn btn-secondary btn-icon" title="Semaine suivante" onclick="Tv.shift(7)"><i class="fas fa-chevron-right"></i></button>
+                    </div>
+                    <div class="tv-pick">
+                        <button class="btn btn-secondary btn-sm" onclick="Tv.goto(Tv.today())">Cette semaine</button>
+                        <input type="date" id="wkDate" class="form-control" style="width:auto;" title="Choisir un jour de la semaine" onchange="Tv.goto(this.value)">
+                    </div>
+                </div></div>
+
+                <div class="tv-gsearch">
+                    <i class="fas fa-magnifying-glass"></i>
+                    <input type="search" id="q" class="form-control" autocomplete="off" placeholder="Rechercher dans toute la page : produit, marque, configuration, catégorie, commercial, jour…" oninput="Tv.onSearch()">
+                    <button type="button" class="tv-gclear" id="qClear" title="Effacer" onclick="Tv.clearSearch()"><i class="fas fa-xmark"></i></button>
+                </div>
+                <div class="tv-ginfo" id="qInfo"></div>
+
+                <div id="tiles"></div>
+
+                <div class="card">
+                    <div class="card-header"><h3><i class="fas fa-ranking-star"></i> Classement des produits</h3></div>
+                    <div class="card-body">
+                        <div class="tv-bar">
+                            <div class="tv-seg" id="kindSeg">
+                                <button class="on" data-k="" onclick="Tv.setKind('')">Tous</button>
+                                <button data-k="pc" onclick="Tv.setKind('pc')">Ordinateurs</button>
+                                <button data-k="acc" onclick="Tv.setKind('acc')">Accessoires</button>
+                            </div>
+                        </div>
+                        <div class="text-muted" style="font-size:12px;margin-bottom:8px;"><i class="fas fa-hand-pointer"></i> Touchez un produit pour voir sa répartition par commercial.</div>
+                        <div class="table-container sf-no-stack" id="prodBox"></div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header"><h3 id="comTitle"><i class="fas fa-user-tie"></i> Ventes par commercial</h3></div>
+                    <div class="card-body"><div class="table-container sf-no-stack" id="comBox"></div></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div class="modal-overlay" id="prodModal">
+        <div class="modal" style="max-width:760px;">
+            <div class="modal-header"><div><h3 id="pmTitle">Produit</h3><div class="tv-sp" id="pmSub"></div></div><button class="modal-close" onclick="SF.Modal.close('prodModal')">&times;</button></div>
+            <div class="modal-body" id="pmBody"></div>
+            <div class="modal-footer"><button class="btn btn-secondary" onclick="Tv.exportProductPDF()"><i class="fas fa-file-pdf"></i> PDF</button><button class="btn btn-secondary" onclick="Tv.exportProduct()"><i class="fas fa-file-excel"></i> Excel</button><button class="btn btn-primary" onclick="SF.Modal.close('prodModal')">Fermer</button></div>
+        </div>
+    </div>
+
+    <script src="/js/sf-core.js"></script>
+    <script src="/js/sf-layout.js"></script>
+    <script src="/js/sf-report.js"></script>
+    <script>
+    const Tv = {
+        from: null, days: [], lines: [], kind: '', cur: null, config: {},
+        DN: ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'],
+        async init() {
+            const u = await SF.Auth.require([]); if (!u) return;   // admin uniquement
+            SF.layout({ active: '/top-ventes.html' });
+            try { this.config = await SF.api('/api/config'); } catch (e) {}
+            SF.on('sale:new', () => { if (this.days.includes(this.today())) this.load(); });
+            this.goto(this.today());
+        },
+        iso(d) { const p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; },
+        today() { return this.iso(new Date()); },
+        fd(s) { return new Date(s + 'T12:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }); },
+        weekLabel() { return `Semaine du ${this.fd(this.days[0])} au ${this.fd(this.days[6])}`; },
+        // Semaine du lundi au dimanche contenant le jour donné.
+        goto(day) {
+            if (!day) return;
+            const d = new Date(day + 'T12:00:00'), dow = (d.getDay() + 6) % 7;
+            d.setDate(d.getDate() - dow);
+            this.days = Array.from({ length: 7 }, (_, i) => { const x = new Date(d); x.setDate(d.getDate() + i); return this.iso(x); });
+            this.from = this.days[0];
+            document.getElementById('wkDate').value = day;
+            document.getElementById('wkLbl').textContent = this.weekLabel();
+            this.load();
+        },
+        shift(n) { const d = new Date(this.from + 'T12:00:00'); d.setDate(d.getDate() + n); this.goto(this.iso(d)); },
+        async load() {
+            document.getElementById('prodBox').innerHTML = '<div class="sf-skel sf-skel-card"></div>';
+            try {
+                const r = await SF.api(`/api/top-ventes?from=${this.days[0]}&to=${this.days[6]}`);
+                this.lines = r.lines || [];
+                this.render();
+            } catch (e) { document.getElementById('prodBox').innerHTML = `<div class="text-muted">${SF.esc(e.message)}</div>`; }
+        },
+        setKind(k) { this.kind = k; document.querySelectorAll('#kindSeg button').forEach(b => b.classList.toggle('on', b.dataset.k === k)); this.render(); },
+        pkey(l) { return String(l.product_id || l.name); },
+        query() { return document.getElementById('q').value.trim(); },
+        DFULL: ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'],
+        norm(s) { return String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''); },
+        // Texte recherchable d'une ligne : tout ce que la page affiche (produit, config, catégorie, commercial, jour, type).
+        hay(l) {
+            if (l._hay) return l._hay;
+            const k = this.days.indexOf(l.day), d = new Date(l.day + 'T12:00:00');
+            return (l._hay = this.norm([l.name, l.category, l.spec, l.commercial, l.is_accessory ? 'accessoire' : 'ordinateur pc',
+                k >= 0 ? this.DFULL[k] : '', l.day, d.toLocaleDateString('fr-FR'), l.echange ? 'echange' : '', l.repris ? 'repris echange' : ''].join(' ')));
+        },
+        // Lignes correspondant à la recherche (sans le filtre de type).
+        searched() {
+            const words = this.norm(this.query()).split(/\s+/).filter(Boolean);
+            return words.length ? this.lines.filter(l => words.every(w => this.hay(l).includes(w))) : this.lines;
+        },
+        // Lignes retenues : recherche + type (ordi/accessoire).
+        filtered() {
+            return this.searched().filter(l => !(this.kind === 'pc' && l.is_accessory) && !(this.kind === 'acc' && !l.is_accessory));
+        },
+        onSearch() { clearTimeout(this._qt); this._qt = setTimeout(() => this.render(), 150); },
+        clearSearch() { document.getElementById('q').value = ''; this.render(); document.getElementById('q').focus(); },
+        setQ(v) { document.getElementById('q').value = v; this.render(); },
+        group(list, keyFn, extra) {
+            const m = new Map();
+            for (const l of list) {
+                const k = keyFn(l);
+                const g = m.get(k) || { key: k, qty: 0, ca: 0, by: {}, echange: 0, repris: 0, ...extra(l) };
+                g.qty += l.qty; g.ca += l.ca; g.by[l.day] = (g.by[l.day] || 0) + l.qty;
+                g.echange += l.echange || 0; g.repris += l.repris || 0;
+                m.set(k, g);
+            }
+            return [...m.values()].sort((a, b) => b.qty - a.qty || b.ca - a.ca);
+        },
+        products(list) { return this.group(list, l => this.pkey(l), l => ({ name: l.name, spec: l.spec, category: l.category, is_accessory: l.is_accessory })); },
+        commercials(list) { return this.group(list, l => l.commercial, l => ({ name: l.commercial })); },
+        dayHead() {
+            const t = this.today();
+            return this.days.map((d, i) => `<th class="c dc ${d === t ? 'tv-today' : ''}">${this.DN[i]}<div style="font-weight:500;">${+d.slice(8)}</div></th>`).join('');
+        },
+        dayCells(by) { return this.days.map(d => `<td class="c dc ${by[d] ? '' : 'd0'}">${by[d] || '·'}</td>`).join(''); },
+        // Version téléphone : jours vendus en une ligne sous le nom (les colonnes jour sont masquées).
+        dayLine(by) {
+            const parts = this.days.map((d, i) => by[d] ? `${this.DN[i]} <b>${by[d]}</b>` : '').filter(Boolean);
+            return parts.length ? `<div class="tv-dl">${parts.join(' · ')}</div>` : '';
+        },
+        // Mention des échanges (ex. 6 vendus dont 2 en échange) : pièces remises en échange + pièces reprises.
+        exNote(g) {
+            const t = [];
+            if (g.echange) t.push(`dont <b>${g.echange}</b> remis en échange`);
+            if (g.repris) t.push(`<b>${g.repris}</b> échangé${g.repris > 1 ? 's' : ''} ensuite (repris)`);
+            return t.length ? `<div class="tv-ex"><i class="fas fa-right-left"></i> ${t.join(' · ')}</div>` : '';
+        },
+        sumDay(list, d) { return list.filter(l => l.day === d).reduce((t, l) => t + l.qty, 0); },
+        render() {
+            const all = this.filtered();
+            const prods = this.products(all);
+            this._prods = prods;
+            const coms = this.commercials(all);
+            this.renderTiles();
+            this.renderSearchInfo(all, prods, coms);
+            const max = prods.length ? prods[0].qty : 1;
+            const tq = prods.reduce((t, p) => t + p.qty, 0);
+            document.getElementById('prodBox').innerHTML = prods.length ? `<table class="tv-tbl">
+                <thead><tr><th>#</th><th>Produit</th>${this.dayHead()}<th class="r">Semaine</th><th class="r">Montant</th></tr></thead>
+                <tbody>${prods.map((p, i) => `<tr class="click" onclick="Tv.openAt(${i})">
+                    <td><span class="tv-rank ${i < 3 ? 'r' + (i + 1) : ''}">${i + 1}</span></td>
+                    <td><div class="tv-nm">${SF.esc(p.name)}</div><div class="tv-sp">${SF.esc(p.is_accessory ? (p.category || 'Accessoire') : (p.spec || p.category || ''))}</div>
+                        <div class="tv-share"><span style="width:${Math.round(p.qty / max * 100)}%"></span></div>${this.exNote(p)}${this.dayLine(p.by)}</td>
+                    ${this.dayCells(p.by)}
+                    <td class="r tot">${p.qty}</td><td class="r">${SF.fmt.ar(p.ca)}</td></tr>`).join('')}</tbody>
+                <tfoot><tr><td></td><td>${prods.length} produit(s)</td>${this.days.map(d => `<td class="c dc">${this.sumDay(all, d) || ''}</td>`).join('')}<td class="r">${tq}</td><td class="r">${SF.fmt.ar(prods.reduce((t, p) => t + p.ca, 0))}</td></tr></tfoot>
+            </table>` : '<div class="text-muted" style="padding:20px;text-align:center;">Aucune vente pour ce filtre sur la semaine.</div>';
+            const q = this.query();
+            document.getElementById('comTitle').innerHTML = `<i class="fas fa-user-tie"></i> ${q ? `Ventes « ${SF.esc(q)} » par commercial` : 'Ventes par commercial'}`;
+            document.getElementById('comBox').innerHTML = this.comTable(coms, all);
+        },
+        comTable(coms, list) {
+            const cq = coms.reduce((t, c) => t + c.qty, 0);
+            return coms.length ? `<table class="tv-tbl">
+                <thead><tr><th>Commercial</th>${this.dayHead()}<th class="r">Semaine</th><th class="r">Part</th><th class="r">Montant</th></tr></thead>
+                <tbody>${coms.map(c => `<tr><td><div class="tv-nm">${SF.esc(c.name)}</div>${this.exNote(c)}${this.dayLine(c.by)}</td>${this.dayCells(c.by)}
+                    <td class="r tot">${c.qty}</td><td class="r">${cq ? Math.round(c.qty / cq * 100) : 0} %</td><td class="r">${SF.fmt.ar(c.ca)}</td></tr>`).join('')}</tbody>
+                <tfoot><tr><td>Total</td>${this.days.map(d => `<td class="c dc">${this.sumDay(list, d) || ''}</td>`).join('')}<td class="r">${cq}</td><td></td><td class="r">${SF.fmt.ar(coms.reduce((t, c) => t + c.ca, 0))}</td></tr></tfoot>
+            </table>` : '<div class="text-muted" style="padding:20px;text-align:center;">Aucune vente.</div>';
+        },
+        // Modale : répartition d'un produit (par jour + par commercial).
+        openAt(i) {
+            const p = (this._prods || [])[i]; if (!p) return;
+            this.cur = p;
+            const list = this.lines.filter(l => this.pkey(l) === p.key);
+            const coms = this.commercials(list);
+            const maxD = Math.max(1, ...this.days.map(d => p.by[d] || 0));
+            const best = this.days.reduce((b, d, k) => (p.by[d] || 0) > (b ? p.by[b.d] || 0 : 0) ? { d, k } : b, null);
+            document.getElementById('pmTitle').textContent = p.name;
+            document.getElementById('pmSub').textContent = [p.is_accessory ? (p.category || 'Accessoire') : (p.spec || p.category), this.weekLabel()].filter(Boolean).join(' — ');
+            document.getElementById('pmBody').innerHTML = `
+                <div class="tv-ms">
+                    <div><div class="k">Vendus</div><div class="v">${p.qty}</div></div>
+                    <div><div class="k">Montant</div><div class="v">${SF.fmt.ar(p.ca)}</div></div>
+                    <div><div class="k">Meilleur jour</div><div class="v">${best ? `${this.DN[best.k]} ${+best.d.slice(8)}` : '—'}</div></div>
+                </div>
+                ${p.echange || p.repris ? `<div class="tv-exbox"><i class="fas fa-right-left"></i><div><b>Échanges</b> — sur les ${p.qty} pièce(s) comptée(s) :
+                    ${p.echange ? `<br><b>${p.echange}</b> pièce(s) remise(s) au client <b>en échange</b> d'un autre article (vente d'échange : seul l'écart de prix est compté dans le montant)` : ''}
+                    ${p.repris ? `<br><b>${p.repris}</b> pièce(s) vendue(s) puis <b>reprise(s) en échange</b> contre un autre article` : ''}</div></div>` : ''}
+                <div class="tv-h4">Par jour</div>
+                <div class="tv-chart">${this.days.map((d, k) => { const n = p.by[d] || 0; return `<div class="col"><span class="n">${n || ''}</span>
+                    <div class="bar ${n ? '' : 'z'}" style="height:${Math.round(n / maxD * 80)}%"></div><span class="d">${this.DN[k]} ${+d.slice(8)}</span></div>`; }).join('')}</div>
+                <div class="tv-h4">Par commercial</div>
+                <div class="table-container sf-no-stack">${this.comTable(coms, list)}</div>`;
+            SF.Modal.open('prodModal');
+        },
+        renderSearchInfo(all, prods, coms) {
+            const q = this.query(), box = document.getElementById('qInfo');
+            document.querySelector('.tv-gsearch').classList.toggle('has', !!q);
+            if (!q) { box.innerHTML = ''; return; }
+            const n = all.reduce((t, l) => t + l.qty, 0);
+            const cm = coms.filter(c => this.norm(c.name).includes(this.norm(q))).map(c => c.name);
+            box.innerHTML = n ? `<b>${n}</b> article(s) vendu(s) · <b>${prods.length}</b> produit(s) · <b>${coms.length}</b> commercial(aux) pour « ${SF.esc(q)} »${cm.length ? ` — commercial : ${cm.map(c => `<span class="chip">${SF.esc(c)}</span>`).join('')}` : ''}`
+                : `Aucun résultat pour « ${SF.esc(q)} » sur cette semaine.`;
+        },
+        renderTiles() {
+            const L = this.searched(), q = this.query();
+            const t = this.today(), inWeek = this.days.includes(t);
+            const cnt = f => L.filter(f).reduce((s, l) => s + l.qty, 0);
+            const pc = cnt(l => !l.is_accessory), acc = cnt(l => l.is_accessory);
+            const ca = L.reduce((s, l) => s + l.ca, 0);
+            const tp = this.products(L.filter(l => !l.is_accessory))[0], ta = this.products(L.filter(l => l.is_accessory))[0];
+            const tc = this.commercials(L.filter(l => l.commercial !== 'Sans commercial'))[0];
+            document.getElementById('tiles').innerHTML = SF.tileGroup(q ? `Résumé de la semaine — « ${SF.esc(q)} »` : 'Résumé de la semaine', 'fa-calendar-week', [
+                SF.tile({ label: 'Ordinateurs vendus', value: pc, icon: 'fa-laptop', tone: 'teal', sub: inWeek ? `${cnt(l => l.day === t && !l.is_accessory)} aujourd'hui` : '' }),
+                SF.tile({ label: 'Accessoires vendus', value: acc, icon: 'fa-plug', tone: 'blue', sub: inWeek ? `${cnt(l => l.day === t && l.is_accessory)} aujourd'hui` : '' }),
+                SF.tile({ label: 'Ordinateur le plus vendu', value: tp ? SF.esc(tp.name) : '—', icon: 'fa-trophy', tone: 'yellow', sub: tp ? `${tp.qty} vendu(s)` : '', valCls: 'sm' }),
+                SF.tile({ label: 'Accessoire le plus vendu', value: ta ? SF.esc(ta.name) : '—', icon: 'fa-medal', tone: 'violet', sub: ta ? `${ta.qty} vendu(s)` : '', valCls: 'sm' }),
+                SF.tile({ label: 'Meilleur commercial', value: tc ? SF.esc(tc.name) : '—', icon: 'fa-user-tie', tone: 'green', sub: tc ? `${tc.qty} article(s)` : '', valCls: 'sm' }),
+                SF.tile({ label: 'Montant des articles', value: SF.fmt.ar(ca), icon: 'fa-coins', tone: 'coral', sub: 'valeur vendue (hors services)' })
+            ].join(''));
+        },
+        // ── PDF ───────────────────────────────────────────────────────────────
+        pdfDayCols() { return this.days.map((d, i) => ({ header: `${this.DN[i]} ${+d.slice(8)}`, key: 'd' + i, width: 12, align: 'right', format: v => v ? String(v) : '·' })); },
+        pdfRow(g, extra) { const r = { ...extra, qty: g.qty, ca: g.ca }; this.days.forEach((d, i) => { r['d' + i] = g.by[d] || 0; }); return r; },
+        pdfTotals(list, label, key) { const t = { [key]: label, qty: String(list.reduce((s, l) => s + l.qty, 0)), ca: SFReport.fmtNum(list.reduce((s, l) => s + l.ca, 0)) };
+            this.days.forEach((d, i) => { t['d' + i] = String(this.sumDay(list, d) || ''); }); return t; },
+        pdfComSection(heading, list) {
+            const coms = this.commercials(list), cq = coms.reduce((t, c) => t + c.qty, 0);
+            return { heading, columns: [{ header: 'Commercial', key: 'name', width: 62 }, ...this.pdfDayCols(),
+                        { header: 'Semaine', key: 'qty', width: 18, align: 'right' }, { header: 'Part', key: 'part', width: 16, align: 'right' },
+                        { header: 'Montant', key: 'ca', width: 32, align: 'right', format: v => SFReport.fmtNum(v) }],
+                     rows: coms.map(c => this.pdfRow(c, { name: c.name, part: (cq ? Math.round(c.qty / cq * 100) : 0) + ' %' })),
+                     totals: this.pdfTotals(list, 'TOTAL', 'name') };
+        },
+        exportPDF() {
+            const all = this.filtered();
+            if (!all.length) return SF.toast('Aucune vente à exporter', 'warn');
+            const prods = this.products(all), L = this.lines;
+            const kindLbl = { '': '', pc: ' — ordinateurs', acc: ' — accessoires' }[this.kind];
+            const q = this.query();
+            const cnt = f => L.filter(f).reduce((s, l) => s + l.qty, 0);
+            const tp = this.products(L.filter(l => !l.is_accessory))[0], ta = this.products(L.filter(l => l.is_accessory))[0];
+            const tc = this.commercials(L.filter(l => l.commercial !== 'Sans commercial'))[0];
+            SFReport.build({
+                company: this.config, title: 'Top ventes de la semaine',
+                period: `${this.weekLabel()}${kindLbl}${q ? ` — recherche « ${q} »` : ''}`,
+                filename: `Top-ventes-${this.days[0]}.pdf`,
+                summary: [
+                    { label: 'Ordinateurs vendus', value: cnt(l => !l.is_accessory) },
+                    { label: 'Accessoires vendus', value: cnt(l => l.is_accessory) },
+                    { label: 'Ordinateur n° 1', value: tp ? `${tp.name} (${tp.qty})` : '—' },
+                    { label: 'Accessoire n° 1', value: ta ? `${ta.name} (${ta.qty})` : '—' },
+                    { label: 'Meilleur commercial', value: tc ? `${tc.name} (${tc.qty})` : '—' },
+                    { label: 'Montant des articles', value: SFReport.ar(L.reduce((s, l) => s + l.ca, 0)) }
+                ],
+                sections: [
+                    { heading: 'Classement des produits', columns: [
+                        { header: '#', key: 'rank', width: 9, align: 'right' }, { header: 'Produit', key: 'name', width: 58 }, { header: 'Configuration / catégorie', key: 'spec', width: 48 },
+                        ...this.pdfDayCols(), { header: 'Semaine', key: 'qty', width: 18, align: 'right' }, { header: 'Montant', key: 'ca', width: 30, align: 'right', format: v => SFReport.fmtNum(v) }],
+                      rows: prods.map((p, i) => this.pdfRow(p, { rank: i + 1, name: p.name, spec: p.is_accessory ? (p.category || 'Accessoire') : (p.spec || p.category || '') })),
+                      totals: this.pdfTotals(all, 'TOTAL', 'name') },
+                    this.pdfComSection('Ventes par commercial', all),
+                    // Les 10 premiers produits : répartition par commercial.
+                    ...prods.slice(0, 10).map((p, i) => this.pdfComSection(`N° ${i + 1} — ${p.name} : répartition par commercial`, all.filter(l => this.pkey(l) === p.key)))
+                ]
+            });
+        },
+        exportProductPDF() {
+            const p = this.cur; if (!p) return;
+            const list = this.lines.filter(l => this.pkey(l) === p.key);
+            const best = this.days.reduce((b, d, k) => (p.by[d] || 0) > (b ? p.by[b.d] || 0 : 0) ? { d, k } : b, null);
+            SFReport.build({
+                company: this.config, title: `Top ventes — ${p.name}`,
+                period: `${this.weekLabel()}${p.spec ? ' — ' + p.spec : ''}`,
+                filename: `Top-ventes-${p.name.replace(/[^\w-]+/g, '-')}-${this.days[0]}.pdf`,
+                summary: [{ label: 'Vendus', value: p.qty }, { label: 'Montant', value: SFReport.ar(p.ca) },
+                          { label: 'Meilleur jour', value: best ? `${this.DN[best.k]} ${+best.d.slice(8)} (${p.by[best.d]})` : '—' }],
+                sections: [this.pdfComSection('Répartition par commercial', list)]
+            });
+        },
+        // ── Excel ─────────────────────────────────────────────────────────────
+        dayCols() { return this.days.map((d, i) => ({ header: `${this.DN[i]} ${+d.slice(8)}`, type: 'num', width: 8 })); },
+        dayVals(by) { return this.days.map(d => by[d] || 0); },
+        dayTotals() { return this.days.map(() => 'sum'); },
+        async xlsxBase() {
+            try { await SFReport.loadXlsx(); } catch (e) { SF.toast(e.message, 'error'); return null; }
+            return { company: (this.config && this.config.name) || 'STOCKFLOW', meta: SFReport.editedLine() };
+        },
+        comSheet(name, title, list, base) {
+            const coms = this.commercials(list);
+            return SFXlsx.table({
+                name, company: base.company, title, subtitle: this.weekLabel(), meta: base.meta,
+                columns: [{ header: 'Commercial', width: 28 }, ...this.dayCols(), { header: 'Semaine', type: 'num' }, { header: 'Montant', type: 'money' }],
+                rows: coms.map(c => [c.name, ...this.dayVals(c.by), c.qty, c.ca]),
+                totals: ['Total', ...this.dayTotals(), 'sum', 'sum']
+            });
+        },
+        async exportExcel() {
+            const all = this.filtered();
+            if (!all.length) return SF.toast('Aucune vente à exporter', 'warn');
+            const base = await this.xlsxBase(); if (!base) return;
+            const prods = this.products(all);
+            const kindLbl = { '': '', pc: ' — ordinateurs', acc: ' — accessoires' }[this.kind];
+            const q = this.query();
+            const sub = `${this.weekLabel()}${kindLbl}${q ? ` — recherche « ${q} »` : ''}`;
+            const prodSheet = SFXlsx.table({
+                name: 'Classement produits', company: base.company, title: 'Top ventes — produits les plus vendus', subtitle: sub, meta: base.meta,
+                columns: [{ header: 'Rang', type: 'num', width: 6 }, { header: 'Produit', width: 32 }, { header: 'Type' }, { header: 'Configuration / catégorie', width: 30 },
+                          ...this.dayCols(), { header: 'Semaine', type: 'num' }, { header: 'Montant', type: 'money' }],
+                rows: prods.map((p, i) => [i + 1, p.name, p.is_accessory ? 'Accessoire' : 'Ordinateur', p.is_accessory ? p.category : (p.spec || p.category),
+                          ...this.dayVals(p.by), p.qty, p.ca]),
+                totals: ['', 'Total', '', '', ...this.dayTotals(), 'sum', 'sum']
+            });
+            const comSheet = this.comSheet('Par commercial', 'Top ventes — ventes par commercial', all, base);
+            // Détail : chaque produit × chaque commercial (répartition complète).
+            const detail = [];
+            for (const p of prods)
+                for (const c of this.commercials(all.filter(l => this.pkey(l) === p.key)))
+                    detail.push([p.name, c.name, ...this.dayVals(c.by), c.qty, c.ca]);
+            const detSheet = SFXlsx.table({
+                name: 'Produit x commercial', company: base.company, title: 'Top ventes — répartition par produit et commercial', subtitle: sub, meta: base.meta,
+                columns: [{ header: 'Produit', width: 32 }, { header: 'Commercial', width: 26 }, ...this.dayCols(), { header: 'Semaine', type: 'num' }, { header: 'Montant', type: 'money' }],
+                rows: detail,
+                totals: ['Total', '', ...this.dayTotals(), 'sum', 'sum']
+            });
+            SFXlsx.download(SFReport.stampName(`Top-ventes-${this.days[0]}`, 'xlsx'), { title: 'Top ventes', author: base.company, footer: base.company + ' · Top ventes', sheets: [prodSheet, comSheet, detSheet] });
+            SF.toast(`Export Excel : ${prods.length} produit(s)`, 'success');
+        },
+        async exportProduct() {
+            const p = this.cur; if (!p) return;
+            const base = await this.xlsxBase(); if (!base) return;
+            const list = this.lines.filter(l => this.pkey(l) === p.key);
+            const sheet = this.comSheet('Par commercial', `${p.name} — ventes par commercial`, list, base);
+            SFXlsx.download(SFReport.stampName(`Top-ventes-${p.name.replace(/[^\w-]+/g, '-')}-${this.days[0]}`, 'xlsx'), { title: p.name, author: base.company, footer: base.company + ' · Top ventes', sheets: [sheet] });
+        }
+    };
+    Tv.init();
+    </script>
+</body>
+</html>

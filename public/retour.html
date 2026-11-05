@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <title>Retour au dépôt — STOCKFLOW</title>
+    <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css">
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/sf.css">
+    <script>document.documentElement.setAttribute('data-theme', localStorage.getItem('stockflow-theme') === 'dark' ? 'dark' : 'light'); try { var sfu = JSON.parse(localStorage.getItem('stockflow-ui') || '{}'); for (var k in sfu) document.documentElement.setAttribute('data-' + k, sfu[k]); } catch (e) {}</script>
+    <style>
+        .ret-row { display:flex; align-items:center; gap:12px; padding:10px 12px; border:1px solid var(--border-color); border-radius:10px; margin-bottom:8px; }
+        .ret-row .meta { flex:1; min-width:0; }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar" id="sfSidebar"></aside>
+        <main class="main-content">
+            <header class="page-header">
+                <div class="page-title"><h1>Retour au dépôt</h1><p>Valider tous les retours en stock — vente, échange, livraison, boutique</p></div>
+                <div class="page-actions"><div id="sfTools"></div></div>
+            </header>
+            <div class="page-body">
+                <!-- À réceptionner -->
+                <div class="card">
+                    <div class="card-header"><h3><i class="fas fa-inbox"></i> Retours à réceptionner <span id="pendCount" class="badge badge-warning"></span></h3>
+                        <div style="display:flex;gap:8px;"><button class="btn btn-sm btn-secondary" onclick="Ret.toggleAll()"><i class="fas fa-check-double"></i> Tout sélectionner</button>
+                            <button class="btn btn-sm btn-primary" onclick="Ret.receive()"><i class="fas fa-box-open"></i> Valider la réception</button></div></div>
+                    <div class="card-body" id="pendBody"><div class="sf-skel sf-skel-line"></div><div class="sf-skel sf-skel-line"></div></div>
+                </div>
+
+            </div>
+        </main>
+    </div>
+
+    <script src="/js/sf-core.js"></script>
+    <script src="/js/sf-layout.js"></script>
+    <script>
+    const Ret = {
+        pend: [], sel: new Set(),
+        typeLabel: { retour_vente: 'Retour de vente', echange: 'Échange', upgrade_repris: 'Composant repris (upgrade)', retour_boutique: 'Retour boutique', retour_stock: 'Non pris (livraison)' },
+        async init() {
+            const u = await SF.Auth.require(['gestion_stock']); if (!u) return;
+            SF.layout({ active: '/retour.html' });
+            SF.on('stock:update', () => this.loadPending());
+            SF.on('delivery:update', () => this.loadPending());
+            this.loadPending();
+        },
+        async loadPending() {
+            try {
+                // 1) Retours unité-par-unité (vente, échange, livraison non-prise, boutique).
+                // 2) Retours livraison ANNULÉE (unités sorties à valider en bloc) — mécanisme séparé.
+                const [pend, del] = await Promise.all([
+                    SF.api('/api/returns/pending'),
+                    SF.api('/api/deliveries').then(r => (r.deliveries || []).filter(d => d.status === 'annulee' && d.released_at)).catch(() => [])
+                ]);
+                this.pend = pend;
+                this.delReturns = del;
+                this.sel = new Set();
+                const total = this.pend.length + this.delReturns.length;
+                document.getElementById('pendCount').textContent = total || '';
+                const body = document.getElementById('pendBody');
+                if (!total) { body.innerHTML = '<div class="text-muted" style="padding:8px 0;">Aucun retour en attente. ✅</div>'; return; }
+                // Bloc 1 : livraisons annulées (validation en bloc par livraison).
+                const delHtml = this.delReturns.length ? `<div style="font-size:12px;font-weight:700;color:var(--text-secondary);margin:2px 0 6px;"><i class="fas fa-truck-ramp-box"></i> Retours livraison annulée</div>`
+                    + this.delReturns.map(d => `<div class="ret-row">
+                        <div class="meta">
+                            <div style="font-weight:600;">Livraison #${d.delivery_number} <span class="text-muted" style="font-weight:400;font-size:12px;">${SF.esc(d.items_summary || '')}</span></div>
+                            <div class="text-muted" style="font-size:12px;">Annulée${d.livreur_name ? ' · livreur ' + SF.esc(d.livreur_name) : ''}${d.client_name ? ' · ' + SF.esc(d.client_name) : ''}${d.cancel_reason ? ' — ' + SF.esc(d.cancel_reason) : ''}</div>
+                        </div>
+                        <button class="btn btn-sm btn-success" style="white-space:nowrap;" onclick="Ret.returnConfirmDelivery(${d.id}, '${SF.esc(String(d.delivery_number))}')"><i class="fas fa-rotate-left"></i> Valider le retour</button>
+                    </div>`).join('') : '';
+                // Bloc 2 : retours unité (cases à cocher + bouton global du bandeau).
+                const unitHtml = this.pend.length ? (this.delReturns.length ? `<div style="font-size:12px;font-weight:700;color:var(--text-secondary);margin:12px 0 6px;"><i class="fas fa-box"></i> Retours à réintégrer (à cocher)</div>` : '')
+                    + this.pend.map(r => {
+                        const name = [r.brand, r.model].filter(Boolean).join(' ') || r.product_name || '—';
+                        return `<div class="ret-row">
+                            <input type="checkbox" data-uid="${r.unit_id}" onchange="Ret.onCheck(${r.unit_id}, this.checked)">
+                            <div class="meta">
+                                <div style="font-weight:600;">${SF.esc(name)} <span style="font-family:monospace;font-weight:400;">· ${SF.esc(r.serial || '—')}</span></div>
+                                <div class="text-muted" style="font-size:12px;">${this.typeLabel[r.type] || r.type}${r.sale_number ? ' · vente #' + r.sale_number : ''} · ${SF.esc(r.caisse_name || '')} · ${SF.fmt.datetime(r.created_at)}${r.reason ? ' — ' + SF.esc(r.reason) : ''}</div>
+                            </div>
+                            <div class="text-muted" style="font-size:12px;white-space:nowrap;">${r.destination && r.destination.startsWith('garantie') ? '<span class="badge badge-danger">→ garantie</span>' : r.destination === 'defectueux' ? '<span class="badge badge-warning">→ défectueux</span>' : '<span class="badge badge-success">→ stock</span>'}</div>
+                        </div>`;
+                    }).join('') : '';
+                body.innerHTML = delHtml + unitHtml;
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        async returnConfirmDelivery(id, number) {
+            if (!await SF.confirm(`Valider le retour au stock de la livraison #${number} (annulée) ?`, { okLabel: 'Valider' })) return;
+            try {
+                await SF.api('/api/deliveries/' + id + '/return-confirm', { method: 'POST' });
+                SF.toast('Retour livraison validé — articles remis en stock', 'success');
+                this.loadPending();
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        onCheck(uid, on) { on ? this.sel.add(uid) : this.sel.delete(uid); },
+        toggleAll() {
+            const all = this.sel.size < this.pend.length;
+            this.sel = new Set(all ? this.pend.map(r => r.unit_id) : []);
+            document.querySelectorAll('#pendBody input[type=checkbox]').forEach(c => c.checked = all);
+        },
+        async receive() {
+            const ids = [...this.sel];
+            if (!ids.length) return SF.toast('Sélectionnez au moins un retour', 'error');
+            if (!await SF.confirm(`Valider la réception de ${ids.length} article(s) au dépôt ?`, { okLabel: 'Valider' })) return;
+            try {
+                const r = await SF.api('/api/returns/receive', { method: 'POST', body: { unit_ids: ids } });
+                SF.toast(`${r.count} article(s) réceptionné(s)`, 'success');
+                this.loadPending();
+            } catch (e) { SF.toast(e.message, 'error'); }
+        }
+    };
+    Ret.init();
+    </script>
+</body>
+</html>

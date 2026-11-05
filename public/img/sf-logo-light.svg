@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 232 46" fill="none">
+  <rect x="2" y="5" width="36" height="36" rx="10" fill="#c8f94b"/>
+  <g fill="#17220a">
+    <rect x="10" y="13" width="20" height="5" rx="2.5"/>
+    <rect x="10" y="21" width="20" height="5" rx="2.5" opacity="0.72"/>
+    <rect x="10" y="29" width="20" height="5" rx="2.5" opacity="0.45"/>
+  </g>
+  <text x="50" y="31" font-family="'DM Sans','Segoe UI',sans-serif" font-size="24" font-weight="700" letter-spacing="-0.5" fill="#172130">STOCK<tspan fill="#7ab814">FLOW</tspan></text>
+</svg>

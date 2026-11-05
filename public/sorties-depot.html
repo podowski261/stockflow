@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <title>Sorties du dépôt — STOCKFLOW</title>
+    <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css">
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/sf.css">
+    <script>document.documentElement.setAttribute('data-theme', localStorage.getItem('stockflow-theme') === 'dark' ? 'dark' : 'light'); try { var sfu = JSON.parse(localStorage.getItem('stockflow-ui') || '{}'); for (var k in sfu) document.documentElement.setAttribute('data-' + k, sfu[k]); } catch (e) {}</script>
+    <style>
+        .filters { display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; margin-bottom:16px; }
+        .filters .form-group { margin-bottom:0; } .filters .form-control { min-width:150px; }
+        .kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-bottom:18px; }
+        .kpi { background:var(--bg-card); border:1px solid var(--border-color); border-radius:var(--border-radius); padding:14px 16px; }
+        .kpi .n { font-size:26px; font-weight:800; line-height:1.1; }
+        .kpi .l { font-size:12px; color:var(--text-secondary); margin-top:4px; text-transform:uppercase; letter-spacing:.02em; }
+        .kpi.hero { background:linear-gradient(135deg,var(--accent),var(--accent-dark,#0b7a56)); color:#fff; border:none; }
+        .kpi.hero .l { color:rgba(255,255,255,.85); }
+        .kpi .n.sold { color:var(--success-dark); } .kpi .n.deliv { color:#0284c7; }
+        .kpi .n.out { color:#d97706; } .kpi .n.back { color:var(--text-muted); } .kpi .n.shop { color:#0891b2; }
+        tbody tr.clk { cursor:pointer; } tbody tr.clk:hover { background:var(--bg-input); }
+        /* Timeline du parcours (modale) */
+        .tl { list-style:none; margin:0; padding:0 0 0 6px; }
+        .tl li { position:relative; padding:0 0 18px 26px; border-left:2px solid var(--border-color); }
+        .tl li:last-child { border-left-color:transparent; padding-bottom:0; }
+        .tl .dot { position:absolute; left:-8px; top:2px; width:14px; height:14px; border-radius:50%; background:var(--accent); border:3px solid var(--bg-card); }
+        .tl .dot.in { background:#16a34a; } .tl .dot.out { background:#dc2626; } .tl .dot.other { background:#64748b; }
+        .tl .when { font-size:11.5px; color:var(--text-muted); }
+        .tl .what { font-weight:700; font-size:13.5px; margin:1px 0; }
+        .tl .flow { font-size:12px; color:var(--text-secondary); }
+        .tl .who { font-size:11.5px; color:var(--text-muted); }
+        .tl .note { font-size:12px; color:var(--text-secondary); margin-top:2px; font-style:italic; }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar" id="sfSidebar"></aside>
+        <main class="main-content">
+            <header class="page-header">
+                <div class="page-title"><h1>Sorties du dépôt</h1><p>Ordinateurs sortis du dépôt — vendus, en livraison, ou sortis non revenus</p></div>
+                <div class="page-actions">
+                    <button class="btn btn-secondary" onclick="SD.exportPDF()"><i class="fas fa-file-pdf"></i> Rapport PDF</button>
+                    <button class="btn btn-secondary" onclick="SFReport.as('xlsx', () => SD.exportPDF())"><i class="fas fa-file-excel"></i> Excel</button>
+                    <div id="sfTools"></div>
+                </div>
+            </header>
+            <div class="page-body">
+                <div class="card"><div class="card-body">
+                    <div class="filters">
+                        <div class="form-group"><label>Du</label><input type="date" id="f_from" class="form-control" onchange="SD.load()"></div>
+                        <div class="form-group"><label>Au</label><input type="date" id="f_to" class="form-control" onchange="SD.load()"></div>
+                        <div class="form-group"><label>&nbsp;</label><button class="btn btn-secondary" onclick="SD.today()"><i class="fas fa-calendar-day"></i> Aujourd'hui</button></div>
+                        <div class="form-group" style="flex:1;min-width:180px;"><label>Recherche modèle / n° série</label><input type="text" id="f_q" class="form-control" placeholder="Marque, modèle, n° série…" oninput="SD.render()"></div>
+                    </div>
+                    <div class="stats-grid" id="kpis" style="margin-bottom:14px;"></div>
+                    <div class="table-container">
+                        <table>
+                            <thead><tr><th>Heure de sortie</th><th>Ordinateur</th><th>N° série</th><th>Destinée</th><th>Vendu le</th><th>Commercial</th><th>Détail</th></tr></thead>
+                            <tbody id="body"><tr><td colspan="7" class="sf-skel-cell"><span class="sf-skel sf-skel-line"></span><span class="sf-skel sf-skel-line"></span><span class="sf-skel sf-skel-line"></span></td></tr></tbody>
+                        </table>
+                    </div>
+                    <p class="text-muted" style="font-size:12px;margin-top:10px;"><i class="fas fa-circle-info"></i> Une sortie = 1<sup>er</sup> passage hors du dépôt (boutique, réservation, livraison ou vente directe). Cliquez une ligne pour voir tout le parcours de l'ordinateur.</p>
+                </div></div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modale : parcours complet d'un ordinateur -->
+    <div class="modal-overlay" id="traceModal">
+        <div class="modal" style="max-width:560px;">
+            <div class="modal-header"><h3 id="tmTitle">Parcours de l'ordinateur</h3><button class="modal-close" onclick="SF.Modal.close('traceModal')">&times;</button></div>
+            <div class="modal-body" id="tmBody"></div>
+        </div>
+    </div>
+
+    <script src="/js/sf-core.js"></script>
+    <script src="/js/sf-layout.js"></script>
+    <script src="/js/sf-report.js"></script>
+    <script>
+    const SD = {
+        config: {}, data: { rows: [], totals: {} },
+        actionLabels: {
+            reception: 'Réception', envoi_installation: 'Envoi installation', installation_terminee: 'Installation terminée',
+            presentoir: 'Mise en présentoir', presentoir_retrait: 'Retrait présentoir', sortie_boutique: 'Sortie boutique',
+            reservation: 'Réservation', reservation_annulee: 'Réservation annulée', consignation_retour: 'Retour boutique réceptionné',
+            retour_boutique: 'Retour boutique', vente: 'Vente', vente_echange: 'Vente (échange)', retour_vente: 'Retour de vente',
+            retour_receptionne: 'Retour réceptionné', acompte_reserve: 'Avance (layaway)', acompte_annule: 'Avance annulée',
+            livraison_sortie: 'Sortie livraison', livraison_livree: 'Livrée', livraison_facturee: 'Livraison facturée',
+            retour_livraison: 'Retour livraison', retour_garantie: 'Retour garantie', retour_fournisseur: 'Retour fournisseur',
+            garantie_traitee: 'Garantie traitée', garantie_reparee: 'Réparé', remplace: 'Remplacé', supprime: 'Supprimé',
+            upgrade_consomme: 'Composant monté (upgrade)'
+        },
+        buckets: {
+            vendu_boutique:  { label: 'Vendu — boutique',   badge: 'badge-success', kpi: 'sold',  icon: 'fa-cash-register' },
+            vendu_livraison: { label: 'Vendu — livraison',  badge: 'badge-success', kpi: 'deliv', icon: 'fa-truck' },
+            en_livraison:    { label: 'En livraison',        badge: 'dl-badge dl-en_livraison', kpi: 'deliv', icon: 'fa-truck-fast' },
+            en_boutique:     { label: 'En boutique',         badge: 'badge-info',    kpi: 'shop',  icon: 'fa-store' },
+            sortie_dehors:   { label: 'Sorti — non revenu',  badge: 'badge-warning', kpi: 'out',   icon: 'fa-store' },
+            revenu:          { label: 'Revenu au dépôt',     badge: 'badge-secondary', kpi: 'back', icon: 'fa-rotate-left' },
+            autre:           { label: 'Autre',               badge: 'badge-secondary', kpi: 'back', icon: 'fa-circle-question' }
+        },
+        async init() {
+            const u = await SF.Auth.require(['gestion_stock']); if (!u) return;
+            SF.layout({ active: '/sorties-depot.html' });
+            try { this.config = await SF.api('/api/config'); } catch (e) {}
+            const today = SF.fmt.today();
+            const qp = new URLSearchParams(location.search);
+            const date = qp.get('date');
+            document.getElementById('f_from').value = date || qp.get('from') || today;
+            document.getElementById('f_to').value   = date || qp.get('to')   || today;
+            SF.on('stock:update', () => this.load());
+            SF.on('sale:new', () => this.load());
+            this.load();
+        },
+        today() {
+            const t = SF.fmt.today();
+            document.getElementById('f_from').value = t;
+            document.getElementById('f_to').value = t;
+            this.load();
+        },
+        async load() {
+            const q = new URLSearchParams();
+            ['from', 'to'].forEach(k => { const v = document.getElementById('f_' + k).value; if (v) q.set(k, v); });
+            document.getElementById('body').innerHTML = SF.skel.rows(6, 3);
+            try { this.data = await SF.api('/api/depot-sorties?' + q.toString()); this.renderKpis(); this.render(); }
+            catch (e) { SF.toast(e.message, 'error'); }
+        },
+        renderKpis() {
+            const t = this.data.totals || {};
+            const cards = [
+                { tone: 'teal', icon: 'fa-laptop', n: t.distinct || 0, l: 'Ordinateurs sortis' },
+                { tone: 'green', icon: 'fa-store', n: t.vendu_boutique || 0,  l: 'Vendu boutique' },
+                { tone: 'blue', icon: 'fa-truck-fast', n: (t.vendu_livraison || 0) + (t.en_livraison || 0), l: 'Livraison (vendu + en cours)' },
+                { tone: 'violet', icon: 'fa-user-tag', n: t.en_boutique || 0, l: 'En boutique (responsable)' },
+                { tone: 'coral', icon: 'fa-person-walking-arrow-right', n: t.sortie_dehors || 0, l: 'Sorti — non revenu' },
+                { tone: 'yellow', icon: 'fa-rotate-left', n: t.revenu || 0, l: 'Revenu au dépôt' }
+            ];
+            document.getElementById('kpis').innerHTML = cards.map(c => SF.tile({ label: c.l, value: c.n, icon: c.icon, tone: c.tone })).join('');
+        },
+        filtered() {
+            const s = (document.getElementById('f_q').value || '').trim().toLowerCase();
+            let rows = this.data.rows || [];
+            if (s) rows = rows.filter(r => ([r.brand, r.model, r.product_name, r.serial, r.manufacturer_sn].join(' ').toLowerCase().includes(s)));
+            return rows;
+        },
+        rowHtml(r) {
+            const b = this.buckets[r.bucket] || this.buckets.autre;
+            const name = [r.brand, r.model].filter(Boolean).join(' ') || r.product_name || '—';
+            const sold = (r.bucket === 'vendu_boutique' || r.bucket === 'vendu_livraison') && r.sold_at
+                ? SF.fmt.datetime(r.sold_at) : '<span class="text-muted">—</span>';
+            return `<tr class="clk" onclick="SD.openTrace(${r.unit_id})">
+                <td>${SF.fmt.datetime(r.exit_at)}</td>
+                <td>${SF.esc(name)}</td>
+                <td style="font-family:monospace;">${SF.esc(r.serial || '—')}</td>
+                <td><span class="badge ${b.badge}"><i class="fas ${b.icon}"></i> ${b.label}</span>${r.sale_number ? ` <span class="text-muted" style="font-size:11px;">#${r.sale_number}</span>` : ''}</td>
+                <td>${sold}</td>
+                <td>${SF.esc(r.actor || '—')}</td>
+                <td class="text-muted" style="font-size:12px;">${SF.esc(r.exit_note || '')}</td></tr>`;
+        },
+        render() {
+            const rows = this.filtered();
+            const body = document.getElementById('body');
+            if (!rows.length) { body.innerHTML = '<tr><td colspan="7" class="text-center text-muted">Aucune sortie du dépôt sur cette période.</td></tr>'; return; }
+            body.innerHTML = rows.map(r => this.rowHtml(r)).join('');
+        },
+        // ── Parcours complet d'un ordinateur (timeline) ──
+        dirOf(m) {
+            const IN = ['stock', 'preparation', 'presentoir', 'reserve', 'consignation', 'acompte'];
+            if (m.to_status === 'stock' && m.action === 'reception') return 'in';
+            const fromIn = IN.includes(m.from_status), toIn = IN.includes(m.to_status);
+            if (toIn && !fromIn) return 'in';
+            if (fromIn && !toIn) return 'out';
+            return 'other';
+        },
+        async openTrace(unitId) {
+            SF.Modal.open('traceModal');
+            document.getElementById('tmBody').innerHTML = SF.skel.lines(4);
+            try {
+                const d = await SF.api('/api/units/' + unitId + '/movements');
+                const name = [d.unit.brand, d.unit.model].filter(Boolean).join(' ') || d.unit.product_name || 'Ordinateur';
+                document.getElementById('tmTitle').innerHTML = `${SF.esc(name)} — <span style="font-family:monospace;">${SF.esc(d.unit.serial || '—')}</span>`;
+                const head = `<div style="margin-bottom:12px;">
+                    ${SF.statusBadge(d.unit.status)}
+                    ${d.unit.manufacturer_sn ? `<div class="text-muted" style="font-size:12px;margin-top:4px;">SN constructeur : ${SF.esc(d.unit.manufacturer_sn)}</div>` : ''}
+                    <div class="text-muted" style="font-size:12px;margin-top:2px;">${d.movements.length} étape(s) — de la réception à aujourd'hui.</div>
+                </div>`;
+                const items = d.movements.map(m => {
+                    const dir = this.dirOf(m);
+                    const flow = `${SF.UNIT_STATUS[m.from_status] || m.from_status || '—'} → ${SF.UNIT_STATUS[m.to_status] || m.to_status}`;
+                    return `<li>
+                        <span class="dot ${dir}"></span>
+                        <div class="when">${SF.fmt.datetime(m.created_at)}</div>
+                        <div class="what">${SF.esc(this.actionLabels[m.action] || m.action)}</div>
+                        <div class="flow">${SF.esc(flow)}</div>
+                        <div class="who"><i class="fas fa-user" style="font-size:10px;"></i> ${SF.esc(m.user_name || '—')}</div>
+                        ${m.note ? `<div class="note">${SF.esc(m.note)}</div>` : ''}
+                    </li>`;
+                }).join('');
+                document.getElementById('tmBody').innerHTML = head + `<ul class="tl">${items}</ul>`;
+            } catch (e) { document.getElementById('tmBody').innerHTML = `<div class="text-danger">${SF.esc(e.message)}</div>`; }
+        },
+        exportPDF() {
+            const rows = this.filtered();
+            if (!rows.length) return SF.toast('Aucune sortie à exporter', 'error');
+            const from = document.getElementById('f_from').value, to = document.getElementById('f_to').value;
+            const t = this.data.totals || {};
+            SFReport.build({
+                company: this.config,
+                title: 'Sorties du dépôt (ordinateurs)',
+                period: from === to ? `Jour : ${SF.fmt.date(from)}` : `Période : ${SF.fmt.date(from)} — ${SF.fmt.date(to)}`,
+                filename: 'Sorties-depot.pdf',
+                summary: [
+                    { label: 'Ordinateurs sortis', value: t.distinct || 0 },
+                    { label: 'Vendu boutique', value: t.vendu_boutique || 0 },
+                    { label: 'Livraison', value: (t.vendu_livraison || 0) + (t.en_livraison || 0) },
+                    { label: 'En boutique', value: t.en_boutique || 0 },
+                    { label: 'Non revenu', value: t.sortie_dehors || 0 }
+                ],
+                sections: [{
+                    heading: 'Détail des sorties',
+                    columns: [
+                        { header: 'Heure de sortie', key: 'exit_at', width: 24, format: v => SF.fmt.datetime(v) },
+                        { header: 'Ordinateur', key: '_p', width: 34, format: (v, r) => [r.brand, r.model].filter(Boolean).join(' ') || r.product_name || '—' },
+                        { header: 'N° série', key: 'serial', width: 22, format: v => v || '—' },
+                        { header: 'Destinée', key: '_b', width: 26, format: (v, r) => (this.buckets[r.bucket] || this.buckets.autre).label },
+                        { header: 'Vendu le', key: 'sold_at', width: 24, format: (v, r) => (r.bucket === 'vendu_boutique' || r.bucket === 'vendu_livraison') && v ? SF.fmt.datetime(v) : '—' },
+                        { header: 'Commercial', key: 'actor', width: 24, format: v => v || '—' }
+                    ],
+                    rows: rows
+                }]
+            });
+        }
+    };
+    SD.init();
+    </script>
+</body>
+</html>

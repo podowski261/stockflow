@@ -1,0 +1,16 @@
+{
+  "name": "STOCKFLOW",
+  "short_name": "STOCKFLOW",
+  "description": "Gestion de stock, ventes et livraisons — magasin d'ordinateurs.",
+  "start_url": "/index.html",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f4f6f8",
+  "theme_color": "#c8f94b",
+  "lang": "fr",
+  "icons": [
+    { "src": "/web-app-manifest-192x192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/web-app-manifest-512x512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

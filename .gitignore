@@ -1,0 +1,45 @@
+# Dépendances
+node_modules/
+
+# Données & secrets — NE JAMAIS committer (données clients réelles, secret de session)
+*.sqlite
+database.sqlite
+database.sqlite-journal
+database.sqlite-wal
+database.sqlite-shm
+.session-secret
+
+# Logs
+*.log
+server.err.log
+server.out.log
+
+# Sauvegardes de base
+backups/
+database.sqlite.bak*
+*.sqlite.bak*
+
+# Proforma générés (sortie runtime, peut contenir des données client)
+proforma/
+
+# Fichiers uploadés (données runtime : images produits, pièces jointes)
+public/uploads/*
+!public/uploads/.gitkeep
+
+# Divers OS / éditeur
+Thumbs.db
+.DS_Store
+.claude/settings.local.json
+.qoder/
+
+# Factures fournisseurs (bons de commande) — données privées
+private_uploads/
+
+# Sauvegardes manuelles de fichiers (deploiements par copie)
+*.bak-*
+
+# Liste generee pour les etiquettes (attribution n° serie accessoires)
+labels-accessoires.json
+
+# Mot de passe initial du compte admin (1re installation) — secret
+.admin-initial-password

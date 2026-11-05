@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <title>Batteries — STOCKFLOW</title>
+    <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css">
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/sf.css">
+    <script>document.documentElement.setAttribute('data-theme', localStorage.getItem('stockflow-theme') === 'dark' ? 'dark' : 'light'); try { var sfu = JSON.parse(localStorage.getItem('stockflow-ui') || '{}'); for (var k in sfu) document.documentElement.setAttribute('data-' + k, sfu[k]); } catch (e) {}</script>
+    <style>
+        .bt-search { position:relative; margin-bottom:16px; }
+        .bt-search > i { position:absolute; left:16px; top:50%; transform:translateY(-50%); color:var(--text-muted); }
+        .bt-search input { width:100%; min-height:50px; padding:12px 44px 12px 46px; background:var(--bg-card); border:1.5px solid var(--border-color); border-radius:14px; color:var(--text-primary); font-size:15px; }
+        .bt-search input:focus { outline:none; border-color:var(--accent); }
+        .bt-search .clr { position:absolute; right:10px; top:50%; transform:translateY(-50%); border:0; background:transparent; color:var(--text-muted); font-size:16px; cursor:pointer; padding:6px; display:none; }
+        .bt-search.on .clr { display:block; }
+        .bt-queue { display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--ink-blue, #2766c4); background:var(--tint-blue, #e3eefc); border-radius:10px; padding:8px 12px; margin-bottom:14px; }
+        .bgrid { display:grid; grid-template-columns:repeat(auto-fill, minmax(310px, 1fr)); gap:12px; }
+        .bcard { display:flex; flex-direction:column; gap:10px; padding:14px; border:1px solid var(--border-color); border-left:4px solid var(--border-color); border-radius:12px; background:var(--bg-card); min-width:0; }
+        .bcard[data-av="dispo"]    { border-left-color:#1f9d55; }
+        .bcard[data-av="boutique"] { border-left-color:#f0a81c; }
+        .bcard[data-av="epuise"]   { border-left-color:#e5484d; }
+        .bc-head { display:flex; gap:10px; align-items:flex-start; }
+        .bc-head .sf-ico { width:40px; height:40px; }
+        .bc-t { flex:1; min-width:0; }
+        .bc-name { font-weight:800; font-size:15px; color:var(--text-primary); overflow-wrap:anywhere; }
+        .bc-sub { font-size:12px; color:var(--text-muted); margin-top:2px; display:flex; flex-wrap:wrap; gap:4px 10px; }
+        .bc-price { text-align:right; flex-shrink:0; }
+        .bc-price .p { font-weight:800; font-size:15.5px; color:var(--text-primary); white-space:nowrap; }
+        .bc-av { display:flex; gap:6px; flex-wrap:wrap; }
+        .bc-lbl { font-size:11.5px; font-weight:700; color:var(--text-muted); display:flex; align-items:center; gap:6px; }
+        .chips { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
+        .mchip { font-size:12px; padding:4px 9px; border-radius:8px; background:var(--neutral-soft, #f2f2ee); color:var(--text-secondary); overflow-wrap:anywhere; }
+        .mchip.hit { background:var(--tint-teal, #e0f0ec); color:var(--ink-teal, #0f6b5f); font-weight:700; box-shadow:inset 0 0 0 1px currentColor; }
+        mark { background:var(--accent-2-soft, #fff5d6); color:inherit; border-radius:3px; padding:0 1px; }
+        .bc-none { font-size:12.5px; color:var(--text-muted); font-style:italic; }
+        .bc-foot { display:flex; align-items:center; gap:6px; flex-wrap:wrap; border-top:1px solid var(--border-light); padding-top:10px; margin-top:auto; }
+        .bc-src { font-size:11px; color:var(--text-muted); flex:1; min-width:120px; }
+        .empty { text-align:center; padding:30px 10px; color:var(--text-muted); }
+        @media (max-width:768px) {
+            .bgrid { grid-template-columns:1fr; }
+            .bt-search input { font-size:16px; }
+            .bc-foot .btn span { display:none; }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar" id="sfSidebar"></aside>
+        <main class="main-content">
+            <header class="page-header">
+                <div class="page-title"><h1>Batteries</h1><p>Toutes les références · ordinateurs compatibles · prix et disponibilité</p></div>
+                <div class="page-actions"><div id="sfTools"></div></div>
+            </header>
+            <div class="page-body">
+                <div class="bt-search" id="searchBox"><i class="fas fa-magnifying-glass"></i>
+                    <input type="search" id="q" placeholder="Nom de l'ordinateur (ex. ProBook 650, Latitude E7240) ou référence de batterie…" autocomplete="off" oninput="Bat.onSearch()">
+                    <button class="clr" type="button" title="Effacer" onclick="Bat.clearSearch()"><i class="fas fa-xmark"></i></button>
+                </div>
+                <div class="card dash-card keep">
+                    <div class="card-header"><h3><i class="fas fa-car-battery"></i> Batteries</h3><span class="text-muted" style="font-size:12px;">Cliquer pour filtrer</span></div>
+                    <div class="card-body"><div class="stats-grid" id="kpis"></div></div>
+                </div>
+                <div id="queueInfo"></div>
+                <div class="card dash-card keep">
+                    <div class="card-header"><h3 id="listTitle"><i class="fas fa-list"></i> Toutes les batteries</h3><span class="badge badge-secondary" id="listCount"></span></div>
+                    <div class="card-body"><div id="list"><div class="sf-skel sf-skel-card"></div><div class="sf-skel sf-skel-card"></div></div></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Correction manuelle des ordinateurs compatibles -->
+    <div class="modal-overlay" id="editModal">
+        <div class="modal" style="max-width:560px;">
+            <div class="modal-header"><h3><i class="fas fa-pen"></i> Ordinateurs compatibles</h3><button class="modal-close" onclick="SF.Modal.close('editModal')">&times;</button></div>
+            <div class="modal-body">
+                <p id="editName" style="font-weight:800;margin-bottom:6px;"></p>
+                <p class="text-muted" style="font-size:12.5px;margin-bottom:10px;">Un ordinateur ou une gamme par ligne (ex. « HP ProBook 640 G1 »). La liste corrigée n'est plus remplacée par la recherche automatique.</p>
+                <textarea id="editModels" class="form-control" rows="10" style="font-size:14px;"></textarea>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="Bat.resetAuto()"><i class="fas fa-wand-magic-sparkles"></i> Recherche automatique</button>
+                <button class="btn btn-primary" onclick="Bat.saveEdit()"><i class="fas fa-check"></i> Enregistrer</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/sf-core.js"></script>
+    <script src="/js/sf-layout.js"></script>
+    <script>
+    const Bat = {
+        user: null, mgr: false, rows: [], filter: '', editId: null, queue: 0, pausedUntil: null,
+        async init() {
+            this.user = await SF.Auth.require();
+            if (!this.user) return;
+            this.mgr = this.user.role === 'admin' || (this.user.roles || [this.user.role]).includes('gestion_stock');
+            SF.layout({ active: '/batteries.html' });
+            const q = new URLSearchParams(location.search).get('q');
+            if (q) document.getElementById('q').value = q;
+            let t; const later = () => { clearTimeout(t); t = setTimeout(() => this.load(), 800); };
+            SF.on('battery:update', later); SF.on('stock:update', later); SF.on('reception:new', later);
+            this.load();
+        },
+        async load() {
+            try {
+                const r = await SF.api('/api/batteries');
+                this.rows = r.rows || []; this.queue = r.queue || 0; this.pausedUntil = r.paused_until; this.catalog = r.catalog || {};
+                this.render();
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        // Normalisation de recherche : minuscules, sans accents ; « - » « / » « _ » deviennent des espaces.
+        norm(s) { return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[-_/(),.]+/g, ' ').replace(/\s+/g, ' ').trim(); },
+        tokens() { return this.norm(document.getElementById('q').value).split(' ').filter(Boolean); },
+        // Une ligne correspond si chaque mot cherché y figure (ex. « probook 650 » ↔ « HP ProBook 640 645 650 655 G1 »).
+        lineHit(line, toks) { const n = ' ' + this.norm(line) + ' '; return toks.length && toks.every(t => n.includes(t)); },
+        match(b, toks) {
+            if (!toks.length) return { ok: true, hits: [] };
+            const hits = b.models.filter(m => this.lineHit(m, toks));
+            const own = this.lineHit([b.name, b.brand, b.model, b.description].join(' '), toks);
+            const all = this.lineHit([b.name, b.brand, b.model, b.description, ...b.models].join(' '), toks);
+            return { ok: hits.length > 0 || own || all, hits, score: hits.length ? 2 : (own ? 1 : 0) };
+        },
+        avOf(b) { return b.available > 0 ? 'dispo' : (b.boutique > 0 ? 'boutique' : 'epuise'); },
+        setFilter(f) { this.filter = this.filter === f ? '' : f; this.render(); },
+        onSearch() { clearTimeout(this._st); this._st = setTimeout(() => this.render(), 150); document.getElementById('searchBox').classList.toggle('on', !!document.getElementById('q').value); },
+        clearSearch() { document.getElementById('q').value = ''; this.onSearch(); document.getElementById('q').focus(); },
+        hl(text, toks) {
+            let h = SF.esc(text);
+            toks.filter(t => t.length > 1).forEach(t => { h = h.replace(new RegExp('(' + t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi'), '<mark>$1</mark>'); });
+            return h;
+        },
+        render() {
+            const R = this.rows, toks = this.tokens();
+            const dispo = R.filter(b => b.available > 0).length, ep = R.filter(b => this.avOf(b) === 'epuise').length;
+            const units = R.reduce((t, b) => t + (b.available || 0), 0), found = R.filter(b => b.models.length).length;
+            const f = this.filter;
+            const tile = (k, label, value, icon, tone, sub) => SF.tile({ label, value, icon, tone, sub, active: !!k && f === k, onclick: k ? `Bat.setFilter('${k}')` : '' });
+            document.getElementById('kpis').innerHTML =
+                tile('', 'Références', R.length, 'fa-car-battery', 'teal')
+                + tile('dispo', 'Disponibles', dispo, 'fa-circle-check', 'green', 'références en stock')
+                + tile('epuise', 'Épuisées', ep, 'fa-ban', 'coral', 'plus aucune unité')
+                + tile('', 'Unités en stock', units, 'fa-boxes-stacked', 'blue')
+                + tile('compat', 'Compatibilité trouvée', found, 'fa-laptop', 'violet', R.length - found ? (R.length - found) + ' à rechercher' : 'toutes renseignées');
+            document.getElementById('queueInfo').innerHTML = this.queue
+                ? `<div class="bt-queue"><i class="fas fa-spinner fa-spin"></i> Recherche internet des ordinateurs compatibles en cours : ${this.queue} batterie(s) restante(s)${this.pausedUntil ? ' — en pause (moteur de recherche limité), reprise automatique' : ''}.</div>` : '';
+            let list = R.map(b => ({ b, m: this.match(b, toks) })).filter(x => x.m.ok);
+            if (f === 'dispo') list = list.filter(x => x.b.available > 0);
+            if (f === 'epuise') list = list.filter(x => this.avOf(x.b) === 'epuise');
+            if (f === 'compat') list = list.filter(x => x.b.models.length);
+            const rank = { dispo: 0, boutique: 1, epuise: 2 };
+            list.sort((a, b) => (b.m.score || 0) - (a.m.score || 0) || rank[this.avOf(a.b)] - rank[this.avOf(b.b)] || String(a.b.name).localeCompare(String(b.b.name)));
+            document.getElementById('listTitle').innerHTML = toks.length
+                ? `<i class="fas fa-magnifying-glass"></i> Batteries pour « ${SF.esc(document.getElementById('q').value.trim())} »`
+                : `<i class="fas fa-list"></i> ${{ dispo: 'Batteries disponibles', epuise: 'Batteries épuisées', compat: 'Batteries avec compatibilité' }[f] || 'Toutes les batteries'}`;
+            document.getElementById('listCount').textContent = list.length;
+            document.getElementById('list').innerHTML = list.length
+                ? `<div class="bgrid">${list.map(x => this.card(x.b, x.m, toks)).join('')}</div>`
+                : `<div class="empty"><i class="fas fa-car-battery" style="font-size:26px;opacity:.4;"></i><br>${toks.length ? 'Aucune batterie compatible trouvée pour cette recherche.' : 'Aucune batterie.'}</div>`;
+        },
+        card(b, m, toks) {
+            const av = this.avOf(b);
+            const badge = av === 'dispo' ? `<span class="badge badge-success"><i class="fas fa-circle-check"></i> ${b.available} en stock</span>`
+                : av === 'boutique' ? `<span class="badge badge-warning"><i class="fas fa-store"></i> En boutique seulement</span>`
+                : `<span class="badge badge-danger"><i class="fas fa-ban"></i> Épuisée</span>`;
+            const hitSet = new Set(m.hits);
+            const models = b.models.length
+                ? `<div class="chips">${[...b.models].sort((x, y) => hitSet.has(y) - hitSet.has(x)).map(x => `<span class="mchip ${hitSet.has(x) ? 'hit' : ''}">${this.hl(x, toks)}</span>`).join('')}</div>`
+                : `<div class="bc-none">${b.compat_status === 'erreur' ? 'Absente du catalogue · recherche internet échouée — nouvel essai automatique' : (b.compat_status === 'vide' ? 'Absente du catalogue · aucun ordinateur trouvé sur internet' : 'Absente du catalogue · recherche internet en attente…')}</div>`;
+            const src = b.compat_source === 'manuel' ? `Corrigé par ${SF.esc(b.edited_by || '—')}`
+                : b.compat_source === 'catalogue' ? `Catalogue batteries (${SF.esc(b.edited_by || '')})` : (b.searched_at ? 'Trouvé sur internet' : '');
+            const when = b.searched_at ? ' · ' + SF.esc(SF.fmt.date ? SF.fmt.date(b.searched_at.slice(0, 10)) : b.searched_at.slice(0, 10)) : '';
+            const web = 'https://www.google.com/search?q=' + encodeURIComponent(`batterie ${b.brand || ''} ${b.model || b.name} compatible`);
+            return `<div class="bcard" data-av="${av}">
+                <div class="bc-head">
+                    <span class="sf-ico ${av === 'dispo' ? 't-green' : av === 'boutique' ? 't-yellow' : 't-coral'}"><i class="fas fa-car-battery"></i></span>
+                    <div class="bc-t"><div class="bc-name">${this.hl(b.name || '', toks)}</div>
+                        <div class="bc-sub">${b.description ? `<span>${SF.esc(b.description)}</span>` : ''}${b.emplacement ? `<span><i class="fas fa-location-dot"></i> ${SF.esc(b.emplacement)}</span>` : ''}</div></div>
+                    <div class="bc-price"><div class="p">${SF.fmt.ar(b.sale_price || 0)}</div></div>
+                </div>
+                <div class="bc-av">${badge}${b.boutique && av === 'dispo' ? `<span class="badge badge-warning"><i class="fas fa-store"></i> +${b.boutique} en boutique</span>` : ''}</div>
+                <div><div class="bc-lbl"><i class="fas fa-laptop"></i> Ordinateurs compatibles</div>${models}</div>
+                <div class="bc-foot">
+                    <span class="bc-src">${src}${when}</span>
+                    <a class="btn btn-sm btn-secondary" href="${web}" target="_blank" rel="noopener" title="Vérifier sur le web"><i class="fas fa-globe"></i> <span>Web</span></a>
+                    ${this.mgr ? `<button class="btn btn-sm btn-secondary" title="Chercher sur internet (remplace la liste actuelle)" onclick="Bat.lookup(${b.id}, this)"><i class="fas fa-rotate"></i> <span>Rechercher</span></button>
+                    <button class="btn btn-sm btn-secondary" title="Corriger la liste" onclick="Bat.edit(${b.id})"><i class="fas fa-pen"></i> <span>Modifier</span></button>` : ''}
+                </div>
+            </div>`;
+        },
+        async lookup(id, btn) {
+            btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> <span>Recherche…</span>';
+            try {
+                const r = await SF.api(`/api/batteries/${id}/lookup`, { method: 'POST' });
+                SF.toast(r.models.length ? `${r.models.length} ordinateur(s) / gamme(s) trouvé(s)` : 'Aucun ordinateur trouvé sur internet', r.models.length ? 'success' : 'warn');
+                this.load();
+            } catch (e) { SF.toast(e.message, 'error', 6000); btn.disabled = false; btn.innerHTML = '<i class="fas fa-rotate"></i> <span>Rechercher</span>'; }
+        },
+        edit(id) {
+            const b = this.rows.find(x => x.id === id); if (!b) return;
+            this.editId = id;
+            document.getElementById('editName').textContent = b.name;
+            document.getElementById('editModels').value = b.models.join('\n');
+            SF.Modal.open('editModal');
+        },
+        async saveEdit() {
+            try {
+                await SF.api(`/api/batteries/${this.editId}/compat`, { method: 'PUT', body: { models: document.getElementById('editModels').value.split('\n') } });
+                SF.Modal.close('editModal'); SF.toast('Liste enregistrée', 'success'); this.load();
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        async resetAuto() {
+            if (!await SF.confirm('Effacer la liste et relancer la recherche automatique sur internet ?', { title: 'Recherche automatique', okLabel: 'Relancer' })) return;
+            try {
+                await SF.api(`/api/batteries/${this.editId}/compat`, { method: 'PUT', body: { auto: true } });
+                SF.Modal.close('editModal'); SF.toast('Recherche automatique programmée', 'success'); this.load();
+            } catch (e) { SF.toast(e.message, 'error'); }
+        }
+    };
+    Bat.init();
+    </script>
+</body>
+</html>

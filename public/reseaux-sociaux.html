@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <title>Réseaux sociaux — STOCKFLOW</title>
+    <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css">
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/sf.css">
+    <script>document.documentElement.setAttribute('data-theme', localStorage.getItem('stockflow-theme') === 'dark' ? 'dark' : 'light'); try { var sfu = JSON.parse(localStorage.getItem('stockflow-ui') || '{}'); for (var k in sfu) document.documentElement.setAttribute('data-' + k, sfu[k]); } catch (e) {}</script>
+    <style>
+        :root { --fb:#1877f2; }
+        /* Barre de pilotage */
+        .rs-bar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:12px; }
+        .rs-bar .form-control { width:auto; height:38px; font-size:13px; }
+        .rs-bar .sp { flex:1; }
+        .rs-range { display:none; gap:6px; align-items:center; }
+        .rs-range.on { display:inline-flex; }
+        .pchips { display:flex; gap:6px; overflow-x:auto; padding-bottom:4px; margin-bottom:14px; scrollbar-width:thin; }
+        .pchips button { flex-shrink:0; display:inline-flex; align-items:center; gap:7px; border:1px solid var(--border-color); background:var(--bg-card); color:var(--text-secondary); border-radius:999px; padding:6px 12px; font-size:12.5px; font-weight:700; cursor:pointer; font-family:inherit; }
+        .pchips button .dot { width:9px; height:9px; border-radius:50%; background:var(--c); }
+        .pchips button.active { border-color:var(--c, var(--accent)); background:color-mix(in srgb, var(--c, var(--accent)) 12%, var(--bg-card)); color:var(--text-primary); }
+        .pchips button small { color:var(--text-muted); font-weight:700; }
+        /* Bandeau de synthèse */
+        .hero { position:relative; overflow:hidden; border-radius:18px; padding:20px 22px; margin-bottom:14px; color:#fff;
+            background:radial-gradient(120% 140% at 100% 0%, rgba(255,255,255,.14) 0%, transparent 55%), linear-gradient(135deg, #0b3b5a 0%, #0f5f6b 55%, #1877f2 140%); }
+        .hero-top { display:flex; justify-content:space-between; gap:14px; flex-wrap:wrap; align-items:flex-start; }
+        .hero h2 { color:#fff; margin:0; font-size:19px; font-weight:800; letter-spacing:-.2px; display:flex; align-items:center; gap:10px; }
+        .hero .sub { opacity:.82; font-size:12.5px; margin-top:3px; }
+        .hero .verdict { max-width:520px; font-size:13px; line-height:1.55; background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.18); border-radius:12px; padding:10px 13px; }
+        .hero .verdict b { color:#fde68a; }
+        .hero-kpis { display:grid; grid-template-columns:repeat(5, minmax(0,1fr)); gap:10px; margin-top:16px; }
+        .hk { background:rgba(255,255,255,.09); border:1px solid rgba(255,255,255,.14); border-radius:12px; padding:11px 13px; min-width:0; }
+        .hk .l { font-size:11px; text-transform:uppercase; letter-spacing:.5px; opacity:.78; font-weight:700; }
+        .hk .v { font-size:21px; font-weight:800; margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .hk .d { font-size:11.5px; opacity:.85; margin-top:2px; }
+        .hk .d .up { color:#86efac; font-weight:800; } .hk .d .dn { color:#fca5a5; font-weight:800; }
+        .spark { display:flex; align-items:flex-end; gap:2px; height:34px; margin-top:12px; }
+        .spark span { flex:1; background:rgba(255,255,255,.45); border-radius:2px 2px 0 0; min-height:2px; }
+        /* Onglets internes */
+        .rtabs { display:flex; gap:4px; background:var(--bg-card); border:1px solid var(--border-color); border-radius:12px; padding:4px; margin-bottom:14px; overflow-x:auto; scrollbar-width:none; position:sticky; top:0; z-index:20; }
+        .rtabs::-webkit-scrollbar { display:none; }
+        .rtabs button { flex:1 0 auto; border:none; background:transparent; color:var(--text-secondary); font-family:inherit; font-size:13px; font-weight:700; padding:9px 14px; border-radius:9px; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; gap:7px; white-space:nowrap; }
+        .rtabs button.active { background:var(--accent); color:#fff; box-shadow:0 2px 8px color-mix(in srgb, var(--accent) 35%, transparent); }
+        .rtabs button.fb.active { background:var(--fb); }
+        .sec-t { font-size:12px; text-transform:uppercase; letter-spacing:.6px; font-weight:800; color:var(--text-muted); margin:18px 2px 8px; }
+        .chip { display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:700; padding:2px 9px; border-radius:999px; background:color-mix(in srgb, var(--c) 13%, var(--bg-card)); color:var(--c); white-space:nowrap; max-width:100%; overflow:hidden; text-overflow:ellipsis; }
+        .two { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:14px; }
+        .tbl { width:100%; border-collapse:collapse; font-size:13px; }
+        .tbl th { text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.4px; color:var(--text-muted); padding:9px 10px; background:var(--bg-input); white-space:nowrap; font-weight:800; }
+        .tbl td { padding:10px; border-bottom:1px solid var(--border-light, var(--border-color)); vertical-align:middle; }
+        .tbl tr:last-child td { border-bottom:none; }
+        .tbl .r { text-align:right; white-space:nowrap; }
+        .tbl tr.click { cursor:pointer; }
+        .tbl tr.click:hover td { background:var(--bg-input); }
+        .tbl tr.muted td { color:var(--text-muted); }
+        .rank-n { display:inline-flex; width:24px; height:24px; border-radius:50%; align-items:center; justify-content:center; font-size:12px; font-weight:800; background:var(--bg-input); }
+        .rank-n.g1 { background:#fde68a; color:#92400e; } .rank-n.g2 { background:#e5e7eb; color:#374151; } .rank-n.g3 { background:#fed7aa; color:#9a3412; }
+        .share { display:flex; align-items:center; gap:8px; min-width:110px; }
+        .share .tr { flex:1; height:8px; border-radius:999px; background:var(--bg-input); overflow:hidden; }
+        .share .fi { height:100%; border-radius:999px; background:var(--c); }
+        .share b { font-size:12px; min-width:38px; text-align:right; }
+        .ev { font-size:11.5px; font-weight:800; white-space:nowrap; }
+        .ev.up { color:#16a34a; } .ev.dn { color:#dc2626; } .ev.eq { color:var(--text-muted); }
+        /* Scorecards des pages */
+        .sgrid { display:grid; grid-template-columns:repeat(auto-fill, minmax(320px, 1fr)); gap:14px; }
+        .sc { border:1px solid var(--border-color); border-radius:14px; background:var(--bg-card); overflow:hidden; display:flex; flex-direction:column; min-width:0; }
+        .sc-h { display:flex; align-items:center; gap:12px; padding:14px; border-bottom:1px solid var(--border-light, var(--border-color)); background:linear-gradient(90deg, color-mix(in srgb, var(--c) 9%, transparent), transparent); }
+        .ring { --p:0; width:54px; height:54px; border-radius:50%; flex-shrink:0; display:grid; place-items:center; background:conic-gradient(var(--c) calc(var(--p) * 1%), var(--bg-input) 0); }
+        .ring b { width:42px; height:42px; border-radius:50%; background:var(--bg-card); display:grid; place-items:center; font-size:15px; font-weight:800; }
+        .sc-h h4 { margin:0; font-size:15px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .badge-st { display:inline-flex; align-items:center; gap:5px; margin-top:4px; font-size:11px; font-weight:800; padding:2px 9px; border-radius:999px; background:color-mix(in srgb, var(--bc) 14%, var(--bg-card)); color:var(--bc); }
+        .sc-m { display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); border-bottom:1px solid var(--border-light, var(--border-color)); }
+        .sc-m div { padding:10px 8px; text-align:center; border-right:1px solid var(--border-light, var(--border-color)); min-width:0; }
+        .sc-m div:last-child { border-right:none; }
+        .sc-m b { display:block; font-size:15px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .sc-m small { font-size:10.5px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.3px; font-weight:700; }
+        .sc-b { padding:12px 14px; font-size:12.5px; line-height:1.55; display:grid; gap:8px; flex:1; }
+        .sc-b .row { display:flex; gap:8px; align-items:flex-start; }
+        .sc-b .row i { width:15px; text-align:center; margin-top:3px; color:var(--text-muted); flex-shrink:0; }
+        .sc-a { padding:10px 14px; background:var(--bg-input); font-size:12.5px; line-height:1.5; display:flex; gap:8px; }
+        .sc-a i { color:var(--fb); margin-top:3px; }
+        /* Matrice de positionnement */
+        .quad { position:relative; height:320px; border-radius:12px; background:var(--bg-input); overflow:hidden; margin:4px 0 6px 28px; }
+        .quad .q { position:absolute; width:50%; height:50%; padding:8px 10px; font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.4px; color:var(--text-muted); }
+        .quad .q1 { right:0; top:0; text-align:right; background:rgba(22,163,74,.06); } .quad .q2 { left:0; top:0; background:rgba(37,99,235,.05); }
+        .quad .q3 { left:0; bottom:0; display:flex; align-items:flex-end; background:rgba(148,163,184,.07); } .quad .q4 { right:0; bottom:0; display:flex; align-items:flex-end; justify-content:flex-end; background:rgba(234,88,12,.06); }
+        .quad .bub { position:absolute; transform:translate(-50%, 50%); border-radius:50%; background:color-mix(in srgb, var(--c) 75%, transparent); border:2px solid #fff; box-shadow:0 2px 8px rgba(0,0,0,.18); cursor:pointer; display:grid; place-items:center; color:#fff; font-size:10.5px; font-weight:800; }
+        .quad .bl { position:absolute; transform:translate(-50%, -100%); font-size:11px; font-weight:800; white-space:nowrap; background:var(--bg-card); padding:1px 6px; border-radius:6px; box-shadow:0 1px 3px rgba(0,0,0,.12); pointer-events:none; }
+        .qax { font-size:11px; color:var(--text-muted); font-weight:700; display:flex; justify-content:space-between; margin-left:28px; }
+        .qay { position:absolute; left:-26px; top:50%; transform:rotate(-90deg) translateX(50%); transform-origin:left top; font-size:11px; color:var(--text-muted); font-weight:700; white-space:nowrap; }
+        /* Positionnement des pages */
+        .pos-grid { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:10px; margin-bottom:16px; }
+        .pos-q { border:1px solid color-mix(in srgb, var(--c) 30%, var(--border-color)); background:color-mix(in srgb, var(--c) 6%, var(--bg-card)); border-radius:12px; padding:11px 12px; min-width:0; }
+        .pos-qh { display:flex; gap:10px; align-items:flex-start; }
+        .pos-qh > i { width:30px; height:30px; border-radius:8px; display:grid; place-items:center; background:color-mix(in srgb, var(--c) 16%, var(--bg-card)); color:var(--c); flex-shrink:0; font-size:13px; }
+        .pos-qh div { flex:1; min-width:0; } .pos-qh b { display:block; font-size:13.5px; color:var(--c); } .pos-qh small { display:block; font-size:11.5px; color:var(--text-muted); line-height:1.35; }
+        .pos-qh > span { font-size:20px; font-weight:800; color:var(--c); }
+        .pos-ql { display:flex; flex-wrap:wrap; gap:6px; margin-top:9px; }
+        .pos-ql button { display:inline-flex; align-items:center; gap:6px; border:1px solid var(--border-color); background:var(--bg-card); border-radius:999px; padding:4px 10px; font-size:12px; font-weight:700; cursor:pointer; font-family:inherit; color:var(--text-primary); }
+        .pos-ql em { font-size:12px; color:var(--text-muted); }
+        .pos-head, .pos-row { display:grid; grid-template-columns:minmax(0,1.1fr) minmax(0,1fr) minmax(0,1fr); gap:14px; align-items:center; }
+        .pos-head { font-size:11px; text-transform:uppercase; letter-spacing:.4px; font-weight:800; color:var(--text-muted); padding:0 6px 6px; border-bottom:1px solid var(--border-light, var(--border-color)); }
+        .pos-head small { text-transform:none; letter-spacing:0; font-weight:600; }
+        .pos-row { padding:10px 6px; border-bottom:1px solid var(--border-light, var(--border-color)); cursor:pointer; border-radius:8px; }
+        .pos-row:hover { background:var(--bg-input); }
+        .pos-name { display:flex; align-items:center; gap:8px; min-width:0; flex-wrap:wrap; font-size:13px; }
+        .pos-name b { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } .pos-name small { color:var(--text-muted); font-size:11.5px; width:100%; padding-left:18px; }
+        .gauge { display:grid; grid-template-columns:minmax(0,1fr) 56px; gap:8px; align-items:center; font-size:12.5px; }
+        .gauge b { text-align:right; white-space:nowrap; }
+        .g-tr { position:relative; height:10px; border-radius:999px; background:var(--bg-input); }
+        .g-fi { height:100%; border-radius:999px; }
+        .g-avg, .g-avg-l { position:absolute; top:-4px; width:2px; height:18px; background:var(--text-primary); opacity:.55; border-radius:2px; transform:translateX(-1px); }
+        .g-avg-l { position:relative; display:inline-block; top:3px; height:12px; margin-right:4px; }
+        @media (max-width:700px) {
+            .pos-grid { grid-template-columns:minmax(0,1fr); }
+            .pos-head { display:none; }
+            .pos-row { grid-template-columns:minmax(0,1fr); gap:6px; }
+            .gauge::before { font-size:11px; color:var(--text-muted); font-weight:700; }
+            .pos-row .gauge:nth-child(2) { grid-template-columns:72px minmax(0,1fr) 56px; } .pos-row .gauge:nth-child(2)::before { content:'Commandes'; }
+            .pos-row .gauge:nth-child(3) { grid-template-columns:72px minmax(0,1fr) 56px; } .pos-row .gauge:nth-child(3)::before { content:'Réussite'; }
+        }
+        /* Recherche globale */
+        .rs-search { position:relative; margin-bottom:6px; }
+        .rs-search > i { position:absolute; left:16px; top:50%; transform:translateY(-50%); color:var(--text-muted); font-size:15px; }
+        .rs-search input { height:48px; padding-left:44px; padding-right:44px; font-size:14.5px; border-radius:14px; box-shadow:0 2px 10px rgba(0,0,0,.04); }
+        .rs-search input::-webkit-search-cancel-button { display:none; }
+        .rs-clear { position:absolute; right:8px; top:50%; transform:translateY(-50%); width:32px; height:32px; border:none; border-radius:50%; background:var(--bg-input); color:var(--text-secondary); cursor:pointer; display:none; }
+        .rs-search.has .rs-clear { display:block; }
+        .rs-qinfo { font-size:12.5px; color:var(--text-muted); margin:0 4px 10px; }
+        .rs-qinfo b { color:var(--text-primary); }
+        @media (max-width:700px) { .rs-search input { font-size:16px; } }
+        /* Analyse experte */
+        .expert { font-size:13.5px; line-height:1.7; color:var(--text-primary); }
+        .expert p { margin:0 0 10px; }
+        .expert .hl { display:inline-block; font-weight:800; padding:0 7px; border-radius:6px; background:var(--accent-glow); color:var(--accent-dark); }
+        .ins { display:grid; gap:10px; }
+        .in { display:grid; grid-template-columns:40px minmax(0,1fr); gap:12px; padding:13px 14px; border:1px solid var(--border-color); border-left:4px solid var(--c); border-radius:12px; background:var(--bg-card); }
+        .in .ic { width:40px; height:40px; border-radius:10px; display:grid; place-items:center; background:color-mix(in srgb, var(--c) 13%, var(--bg-card)); color:var(--c); font-size:16px; }
+        .in h5 { margin:0 0 3px; font-size:13.5px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+        .in .tag { font-size:10.5px; font-weight:800; padding:1px 7px; border-radius:999px; background:var(--bg-input); color:var(--text-muted); text-transform:uppercase; letter-spacing:.3px; }
+        .in p { margin:0; font-size:12.8px; line-height:1.6; color:var(--text-secondary); }
+        .in p b { color:var(--text-primary); }
+        .in .do { margin-top:6px; font-size:12.5px; color:var(--text-primary); }
+        .in .do i { color:var(--fb); margin-right:5px; }
+        .slots { display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:10px; }
+        .slot { border:1px solid var(--border-color); border-radius:12px; padding:12px; background:var(--bg-card); }
+        .slot .t { font-size:20px; font-weight:800; color:var(--fb); }
+        .slot .w { font-size:12px; font-weight:700; margin-top:2px; }
+        .slot .x { font-size:11.5px; color:var(--text-muted); margin-top:4px; line-height:1.45; }
+        .note-src { font-size:11.5px; color:var(--text-muted); margin-top:10px; line-height:1.5; }
+        /* Top produits */
+        .pgrid { display:grid; grid-template-columns:repeat(auto-fill, minmax(290px, 1fr)); gap:14px; }
+        .pcard { border:1px solid var(--border-color); border-top:4px solid var(--c); border-radius:12px; background:var(--bg-card); padding:12px 14px; min-width:0; }
+        .pcard h4 { margin:0 0 2px; font-size:14px; display:flex; align-items:center; gap:8px; }
+        .pcard .meta { font-size:12px; color:var(--text-muted); margin-bottom:10px; }
+        .mix { display:flex; height:8px; border-radius:999px; overflow:hidden; background:var(--bg-input); margin:4px 0 10px; }
+        .mix span { height:100%; }
+        .mixl { display:flex; gap:10px; flex-wrap:wrap; font-size:11.5px; color:var(--text-muted); margin-top:-4px; margin-bottom:10px; }
+        .mixl i { display:inline-block; width:8px; height:8px; border-radius:2px; margin-right:4px; }
+        .tp { display:grid; grid-template-columns:20px minmax(0,1fr) auto; gap:8px; align-items:center; padding:6px 0; border-bottom:1px dashed var(--border-light, var(--border-color)); font-size:12.5px; }
+        .tp:last-child { border-bottom:none; }
+        .tp .nm { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:600; }
+        .tp .q { text-align:right; white-space:nowrap; font-weight:800; }
+        .tp .q small { display:block; font-weight:600; color:var(--text-muted); font-size:11px; }
+        .tp .i { color:var(--text-muted); font-weight:800; }
+        /* Tendance */
+        .trend { display:flex; align-items:flex-end; gap:6px; height:180px; padding:6px 2px 0; overflow-x:auto; }
+        .trend .wk { flex:1 0 38px; display:flex; flex-direction:column; align-items:center; gap:4px; height:100%; justify-content:flex-end; }
+        .trend .stack { width:72%; display:flex; flex-direction:column-reverse; border-radius:6px 6px 0 0; overflow:hidden; min-height:2px; }
+        .trend .stack span { display:block; width:100%; }
+        .trend .n { font-size:11px; font-weight:800; }
+        .trend .d { font-size:10px; color:var(--text-muted); white-space:nowrap; text-align:center; line-height:1.25; }
+        .legend { display:flex; gap:12px; flex-wrap:wrap; font-size:12px; color:var(--text-secondary); margin-top:10px; }
+        .legend i { display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:5px; vertical-align:-1px; }
+        .hbars { display:grid; gap:7px; }
+        .hbar { display:grid; grid-template-columns:44px minmax(0,1fr) 92px; gap:10px; align-items:center; font-size:12.5px; }
+        .hbar .tr { height:12px; border-radius:999px; background:var(--bg-input); overflow:hidden; }
+        .hbar .fi { height:100%; border-radius:999px; background:var(--c, var(--accent)); }
+        .hbar .vl { text-align:right; font-weight:800; white-space:nowrap; }
+        .hbar .vl small { color:var(--text-muted); font-weight:600; }
+        /* Carte de chaleur */
+        .heat { display:grid; grid-template-columns:38px repeat(15, minmax(18px, 1fr)); gap:3px; font-size:10.5px; overflow-x:auto; }
+        .heat .h { text-align:center; color:var(--text-muted); font-weight:700; }
+        .heat .dl { color:var(--text-muted); font-weight:700; display:flex; align-items:center; }
+        .heat .c { height:24px; border-radius:5px; background:var(--bg-input); display:flex; align-items:center; justify-content:center; font-weight:800; font-size:10px; }
+        .mx td.v { text-align:center; font-weight:700; }
+        .mx td.v span { display:inline-block; min-width:30px; padding:2px 6px; border-radius:6px; }
+        /* Détail */
+        .ord { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.8fr) auto; gap:12px; padding:11px 14px; border-bottom:1px solid var(--border-light, var(--border-color)); font-size:13px; align-items:center; }
+        .ord:last-child { border-bottom:none; }
+        .ord .muted { font-size:12px; color:var(--text-muted); overflow-wrap:anywhere; }
+        .st { display:inline-flex; font-size:11px; font-weight:800; padding:2px 8px; border-radius:999px; white-space:nowrap; }
+        .st.ok { background:rgba(22,163,74,.13); color:#15803d; } .st.ko { background:rgba(220,38,38,.12); color:#b91c1c; } .st.run { background:rgba(37,99,235,.12); color:#1d4ed8; }
+        .empty { text-align:center; color:var(--text-muted); padding:26px 10px; }
+        .print-only { display:none; }
+        @media (max-width:1100px) { .hero-kpis { grid-template-columns:repeat(3, minmax(0,1fr)); } }
+        @media (max-width:900px) { .two { grid-template-columns:minmax(0,1fr); } }
+        @media (max-width:700px) {
+            .rs-bar .form-control { flex:1 1 auto; font-size:16px; }
+            .hero { padding:16px; border-radius:14px; }
+            .hero-kpis { grid-template-columns:repeat(2, minmax(0,1fr)); gap:8px; }
+            .hk .v { font-size:17px; white-space:normal; overflow-wrap:anywhere; }
+            .hk:last-child { grid-column:1 / -1; }
+            .tbl .hm { display:none; }
+            .ord { grid-template-columns:minmax(0,1fr) auto; }
+            .ord .c2 { grid-column:1 / -1; grid-row:2; }
+            .pgrid, .sgrid { grid-template-columns:minmax(0,1fr); }
+            .quad { height:260px; }
+            .rtabs { top:0; }
+        }
+        @media print {
+            .sidebar, .page-actions, .sf-topbar, .sf-bnav, .no-print, .rs-bar, #sfTools, .pchips, .page-tabs, .rtabs { display:none !important; }
+            .main-content { margin:0 !important; padding:0 !important; }
+            .print-only { display:block; }
+            .card, .pcard, .sc, .in { break-inside:avoid; box-shadow:none !important; }
+            body { background:#fff !important; }
+            .hero { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar" id="sfSidebar"></aside>
+        <main class="main-content">
+            <header class="page-header">
+                <div class="page-title"><h1>Réseaux sociaux</h1><p>Performance commerciale des pages Facebook et stratégie de vente en ligne</p></div>
+                <div class="page-actions"><button class="btn btn-secondary no-print" onclick="window.print()"><i class="fas fa-print"></i> Imprimer le rapport</button><div id="sfTools"></div></div>
+            </header>
+            <div class="page-body">
+                <div class="print-only" id="printHead"></div>
+                <div class="rs-bar">
+                    <select id="per" class="form-control" onchange="Rs.setPer(this.value)">
+                        <option value="today">Aujourd'hui</option>
+                        <option value="7">7 derniers jours</option>
+                        <option value="30" selected>30 derniers jours</option>
+                        <option value="90">90 derniers jours</option>
+                        <option value="month">Ce mois-ci</option>
+                        <option value="all">Depuis le début</option>
+                        <option value="custom">Personnalisé…</option>
+                    </select>
+                    <span class="rs-range" id="range"><input type="date" id="dFrom" class="form-control" onchange="Rs.ensure()"> → <input type="date" id="dTo" class="form-control" onchange="Rs.ensure()"></span>
+                    <span class="sp"></span>
+                    <span class="text-muted" style="font-size:12px;" id="upd"></span>
+                </div>
+                <div class="rs-search">
+                    <i class="fas fa-magnifying-glass"></i>
+                    <input type="search" id="q" class="form-control" autocomplete="off" placeholder="Rechercher : client, téléphone, produit, commercial, livreur, page, n° de commande, statut…" oninput="Rs.onSearch()">
+                    <button type="button" class="rs-clear" title="Effacer" onclick="Rs.clearSearch()"><i class="fas fa-xmark"></i></button>
+                </div>
+                <div class="rs-qinfo" id="qInfo"></div>
+                <div class="pchips" id="pchips"></div>
+                <div id="hero"><div class="sf-skel sf-skel-card" style="height:190px;"></div></div>
+                <div class="rtabs" id="rtabs">
+                    <button data-t="overview" class="active" onclick="Rs.setTab('overview')"><i class="fas fa-gauge-high"></i> Vue d'ensemble</button>
+                    <button data-t="pages" onclick="Rs.setTab('pages')"><i class="fas fa-flag"></i> Pages</button>
+                    <button data-t="products" onclick="Rs.setTab('products')"><i class="fas fa-fire"></i> Produits</button>
+                    <button data-t="audience" onclick="Rs.setTab('audience')"><i class="fas fa-clock"></i> Audience & horaires</button>
+                    <button data-t="fb" class="fb" onclick="Rs.setTab('fb')"><i class="fab fa-facebook"></i> Stratégie Facebook</button>
+                    <button data-t="orders" onclick="Rs.setTab('orders')"><i class="fas fa-list"></i> Commandes</button>
+                </div>
+                <div id="body"><div class="sf-skel sf-skel-card"></div></div>
+            </div>
+        </main>
+    </div>
+
+    <script src="/js/sf-core.js"></script>
+    <script src="/js/sf-layout.js"></script>
+    <script>
+    const PALETTE = ['#2563eb', '#db2777', '#16a34a', '#ea580c', '#7c3aed', '#0891b2', '#ca8a04', '#dc2626', '#4f46e5', '#0d9488'];
+    const NONE = '__none__';           // commandes antérieures au canal obligatoire
+    const ST = { nouvelle: 'Nouvelle', assignee: 'Assignée', acceptee: 'Acceptée', facturee: 'Facturée', en_livraison: 'En livraison', livree: 'Livrée', annulee: 'Annulée', retournee: 'Retournée' };
+    const DOW = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+    const DOWL = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'];
+    const KIND = { ordinateur: { l: 'Ordinateurs', c: '#2563eb' }, accessoire: { l: 'Accessoires', c: '#f59e0b' }, service: { l: 'Services', c: '#10b981' } };
+    // Statut stratégique d'une page (matrice volume × conversion).
+    const STATUS = {
+        moteur:    { l: 'Page moteur', i: 'fa-rocket', c: '#16a34a', a: "Maintenir le rythme de publication et dupliquer ses formats gagnants (avec un contenu propre à chaque page)." },
+        potentiel: { l: 'Fort potentiel', i: 'fa-seedling', c: '#2563eb', a: "Elle convertit bien mais manque de portée : publier plus souvent, Reels courts et petit budget de boost ciblé sur sa zone de livraison." },
+        securiser: { l: 'À sécuriser', i: 'fa-shield-halved', c: '#ea580c', a: "Beaucoup de commandes mais trop de pertes : appeler chaque client avant la sortie et demander un acompte Mobile Money sur les gros montants." },
+        relancer:  { l: 'À relancer', i: 'fa-arrow-trend-down', c: '#dc2626', a: "Volume en recul : relancer l'activité (nouveautés, live de présentation, réponses rapides en Messenger) pour regagner la distribution." },
+        stable:    { l: 'Stable', i: 'fa-equals', c: '#64748b', a: "Résultats moyens : tester un nouveau format (vidéo de test réel, comparatif, témoignage client) pour faire décoller la page." },
+        dormante:  { l: 'Dormante', i: 'fa-moon', c: '#94a3b8', a: "Aucune commande : la page n'est plus distribuée. Reprendre une publication régulière ou concentrer l'effort sur les pages actives." },
+    };
+    const Rs = {
+        data: null, page: '', tab: 'overview', more: 60, loadedFrom: null, _t: null,
+        today() { return SF.fmt.today(); },
+        async init() {
+            // Données demandées EN MÊME TEMPS que la session (chaque aller-retour via le tunnel coûte ≈ 1 s).
+            const pre = this.fetch(this.needFrom(this.today()));
+            const u = await SF.Auth.require([]); if (!u) return;   // admin uniquement
+            SF.layout({ active: '/reseaux-sociaux.html' });
+            try { await this.apply(await pre); } catch (e) { SF.toast(e.message, 'error'); }
+            SF.on('delivery:update', () => { clearTimeout(this._t); this._t = setTimeout(() => this.load(), 4000); });
+        },
+        // Début de la plage à charger : période affichée + période précédente (comparaison).
+        needFrom(today) {
+            const [f, t] = this.period(today);
+            if (f === '0000-00-00') return '0000-00-00';
+            const pp = this.prevPeriod(f, t); return pp ? pp[0] : f;
+        },
+        fetch(from) { return SF.api('/api/admin/reseaux-sociaux' + (from && from !== '0000-00-00' ? '?from=' + from : '')); },
+        async load() {
+            try { await this.apply(await this.fetch(this.needFrom(this.data ? this.data.today : this.today()))); } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        async ensure() {   // période élargie au-delà de ce qui est chargé → recharger, sinon simple rendu
+            const need = this.needFrom(this.data ? this.data.today : this.today());
+            if (this.loadedFrom == null || need < this.loadedFrom) { document.getElementById('upd').textContent = 'Chargement…'; await this.load(); }
+            else this.render();
+        },
+        async apply(d) {
+            this.data = d; this.loadedFrom = d.from || '0000-00-00';
+            this.color = {};
+            d.pages.forEach((p, i) => this.color[p] = PALETTE[i % PALETTE.length]);
+            let k = d.pages.length;   // pages retirées de la liste mais présentes dans l'historique
+            d.rows.forEach(r => { if (r.source_page && !this.color[r.source_page]) this.color[r.source_page] = PALETTE[k++ % PALETTE.length]; });
+            this.color[NONE] = '#94a3b8';
+            document.getElementById('upd').textContent = 'Mis à jour ' + new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+            this.render();
+        },
+        // ── Recherche globale : s'applique à tous les onglets (KPI, pages, produits, audience, commandes) ──
+        norm(s) { return String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''); },
+        words() { return this.norm(document.getElementById('q').value.trim()).split(/\s+/).filter(Boolean); },
+        hay(r) {
+            if (r._hay) return r._hay;
+            return (r._hay = this.norm([r.client_name, r.client_phone, (r.client_phone || '').replace(/\D/g, ''), r.client_address, r.commercial_name, r.livreur_name,
+                this.lbl(this.key(r)), '#' + r.delivery_number, ST[r.status] || r.status, r.day, SF.fmt.date(r.day),
+                r.items.map(i => `${i.name} ${i.category || ''} ${i.brand || ''} ${KIND[i.kind] ? KIND[i.kind].l : ''}`).join(' ')].join(' ')));
+        },
+        match(r) { const w = this._w || []; return !w.length || w.every(x => this.hay(r).includes(x)); },
+        onSearch() { clearTimeout(this._qt); this._qt = setTimeout(() => { this.more = 60; this.render(); }, 180); },
+        clearSearch() { document.getElementById('q').value = ''; this.render(); document.getElementById('q').focus(); },
+        key(r) { return r.source_page || NONE; },
+        lbl(k) { return k === NONE ? 'Non renseigné' : k; },
+        chip(k) { return `<span class="chip" style="--c:${this.color[k] || '#94a3b8'}" title="${SF.esc(this.lbl(k))}"><i class="fas ${k === NONE ? 'fa-circle-question' : 'fa-flag'}"></i> ${SF.esc(this.lbl(k))}</span>`; },
+        dot(k) { return `<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${this.color[k]};flex-shrink:0;"></span>`; },
+        setPer(v) { document.getElementById('range').classList.toggle('on', v === 'custom');
+            const t = this.data ? this.data.today : this.today();
+            if (v === 'custom' && !document.getElementById('dFrom').value) { document.getElementById('dFrom').value = this.addD(t, -30); document.getElementById('dTo').value = t; }
+            this.ensure(); },
+        setPage(p) { this.page = this.page === p ? '' : p; this.more = 60; this.render(); window.scrollTo({ top: 0, behavior: 'smooth' }); },
+        setTab(t) { this.tab = t; document.querySelectorAll('#rtabs button').forEach(b => b.classList.toggle('active', b.dataset.t === t)); this.renderBody(); },
+        addD(d, n) { const x = new Date(d + 'T12:00:00'); x.setDate(x.getDate() + n); return x.toISOString().slice(0, 10); },
+        period(today) {
+            const t = today || this.data.today, v = document.getElementById('per').value;
+            if (v === 'all') return ['0000-00-00', '9999-12-31', 'depuis le début'];
+            if (v === 'today') return [t, t, "aujourd'hui"];
+            if (v === 'month') return [t.slice(0, 8) + '01', t, 'ce mois-ci'];
+            if (v === 'custom') { const f = document.getElementById('dFrom').value || '0000-00-00', to = document.getElementById('dTo').value || t;
+                return [f, to, `du ${SF.fmt.date(f)} au ${SF.fmt.date(to)}`]; }
+            const n = parseInt(v, 10) || 30; return [this.addD(t, -(n - 1)), t, `sur les ${n} derniers jours`];
+        },
+        prevPeriod(f, t) { if (f === '0000-00-00') return null; const days = Math.round((new Date(t) - new Date(f)) / 86400000) + 1; return [this.addD(f, -days), this.addD(f, -1)]; },
+        pct(a, b) { return b ? Math.round(a * 1000 / b) / 10 : 0; },
+        group(arr, fn) { const m = new Map(); arr.forEach(x => { const k = fn(x); (m.get(k) || m.set(k, []).get(k)).push(x); }); return m; },
+        isOk(r) { return r.status === 'livree'; },
+        isKo(r) { return r.status === 'annulee' || r.status === 'retournee'; },
+        dow(r) { return (new Date(r.day + 'T12:00:00').getDay() + 6) % 7; },
+        cid(r) { return (r.client_phone || '').replace(/\D/g, '') || (r.client_name || '').toLowerCase(); },
+        ev(cur, prev) {
+            if (prev == null) return '';
+            if (!prev) return cur ? '<span class="ev up">nouveau</span>' : '';
+            const d = Math.round((cur - prev) * 100 / prev);
+            return `<span class="ev ${d > 0 ? 'up' : d < 0 ? 'dn' : 'eq'}">${d > 0 ? '▲ +' : d < 0 ? '▼ ' : '= '}${d} %</span>`;
+        },
+        evH(cur, prev) {   // version bandeau (fond sombre)
+            if (prev == null || !prev) return '';
+            const d = Math.round((cur - prev) * 100 / prev);
+            return `<span class="${d >= 0 ? 'up' : 'dn'}">${d > 0 ? '▲ +' : d < 0 ? '▼ ' : '= '}${d} %</span> vs préc.`;
+        },
+        stats(L) {
+            const ok = L.filter(r => this.isOk(r)), ko = L.filter(r => this.isKo(r));
+            const ca = ok.reduce((s, r) => s + (r.total || 0), 0);
+            const val = L.filter(r => !this.isKo(r)).reduce((s, r) => s + (r.total || 0), 0);
+            const closed = ok.length + ko.length;
+            return { n: L.length, ok: ok.length, ko: ko.length, run: L.length - closed, ca, val, basket: ok.length ? Math.round(ca / ok.length) : 0,
+                     rate: closed ? this.pct(ok.length, closed) : null, koRate: L.length ? this.pct(ko.length, L.length) : 0, clients: new Set(L.map(r => this.cid(r))).size };
+        },
+        products(L) {
+            const m = new Map();
+            L.filter(r => !this.isKo(r)).forEach(r => r.items.forEach(i => {
+                const k = i.pid || i.name; const o = m.get(k) || m.set(k, { key: k, name: i.name, kind: i.kind, qty: 0, ca: 0, orders: 0 }).get(k);
+                o.qty += i.qty; o.ca += i.qty * i.price; o.orders++;
+            }));
+            return [...m.values()].sort((a, b) => b.qty - a.qty || b.ca - a.ca);
+        },
+        mix(L) {
+            const m = { ordinateur: 0, accessoire: 0, service: 0 };
+            L.filter(r => !this.isKo(r)).forEach(r => r.items.forEach(i => { m[i.kind] = (m[i.kind] || 0) + i.qty * i.price; }));
+            return m;
+        },
+        peakHours(L, n) {
+            const g = this.group(L.filter(r => r.hour != null), r => r.hour);
+            return [...g].map(([h, l]) => ({ h, n: l.length })).sort((a, b) => b.n - a.n).slice(0, n);
+        },
+
+        // ── Calcul global de la période (partagé par tous les onglets) ──
+        compute() {
+            const [f, t, lbl] = this.period();
+            const ALL = this.data.rows.filter(r => r.day >= f && r.day <= t && this.match(r));
+            const pp = this.prevPeriod(f, t), PREV = pp ? this.data.rows.filter(r => r.day >= pp[0] && r.day <= pp[1] && this.match(r)) : null;
+            const byPage = this.group(ALL, r => this.key(r)), prevBy = PREV ? this.group(PREV, r => this.key(r)) : null;
+            const keys = [...new Set([...this.data.pages, ...byPage.keys()])];
+            if (this.page && !keys.includes(this.page)) this.page = '';
+            const R = this.page ? (byPage.get(this.page) || []) : ALL;
+            const P = PREV ? (this.page ? PREV.filter(r => this.key(r) === this.page) : PREV) : null;
+            // Score /100 et statut stratégique par page (hors « Non renseigné »).
+            const tagged = keys.filter(k => k !== NONE).map(k => { const L = byPage.get(k) || []; return { k, L, s: this.stats(L), p: prevBy ? (prevBy.get(k) || []).length : null }; });
+            const act = tagged.filter(x => x.s.n);
+            const maxN = Math.max(1, ...act.map(x => x.s.n)), maxCa = Math.max(1, ...act.map(x => x.s.ca));
+            const nSorted = act.map(x => x.s.n).sort((a, b) => a - b), medN = nSorted.length ? nSorted[Math.floor(nSorted.length / 2)] : 0;
+            const okAll = act.reduce((s, x) => s + x.s.ok, 0), clAll = act.reduce((s, x) => s + x.s.ok + x.s.ko, 0), avgRate = clAll ? okAll * 100 / clAll : 0;
+            tagged.forEach(x => {
+                const g = x.p ? Math.max(-1, Math.min(1, (x.s.n - x.p) / x.p)) : (x.p === 0 && x.s.n ? 1 : 0);
+                x.growth = x.p ? Math.round((x.s.n - x.p) * 100 / x.p) : null;
+                x.score = x.s.n ? Math.round(35 * x.s.n / maxN + 30 * (x.s.rate != null ? x.s.rate / 100 : avgRate / 100) + 20 * x.s.ca / maxCa + 15 * (g + 1) / 2) : 0;
+                const rate = x.s.rate != null ? x.s.rate : avgRate;
+                x.status = !x.s.n ? 'dormante'
+                    : x.score >= 70 ? 'moteur'
+                    : (x.s.n >= medN && rate < avgRate - 8) ? 'securiser'
+                    : (x.growth != null && x.growth <= -25) ? 'relancer'
+                    : (x.s.n < medN && rate >= avgRate) ? 'potentiel'
+                    : 'stable';
+            });
+            const rank = tagged.slice().sort((a, b) => b.s.n - a.s.n || b.s.ca - a.s.ca);
+            return { f, t, lbl, ALL, PREV, byPage, prevBy, keys, R, P, S: this.stats(R), SP: P ? this.stats(P) : null, tagged, rank, avgRate, medN };
+        },
+
+        render() {
+            if (!this.data) return;
+            this._w = this.words();
+            const C = this.C = this.compute();
+            const q = document.getElementById('q').value.trim();
+            document.querySelector('.rs-search').classList.toggle('has', !!q);
+            document.getElementById('qInfo').innerHTML = q ? (C.ALL.length
+                ? `<b>${C.ALL.length}</b> commande(s) correspondent à « ${SF.esc(q)} » ${SF.esc(C.lbl)} — tous les onglets sont filtrés.`
+                : `Aucune commande pour « ${SF.esc(q)} » ${SF.esc(C.lbl)}.`) : '';
+            document.getElementById('pchips').innerHTML = `<button class="${this.page ? '' : 'active'}" style="--c:var(--accent)" onclick="Rs.setPage('')"><i class="fas fa-layer-group"></i> Toutes les pages <small>${C.ALL.length}</small></button>`
+                + C.keys.map(k => `<button class="${this.page === k ? 'active' : ''}" style="--c:${this.color[k]}" onclick="Rs.setPage(${SF.esc(JSON.stringify(k))})"><span class="dot"></span>${SF.esc(this.lbl(k))} <small>${(C.byPage.get(k) || []).length}</small></button>`).join('');
+            const scope = (this.page ? this.lbl(this.page) : 'Toutes les pages') + (q ? ` — « ${q} »` : '');
+            document.getElementById('printHead').innerHTML = `<h2 style="margin:0 0 4px;">Rapport réseaux sociaux — ${SF.esc(scope)}</h2><div style="margin-bottom:12px;color:#555;">Période : ${SF.esc(C.lbl)} · édité le ${SF.fmt.date(this.data.today)}</div>`;
+            document.getElementById('hero').innerHTML = this.hero(C, scope);
+            this.renderBody();
+        },
+        renderBody() {
+            const C = this.C; if (!C) return;
+            const el = document.getElementById('body');
+            if (!C.R.length && this.tab !== 'pages' && this.tab !== 'fb') { el.innerHTML = `<div class="card"><div class="card-body"><div class="empty"><i class="fas fa-inbox fa-2x"></i><p style="margin-top:10px;">Aucune commande ${this.page ? 'pour cette page ' : ''}sur cette période</p></div></div></div>`; return; }
+            const T = {
+                overview: () => (this.page ? '' : this.quadrant(C) + this.statusBoard(C)) + this.ranking(C) + this.trend(C),
+                pages: () => this.scorecards(C),
+                products: () => this.topProducts(C),
+                audience: () => `<div class="two">${this.heat(C)}${this.dowBars(C)}</div>` + this.commercials(C) + this.clients(C),
+                fb: () => this.fbStrategy(C),
+                orders: () => this.detail(C),
+            };
+            el.innerHTML = (T[this.tab] || T.overview)();
+        },
+
+        // ── Bandeau de synthèse ──
+        hero(C, scope) {
+            const S = C.S, SP = C.SP, act = C.rank.filter(x => x.s.n);
+            const days = this.group(C.R, r => r.day), dk = [...days.keys()].sort().slice(-40), mx = Math.max(1, ...dk.map(d => days.get(d).length));
+            let verdict;
+            if (!S.n) verdict = 'Aucune commande sur la période sélectionnée.';
+            else if (this.page) { const x = C.tagged.find(y => y.k === this.page); verdict = x ? `Score <b>${x.score}/100</b> · statut <b>${STATUS[x.status].l}</b>. ${STATUS[x.status].a}` : 'Commandes antérieures au canal obligatoire.'; }
+            else { const a = act[0], share = a ? this.pct(a.s.n, act.reduce((s, x) => s + x.s.n, 0)) : 0;
+                verdict = a ? `<b>${SF.esc(a.k)}</b> porte <b>${share} %</b> des commandes. ${act.filter(x => x.status === 'securiser').length ? `<b>${act.filter(x => x.status === 'securiser').length}</b> page(s) à sécuriser (trop d'annulations). ` : ''}${C.tagged.filter(x => x.status === 'dormante').length ? `<b>${C.tagged.filter(x => x.status === 'dormante').length}</b> page(s) dormante(s).` : 'Toutes les pages ont reçu des commandes.'}` : 'Aucune commande attribuée à une page sur la période.'; }
+            return `<div class="hero"><div class="hero-top"><div><h2><i class="fab fa-facebook"></i> ${SF.esc(scope)}</h2><div class="sub">${SF.esc(C.lbl.charAt(0).toUpperCase() + C.lbl.slice(1))} · ${S.clients} client(s) distinct(s)</div></div>
+                <div class="verdict"><i class="fas fa-user-tie" style="margin-right:6px;opacity:.8;"></i>${verdict}</div></div>
+                <div class="hero-kpis">
+                    <div class="hk"><div class="l">Commandes</div><div class="v">${S.n}</div><div class="d">${SP ? this.evH(S.n, SP.n) : '&nbsp;'}</div></div>
+                    <div class="hk"><div class="l">Livrées</div><div class="v">${S.ok}</div><div class="d">${S.rate != null ? `réussite ${S.rate} %` : '—'} · ${S.run} en cours</div></div>
+                    <div class="hk"><div class="l">CA livré</div><div class="v" title="${SF.fmt.ar(S.ca)}">${SF.fmt.ar(S.ca)}</div><div class="d">${SP ? this.evH(S.ca, SP.ca) : 'en jeu ' + SF.fmt.ar(S.val)}</div></div>
+                    <div class="hk"><div class="l">Panier moyen</div><div class="v">${SF.fmt.ar(S.basket)}</div><div class="d">par commande livrée</div></div>
+                    <div class="hk"><div class="l">Pertes</div><div class="v">${S.ko}</div><div class="d">${S.koRate} % annulées / retournées</div></div>
+                </div>
+                ${dk.length > 1 ? `<div class="spark" title="Commandes par jour (jours avec commandes)">${dk.map(d => `<span style="height:${days.get(d).length * 100 / mx}%" title="${SF.fmt.date(d)} : ${days.get(d).length}"></span>`).join('')}</div>` : ''}</div>`;
+        },
+
+        // ── Positionnement des pages : 4 groupes lisibles (volume ≥ médiane ? réussite ≥ moyenne ?)
+        //    + pour chaque page, deux jauges comparées à la moyenne des pages.
+        quadrant(C) {
+            const act = C.tagged.filter(x => x.s.n);
+            if (!act.length) return `<div class="card dash-card"><div class="card-body"><div class="empty">Aucune page active sur la période</div></div></div>`;
+            const maxN = Math.max(...act.map(x => x.s.n)), avg = Math.round(C.avgRate * 10) / 10;
+            const avgN = Math.round(act.reduce((s, x) => s + x.s.n, 0) / act.length);
+            const rate = x => x.s.rate != null ? x.s.rate : C.avgRate;
+            const Q = [
+                { k: 'q1', l: 'Pages moteurs', d: 'Beaucoup de commandes et bonne réussite', i: 'fa-rocket', c: '#16a34a', f: x => x.s.n >= C.medN && rate(x) >= C.avgRate },
+                { k: 'q4', l: 'À sécuriser', d: 'Beaucoup de commandes mais trop de pertes', i: 'fa-shield-halved', c: '#ea580c', f: x => x.s.n >= C.medN && rate(x) < C.avgRate },
+                { k: 'q2', l: 'Fort potentiel', d: 'Peu de commandes mais elles aboutissent', i: 'fa-seedling', c: '#2563eb', f: x => x.s.n < C.medN && rate(x) >= C.avgRate },
+                { k: 'q3', l: 'Faible activité', d: 'Peu de commandes et réussite faible', i: 'fa-battery-quarter', c: '#94a3b8', f: x => x.s.n < C.medN && rate(x) < C.avgRate },
+            ];
+            const sorted = act.slice().sort((a, b) => b.s.n - a.s.n);
+            return `<div class="card dash-card"><div class="card-header"><h3><i class="fas fa-crosshairs"></i> Positionnement des pages</h3><span class="text-muted" style="font-size:12px;">comparé à la moyenne des pages actives</span></div>
+                <div class="card-body">
+                <div class="pos-grid">${Q.map(q => { const L = act.filter(q.f); return `<div class="pos-q" style="--c:${q.c}">
+                    <div class="pos-qh"><i class="fas ${q.i}"></i><div><b>${q.l}</b><small>${q.d}</small></div><span>${L.length}</span></div>
+                    <div class="pos-ql">${L.length ? L.map(x => `<button onclick="Rs.setPage(${SF.esc(JSON.stringify(x.k))})">${this.dot(x.k)}${SF.esc(x.k)}</button>`).join('') : '<em>Aucune page</em>'}</div></div>`; }).join('')}</div>
+                <div class="pos-list">
+                    <div class="pos-head"><span>Page</span><span>Commandes <small>(moy. ${avgN})</small></span><span>Réussite <small>(moy. ${avg} %)</small></span></div>
+                    ${sorted.map(x => { const r = rate(x); return `<div class="pos-row" onclick="Rs.setPage(${SF.esc(JSON.stringify(x.k))})">
+                        <div class="pos-name">${this.dot(x.k)}<b>${SF.esc(x.k)}</b><small>${SF.fmt.ar(x.s.ca)}</small></div>
+                        <div class="gauge"><div class="g-tr"><div class="g-fi" style="width:${x.s.n * 100 / maxN}%;background:${this.color[x.k]}"></div><i class="g-avg" style="left:${avgN * 100 / maxN}%"></i></div><b>${x.s.n}</b></div>
+                        <div class="gauge"><div class="g-tr"><div class="g-fi" style="width:${r}%;background:${r >= C.avgRate ? '#16a34a' : '#ea580c'}"></div><i class="g-avg" style="left:${C.avgRate}%"></i></div><b>${x.s.rate != null ? x.s.rate + ' %' : '—'}</b></div>
+                    </div>`; }).join('')}
+                    <div class="note-src"><i class="g-avg-l"></i> trait vertical = moyenne des pages · réussite = commandes livrées / commandes clôturées (livrées + annulées + retournées).</div>
+                </div></div></div>`;
+        },
+        statusBoard(C) {
+            const g = this.group(C.tagged, x => x.status);
+            return `<div class="card dash-card"><div class="card-header"><h3><i class="fas fa-chess"></i> Diagnostic stratégique</h3></div><div class="card-body" style="display:grid;gap:10px;">
+                ${Object.keys(STATUS).filter(s => g.get(s)).map(s => `<div class="in" style="--c:${STATUS[s].c}"><div class="ic"><i class="fas ${STATUS[s].i}"></i></div><div>
+                    <h5>${STATUS[s].l} <span class="tag">${g.get(s).length} page(s)</span></h5>
+                    <p>${g.get(s).map(x => `<b style="cursor:pointer" onclick="Rs.setPage(${SF.esc(JSON.stringify(x.k))})">${SF.esc(x.k)}</b>${x.s.n ? ` (${x.score}/100)` : ''}`).join(' · ')}</p>
+                    <div class="do"><i class="fas fa-arrow-right"></i>${STATUS[s].a}</div></div></div>`).join('')}</div></div>`;
+        },
+
+        // ── Classement des pages ──
+        ranking(C) {
+            const none = C.byPage.get(NONE), ns = none ? this.stats(none) : null;
+            const tot = (C.rank.reduce((s, x) => s + x.s.n, 0) + (ns ? ns.n : 0)) || 1, caTot = (C.rank.reduce((s, x) => s + x.s.ca, 0) + (ns ? ns.ca : 0)) || 1;
+            const row = (x, i) => {
+                const tp = this.products(x.L)[0], st = x.status ? STATUS[x.status] : null;
+                return `<tr class="click ${x.s.n ? '' : 'muted'}" onclick="Rs.setPage(${SF.esc(JSON.stringify(x.k))})">
+                    <td>${i != null ? `<span class="rank-n ${x.s.n ? 'g' + (i + 1) : ''}">${i + 1}</span>` : ''}</td>
+                    <td>${this.chip(x.k)}${st ? `<div style="margin-top:4px;"><span class="badge-st" style="--bc:${st.c}"><i class="fas ${st.i}"></i> ${st.l}${x.s.n ? ' · ' + x.score : ''}</span></div>` : ''}</td>
+                    <td class="r"><b>${x.s.n}</b> ${C.prevBy ? this.ev(x.s.n, (C.prevBy.get(x.k) || []).length) : ''}</td>
+                    <td class="hm"><div class="share" style="--c:${this.color[x.k]}"><div class="tr"><div class="fi" style="width:${x.s.n * 100 / tot}%"></div></div><b>${this.pct(x.s.n, tot)} %</b></div></td>
+                    <td class="r">${x.s.ok}</td>
+                    <td class="r hm">${x.s.rate != null ? x.s.rate + ' %' : '—'}</td>
+                    <td class="r hm">${x.s.ko ? `<span style="color:#b91c1c;font-weight:700;">${x.s.ko}</span>` : 0}</td>
+                    <td class="r"><b>${SF.fmt.ar(x.s.ca)}</b><div class="text-muted" style="font-size:11px;">${this.pct(x.s.ca, caTot)} % du CA</div></td>
+                    <td class="r hm">${x.s.basket ? SF.fmt.ar(x.s.basket) : '—'}</td>
+                    <td class="hm" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${tp ? SF.esc(tp.name) : ''}">${tp ? `${SF.esc(tp.name)} <span class="text-muted">(${tp.qty})</span>` : '—'}</td></tr>`;
+            };
+            return `<div class="card dash-card"><div class="card-header"><h3><i class="fas fa-ranking-star"></i> Classement des pages</h3><span class="text-muted" style="font-size:12px;">Toucher une page pour l'analyser seule</span></div>
+                <div class="card-body" style="padding:0;overflow-x:auto;"><table class="tbl"><thead><tr><th></th><th>Page</th><th class="r">Commandes</th><th class="hm">Part</th><th class="r">Livrées</th><th class="r hm">Réussite</th><th class="r hm">Pertes</th><th class="r">CA livré</th><th class="r hm">Panier moy.</th><th class="hm">Produit n° 1</th></tr></thead><tbody>
+                ${C.rank.map((x, i) => row(x, i)).join('')}${ns ? row({ k: NONE, L: none, s: ns }, null) : ''}</tbody></table></div></div>`;
+        },
+
+        // ── Fiches de performance par page ──
+        scorecards(C) {
+            const list = this.page ? C.tagged.filter(x => x.k === this.page) : C.tagged.slice().sort((a, b) => b.score - a.score);
+            if (!list.length) return `<div class="card"><div class="card-body"><div class="empty">Commandes antérieures au canal obligatoire : pas de fiche de page.</div></div></div>`;
+            return `<div class="sgrid">${list.map(x => {
+                const st = STATUS[x.status], ps = this.products(x.L).slice(0, 3), ph = this.peakHours(x.L, 1)[0], m = this.mix(x.L), tot = m.ordinateur + m.accessoire + m.service;
+                const dd = [...this.group(x.L, r => this.dow(r))].sort((a, b) => b[1].length - a[1].length)[0];
+                return `<div class="sc" style="--c:${this.color[x.k]}">
+                    <div class="sc-h"><div class="ring" style="--p:${x.score}"><b>${x.score}</b></div><div style="min-width:0;flex:1;"><h4>${SF.esc(x.k)}</h4><span class="badge-st" style="--bc:${st.c}"><i class="fas ${st.i}"></i> ${st.l}</span></div>
+                        <div style="text-align:right;font-size:12px;">${x.growth != null ? this.ev(x.s.n, x.p) : ''}</div></div>
+                    <div class="sc-m"><div><b>${x.s.n}</b><small>Cmd.</small></div><div><b>${x.s.rate != null ? x.s.rate + '%' : '—'}</b><small>Réussite</small></div><div><b title="${SF.fmt.ar(x.s.ca)}">${this.short(x.s.ca)}</b><small>CA livré</small></div><div><b title="${SF.fmt.ar(x.s.basket)}">${this.short(x.s.basket)}</b><small>Panier</small></div></div>
+                    <div class="sc-b">
+                        ${ps.length ? `<div class="row"><i class="fas fa-fire"></i><div>${ps.map(p => `${SF.esc(p.name)} <span class="text-muted">(${p.qty})</span>`).join(' · ')}</div></div>` : ''}
+                        ${tot ? `<div class="row"><i class="fas fa-chart-pie"></i><div>Ordinateurs ${this.pct(m.ordinateur, tot)} % · accessoires ${this.pct(m.accessoire, tot)} %${m.service ? ` · services ${this.pct(m.service, tot)} %` : ''}</div></div>` : ''}
+                        ${ph ? `<div class="row"><i class="fas fa-clock"></i><div>Pic de commandes vers <b>${ph.h} h</b>${dd ? `, surtout le <b>${DOWL[dd[0]]}</b>` : ''} → publier vers <b>${Math.max(6, ph.h - 1)} h</b></div></div>` : ''}
+                        ${x.s.ko ? `<div class="row"><i class="fas fa-ban"></i><div>${x.s.ko} perte(s) · ${x.s.koRate} % des commandes</div></div>` : ''}
+                    </div>
+                    <div class="sc-a"><i class="fab fa-facebook"></i><div>${st.a}</div></div></div>`; }).join('')}</div>`;
+        },
+        short(v) { v = Math.round(v || 0); return v >= 1e6 ? (Math.round(v / 1e5) / 10).toString().replace('.', ',') + ' M' : v >= 1e3 ? Math.round(v / 1e3) + ' k' : String(v); },
+
+        // ── Produits ──
+        topProducts(C) {
+            const card = (k, L, n) => {
+                const ps = this.products(L).slice(0, n), m = this.mix(L), tot = m.ordinateur + m.accessoire + m.service, s = this.stats(L);
+                if (!L.length) return '';
+                return `<div class="pcard" style="--c:${this.color[k]}"><h4>${this.dot(k)}${SF.esc(this.lbl(k))}</h4>
+                    <div class="meta">${s.n} commande(s) · ${SF.fmt.ar(s.ca)} livrés</div>
+                    ${tot ? `<div class="mix">${Object.keys(KIND).map(x => m[x] ? `<span style="width:${m[x] * 100 / tot}%;background:${KIND[x].c}"></span>` : '').join('')}</div>
+                    <div class="mixl">${Object.keys(KIND).filter(x => m[x]).map(x => `<span><i style="background:${KIND[x].c}"></i>${KIND[x].l} ${this.pct(m[x], tot)} %</span>`).join('')}</div>` : ''}
+                    ${ps.length ? ps.map((p, i) => `<div class="tp"><span class="i">${i + 1}</span><span class="nm" title="${SF.esc(p.name)}">${SF.esc(p.name)}</span><span class="q">${p.qty} pc<small>${SF.fmt.ar(p.ca)}</small></span></div>`).join('') : '<div class="text-muted" style="font-size:12.5px;">Aucun article (commandes annulées)</div>'}</div>`;
+            };
+            // Produits phares globaux : sur combien de pages ils se vendent (contenu dupliqué entre pages).
+            let glob = '';
+            if (!this.page) {
+                const all = this.products(C.R).slice(0, 10);
+                glob = `<div class="card dash-card"><div class="card-header"><h3><i class="fas fa-trophy"></i> Produits phares — toutes pages</h3></div><div class="card-body" style="padding:0;overflow-x:auto;">
+                    <table class="tbl"><thead><tr><th></th><th>Produit</th><th class="r">Pièces</th><th class="r">CA</th><th>Meilleure page</th><th class="hm">Vendu sur</th></tr></thead><tbody>
+                    ${all.map((p, i) => { const per = C.keys.map(k => ({ k, q: (C.byPage.get(k) || []).filter(r => !this.isKo(r)).reduce((s, r) => s + r.items.filter(it => (it.pid || it.name) === p.key).reduce((a, it) => a + it.qty, 0), 0) })).filter(x => x.q).sort((a, b) => b.q - a.q);
+                        return `<tr><td><span class="rank-n ${'g' + (i + 1)}">${i + 1}</span></td><td><b>${SF.esc(p.name)}</b><div class="text-muted" style="font-size:11px;">${KIND[p.kind] ? KIND[p.kind].l : ''}</div></td><td class="r"><b>${p.qty}</b></td><td class="r">${SF.fmt.ar(p.ca)}</td>
+                            <td>${per[0] ? this.chip(per[0].k) : '—'}</td><td class="hm">${per.map(x => `<span title="${SF.esc(this.lbl(x.k))} : ${x.q}" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${this.color[x.k]};margin-right:3px;"></span>`).join('')} <span class="text-muted" style="font-size:11.5px;">${per.length} page(s)</span></td></tr>`; }).join('')}</tbody></table></div></div>`;
+            }
+            const body = this.page ? card(this.page, C.R, 15)
+                : C.keys.filter(k => (C.byPage.get(k) || []).length).sort((a, b) => (a === NONE) - (b === NONE) || (C.byPage.get(b) || []).length - (C.byPage.get(a) || []).length).map(k => card(k, C.byPage.get(k), 5)).join('');
+            return glob + `<div class="card dash-card"><div class="card-header"><h3><i class="fas fa-fire"></i> Produits les plus commandés ${this.page ? '' : 'par page'}</h3><span class="text-muted" style="font-size:12px;">hors commandes annulées / retournées</span></div>
+                <div class="card-body"><div class="pgrid">${body}</div></div></div>`;
+        },
+
+        // ── Audience ──
+        commercials(C) {
+            const R = C.R, g = [...this.group(R, r => r.commercial_name || '—')].map(([name, L]) => ({ name, L, s: this.stats(L) })).sort((a, b) => b.s.n - a.s.n);
+            const cols = this.page ? [] : C.keys.filter(k => (C.byPage.get(k) || []).length);
+            const max = Math.max(1, ...g.flatMap(x => cols.map(k => x.L.filter(r => this.key(r) === k).length)));
+            return `<div class="card dash-card"><div class="card-header"><h3><i class="fas fa-user-group"></i> Commerciaux${this.page ? '' : ' × pages'}</h3></div><div class="card-body" style="padding:0;overflow-x:auto;">
+                <table class="tbl mx"><thead><tr><th>Commercial</th><th class="r">Cmd.</th><th class="r">Livrées</th><th class="r hm">Réussite</th><th class="r">CA livré</th>${cols.map(k => `<th class="hm" style="text-align:center;" title="${SF.esc(this.lbl(k))}">${this.dot(k)} ${SF.esc(this.lbl(k).replace('Infinity ', 'I. '))}</th>`).join('')}</tr></thead><tbody>
+                ${g.map((x, i) => `<tr><td>${i === 0 ? '<i class="fas fa-crown" style="color:#f59e0b;margin-right:5px;"></i>' : ''}<b>${SF.esc(x.name)}</b></td><td class="r"><b>${x.s.n}</b></td><td class="r">${x.s.ok}</td><td class="r hm">${x.s.rate != null ? x.s.rate + ' %' : '—'}</td><td class="r">${SF.fmt.ar(x.s.ca)}</td>
+                    ${cols.map(k => { const n = x.L.filter(r => this.key(r) === k).length; return `<td class="v hm">${n ? `<span style="background:color-mix(in srgb, ${this.color[k]} ${Math.round(12 + n * 50 / max)}%, transparent)">${n}</span>` : '<span class="text-muted">·</span>'}</td>`; }).join('')}</tr>`).join('')}</tbody></table></div></div>`;
+        },
+        clients(C) {
+            const g = [...this.group(C.R, r => this.cid(r))].map(([k, L]) => ({ L, name: L[0].client_name, phone: L[0].client_phone, s: this.stats(L), pages: [...new Set(L.map(r => this.key(r)))] }))
+                .sort((a, b) => b.s.n - a.s.n || b.s.ca - a.s.ca).slice(0, 10);
+            return `<div class="card dash-card"><div class="card-header"><h3><i class="fas fa-users"></i> Meilleurs clients</h3></div><div class="card-body" style="padding:0;overflow-x:auto;">
+                <table class="tbl"><thead><tr><th>Client</th><th class="r">Cmd.</th><th class="r">CA livré</th><th class="hm">Page(s)</th></tr></thead><tbody>
+                ${g.map(x => `<tr><td><b>${SF.esc(x.name || '—')}</b><div class="text-muted" style="font-size:11.5px;">${SF.esc(x.phone || '')}</div></td><td class="r"><b>${x.s.n}</b></td><td class="r">${SF.fmt.ar(x.s.ca)}</td>
+                    <td class="hm">${x.pages.map(k => `<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${this.color[k]};margin-right:3px;" title="${SF.esc(this.lbl(k))}"></span>`).join('')}</td></tr>`).join('')}</tbody></table></div></div>`;
+        },
+        // Commandes par jour/semaine empilées par page ; seuls les jours AVEC commandes apparaissent.
+        trend(C) {
+            const { f, t, R } = C;
+            const span = f === '0000-00-00' ? 999 : Math.round((new Date(t) - new Date(f)) / 86400000) + 1;
+            const daily = span <= 31;
+            const bucket = d => { if (daily) return d; const x = new Date(d + 'T12:00:00'); x.setDate(x.getDate() - (x.getDay() + 6) % 7); return x.toISOString().slice(0, 10); };
+            const g = this.group(R, r => bucket(r.day));
+            const ks = [...g.keys()].sort().slice(-31);
+            const max = Math.max(1, ...ks.map(k => g.get(k).length));
+            const used = C.keys.filter(k => R.some(r => this.key(r) === k));
+            return `<div class="card dash-card"><div class="card-header"><h3><i class="fas fa-chart-column"></i> Évolution des commandes</h3><span class="text-muted" style="font-size:12px;">par ${daily ? 'jour (jours avec commandes)' : 'semaine'}</span></div>
+                <div class="card-body"><div class="trend">${ks.map(k => { const L = g.get(k); const bp = this.group(L, r => this.key(r));
+                    return `<div class="wk" title="${SF.fmt.date(k)} : ${L.length} commande(s)"><span class="n">${L.length}</span><div class="stack" style="height:${L.length * 100 / max}%">${used.map(p => { const n = (bp.get(p) || []).length; return n ? `<span style="height:${n * 100 / L.length}%;background:${this.color[p]}"></span>` : ''; }).join('')}</div><span class="d">${daily ? DOW[(new Date(k + 'T12:00:00').getDay() + 6) % 7] + '<br>' + k.slice(8, 10) + '/' + k.slice(5, 7) : 'S ' + k.slice(8, 10) + '/' + k.slice(5, 7)}</span></div>`; }).join('')}</div>
+                ${used.length > 1 ? `<div class="legend">${used.map(k => `<span><i style="background:${this.color[k]}"></i>${SF.esc(this.lbl(k))}</span>`).join('')}</div>` : ''}</div></div>`;
+        },
+        heat(C) {
+            const R = C.R, H = []; for (let h = 7; h <= 21; h++) H.push(h);
+            const m = {}; let max = 1;
+            R.forEach(r => { if (r.hour == null) return; const d = this.dow(r), h = Math.min(21, Math.max(7, r.hour)); const k = d + '-' + h; m[k] = (m[k] || 0) + 1; max = Math.max(max, m[k]); });
+            const c = this.page ? this.color[this.page] : 'var(--accent)';
+            return `<div class="card dash-card"><div class="card-header"><h3><i class="fas fa-clock"></i> Quand les clients commandent</h3><span class="text-muted" style="font-size:12px;">jour × heure</span></div>
+                <div class="card-body"><div class="heat"><span></span>${H.map(h => `<span class="h">${h}h</span>`).join('')}
+                ${DOW.map((d, di) => H.some(h => m[di + '-' + h]) ? `<span class="dl">${d}</span>${H.map(h => { const n = m[di + '-' + h] || 0; return `<span class="c" title="${d} ${h}h : ${n} commande(s)" style="${n ? `background:color-mix(in srgb, ${c} ${Math.round(15 + n * 85 / max)}%, var(--bg-input));color:${n / max > .5 ? '#fff' : 'var(--text-primary)'}` : ''}">${n || ''}</span>`; }).join('')}` : '').join('')}</div></div></div>`;
+        },
+        dowBars(C) {
+            const g = [...this.group(C.R, r => this.dow(r))].map(([d, L]) => ({ d, L, s: this.stats(L) })).sort((a, b) => a.d - b.d);
+            const max = Math.max(1, ...g.map(x => x.s.n));
+            return `<div class="card dash-card"><div class="card-header"><h3><i class="fas fa-calendar-week"></i> Jours de la semaine</h3><span class="text-muted" style="font-size:12px;">jours avec commandes</span></div>
+                <div class="card-body"><div class="hbars">${g.map(x => `<div class="hbar"><b>${DOW[x.d]}</b><div class="tr"><div class="fi" style="width:${x.s.n * 100 / max}%"></div></div><div class="vl">${x.s.n} <small>${x.s.rate != null ? x.s.rate + ' %' : ''}</small></div></div>`).join('')}</div>
+                <div class="note-src">Nombre de commandes · taux de réussite (livrées / clôturées).</div></div></div>`;
+        },
+
+        // ── Stratégie Facebook : lecture des chiffres à la lumière de l'algorithme et du marché malgache ──
+        fbStrategy(C) {
+            const R = C.R, S = C.S, act = C.tagged.filter(x => x.s.n), I = [];
+            const add = (c, i, title, tag, text, todo) => I.push(`<div class="in" style="--c:${c}"><div class="ic"><i class="${i}"></i></div><div><h5>${title} <span class="tag">${tag}</span></h5><p>${text}</p>${todo ? `<div class="do"><i class="fas fa-arrow-right"></i>${todo}</div>` : ''}</div></div>`);
+            // 1. Créneaux de publication : publier avant les pics de commande.
+            // Pics distincts (au moins 3 h d'écart : matin, midi, soir), classés dans l'ordre de la journée.
+            const peaks = [];
+            this.peakHours(R, 24).forEach(p => { if (peaks.length < 3 && peaks.every(q => Math.abs(q.h - p.h) >= 3)) peaks.push(p); });
+            const best = peaks[0]; peaks.sort((a, b) => a.h - b.h);
+            const slots = peaks.length ? `<div class="slots">${peaks.map(p => `<div class="slot"><div class="t">${String(Math.max(6, p.h - 1)).padStart(2, '0')}h00</div><div class="w">${p === best ? '<i class="fas fa-star" style="color:#f59e0b"></i> Créneau n° 1' : 'Créneau secondaire'}</div><div class="x">Pic de ${p.n} commande(s) saisies vers ${p.h} h. Une publication touche l'essentiel de son audience dans les 1 à 2 h qui suivent.</div></div>`).join('')}</div>
+                <div class="note-src">Heures de saisie des commandes par les commerciaux : le message du client arrive généralement un peu avant.</div>` : '';
+            // 2. Conversion / paiement à la livraison.
+            if (S.n >= 3) {
+                if (S.koRate >= 15) add('#dc2626', 'fas fa-hand-holding-dollar', 'Commandes perdues avant livraison', 'vente en ligne MG',
+                    `<b>${S.koRate} %</b> des commandes sont annulées ou retournées. À Madagascar, la vente en ligne repose surtout sur le <b>paiement à la livraison</b> : le client commande en un message, sans engagement, et se désiste facilement.`,
+                    "Appeler chaque client avant la sortie du stock, demander un acompte MVola / Orange Money / Airtel Money au-delà d'un certain montant, et confirmer l'heure de passage la veille.");
+                else add('#16a34a', 'fas fa-circle-check', 'Bonne fiabilité des commandes', 'vente en ligne MG',
+                    `Seulement <b>${S.koRate} %</b> de pertes : la confirmation des commandes fonctionne. Avec le paiement à la livraison dominant à Madagascar, c'est un vrai atout.`, 'Conserver la confirmation téléphonique systématique.');
+            }
+            // 3. Contenu dupliqué entre pages.
+            if (!this.page && act.length >= 3) {
+                const tops = act.map(x => new Set(this.products(x.L).slice(0, 5).map(p => p.key)));
+                const cnt = new Map(); tops.forEach(s => s.forEach(k => cnt.set(k, (cnt.get(k) || 0) + 1)));
+                const dup = [...cnt].filter(([, n]) => n >= Math.max(3, Math.ceil(act.length * .6))).length;
+                const names = this.products(R).filter(p => (cnt.get(p.key) || 0) >= 3).slice(0, 3).map(p => SF.esc(p.name));
+                add(dup ? '#ea580c' : '#0891b2', 'fas fa-clone', dup ? 'Les pages vendent les mêmes produits' : 'Pages bien différenciées', 'algorithme Facebook',
+                    dup ? `<b>${dup}</b> produit(s) figurent dans le top 5 de presque toutes les pages${names.length ? ` (${names.join(', ')})` : ''}. Facebook réduit la distribution des contenus <b>non originaux ou republiés à l'identique</b> : la même photo et le même texte sur ${act.length} pages se concurrencent entre eux.`
+                        : `Chaque page a ses propres produits phares : c'est favorable, car Facebook récompense le contenu original propre à chaque page.`,
+                    dup ? "Donner une spécialité à chaque page (ex. PC bureautique, gaming, accessoires, Starlink) et produire photos/vidéos différentes par page, au lieu de partager la même publication partout." : 'Garder cette spécialisation par page.');
+            }
+            // 4. Produits à forte valeur : confiance.
+            const m = this.mix(R), tot = m.ordinateur + m.accessoire + m.service;
+            if (tot) {
+                const pc = this.pct(m.ordinateur, tot);
+                add('#2563eb', 'fas fa-laptop', `Ordinateurs : ${pc} % du chiffre en jeu`, 'logique d\'achat',
+                    `Un ordinateur est un achat réfléchi et cher : le client malgache compare, pose beaucoup de questions en Messenger et a besoin de <b>confiance</b> (produit réel, garantie, boutique physique).${S.basket ? ` Panier moyen livré : <b>${SF.fmt.ar(S.basket)}</b>.` : ''}`,
+                    'Publier des vidéos courtes de test réel (allumage, écran, batterie, clavier), le prix affiché clairement, la garantie et l\'adresse de la boutique ; répondre vite en Messenger.');
+                if (m.accessoire / tot < .15) add('#f59e0b', 'fas fa-plug', 'Accessoires peu vendus', 'panier', `Les accessoires ne pèsent que <b>${this.pct(m.accessoire, tot)} %</b>. Ce sont pourtant des achats d'impulsion faciles à vendre en Reels.`,
+                    'Proposer systématiquement sacoche, souris, clé USB, SSD lors de la confirmation de commande ; publier des Reels « pack PC + accessoires ».');
+            }
+            // 5. Effet fin de mois (salaires).
+            const [f, t] = [C.f, C.t];
+            const spanD = f === '0000-00-00' ? 999 : Math.round((new Date(t) - new Date(f)) / 86400000) + 1;
+            if (R.length >= 20 && spanD >= 28) {
+                const sal = R.filter(r => { const d = +r.day.slice(8, 10); return d >= 25 || d <= 5; }).length, exp = 12 / 30.4;
+                const ratio = sal / R.length;
+                add('#7c3aed', 'fas fa-calendar-check', `Fin / début de mois : ${this.pct(sal, R.length)} % des commandes`, 'pouvoir d\'achat',
+                    `La période du 25 au 5 (versement des salaires) représente <b>${Math.round(exp * 100)} %</b> des jours et <b>${this.pct(sal, R.length)} %</b> des commandes : ${ratio > exp * 1.15 ? "l'effet salaire est <b>net</b>" : ratio < exp * .85 ? 'les commandes se font plutôt en milieu de mois' : 'les commandes sont réparties sur tout le mois'}.`,
+                    ratio > exp * 1.15 ? 'Concentrer nouveautés, promotions et boosts payants du 25 au 5 ; en milieu de mois, mettre en avant les petits prix et les accessoires.' : 'Lisser l\'effort de publication sur tout le mois.');
+            }
+            // 6. Dépendance / régularité.
+            if (!this.page && act.length > 1) {
+                const share = this.pct(act.slice().sort((a, b) => b.s.n - a.s.n)[0].s.n, act.reduce((s, x) => s + x.s.n, 0));
+                if (share >= 45) add('#ea580c', 'fas fa-scale-unbalanced', 'Forte dépendance à une page', 'risque', `Une seule page porte <b>${share} %</b> des commandes. Une restriction de compte, un piratage ou une baisse de portée couperait une grande partie des ventes.`,
+                    'Faire monter 1 ou 2 pages « fort potentiel » avec une publication régulière (au moins 1 par jour) et un petit budget de boost.');
+            }
+            const dormant = C.tagged.filter(x => x.status === 'dormante');
+            if (dormant.length) add('#94a3b8', 'fas fa-moon', `${dormant.length} page(s) dormante(s)`, 'algorithme Facebook', `${dormant.map(x => `<b>${SF.esc(x.k)}</b>`).join(', ')} : aucune commande. Une page qui publie peu perd sa distribution : Facebook montre en priorité les pages actives avec lesquelles l'audience interagit.`,
+                'Reprendre une cadence régulière ou rediriger l\'audience vers une page active.');
+            // Principes algorithmiques (bonnes pratiques, indépendantes des chiffres).
+            const P = [
+                ['fas fa-comments', '#1877f2', 'Interactions de qualité', "Commentaires, partages, enregistrements et conversations Messenger pèsent plus que les « J'aime ». Poser une question simple (« Quel budget ? Pour le travail ou les études ? ») plutôt que « Commentez PM »."],
+                ['fas fa-ban', '#dc2626', 'Éviter « PM » et l\'appât à interactions', "Facebook déclasse les publications qui réclament des commentaires (« Commentez pour le prix »). Afficher le prix augmente aussi la confiance et filtre les curieux."],
+                ['fas fa-film', '#7c3aed', 'Vidéo courte et live', "Les Reels et vidéos courtes sont les formats les plus distribués aux non-abonnés. Le live de présentation est très efficace en vente en ligne à Madagascar."],
+                ['fas fa-signal', '#0891b2', 'Mobile et data limitée', "La majorité des clients sont sur mobile, souvent avec un forfait limité ou Facebook Lite : visuels légers et nets, prix et caractéristiques en début de texte."],
+                ['fas fa-bolt', '#16a34a', 'Réactivité Messenger', "Répondre vite (idéalement en moins de 15 min) : le client contacte souvent plusieurs vendeurs à la fois, et le premier qui répond avec prix et photo réelle gagne la vente."],
+                ['fas fa-location-dot', '#ea580c', 'Ciblage local des boosts', "Cibler les zones réellement livrées (Antananarivo et périphérie) ; un boost national génère des messages impossibles à livrer."],
+            ];
+            const hdr = act.length ? `<div class="card dash-card"><div class="card-body expert"><p><i class="fab fa-facebook" style="color:var(--fb);margin-right:6px;"></i>Cette analyse croise vos <b>commandes réelles</b> ${SF.esc(C.lbl)} (${S.n} commande(s)${this.page ? ` sur ${SF.esc(this.lbl(this.page))}` : `, ${act.length} page(s) active(s)`}) avec le fonctionnement de la distribution Facebook et les habitudes d'achat en ligne à Madagascar.</p></div></div>` : '';
+            return hdr
+                + (slots ? `<div class="sec-t"><i class="fas fa-clock"></i> Créneaux de publication recommandés (calculés sur vos commandes)</div>${slots}` : '')
+                + (I.length ? `<div class="sec-t"><i class="fas fa-magnifying-glass-chart"></i> Diagnostic à partir de vos chiffres</div><div class="ins">${I.join('')}</div>` : '')
+                + `<div class="sec-t"><i class="fab fa-facebook"></i> Ce que l'algorithme Facebook favorise</div><div class="ins">${P.map(([i, c, t, x]) => `<div class="in" style="--c:${c}"><div class="ic"><i class="${i}"></i></div><div><h5>${t}</h5><p>${x}</p></div></div>`).join('')}</div>
+                <div class="note-src">Principes de classement publiés par Meta (interactions significatives, déclassement de l'appât à interactions et des contenus non originaux) et pratiques observées de la vente en ligne à Madagascar. Les chiffres proviennent uniquement de STOCKFLOW (commandes en ligne).</div>`;
+        },
+
+        // ── Détail des commandes ──
+        detail(C) {
+            const R = C.R, L = R.slice(0, this.more);
+            const cls = r => this.isOk(r) ? 'ok' : this.isKo(r) ? 'ko' : 'run';
+            return `<div class="card dash-card"><div class="card-header"><h3><i class="fas fa-list"></i> Commandes (${R.length})</h3></div><div class="card-body" style="padding:0;">
+                ${L.map(r => `<div class="ord"><div class="c1"><b>#${r.delivery_number}</b> · ${SF.fmt.date(r.day)} ${String(r.created_at || '').slice(11, 16)}<div style="margin-top:4px;">${this.chip(this.key(r))}</div></div>
+                    <div class="c2"><b>${SF.esc(r.client_name || '—')}</b> <span class="muted">${SF.esc(r.client_phone || '')}</span><div class="muted">${SF.esc(r.items.map(i => i.qty + '× ' + i.name).join(' · '))}</div><div class="muted"><i class="fas fa-user"></i> ${SF.esc(r.commercial_name || '—')}${r.livreur_name ? ` · <i class="fas fa-motorcycle"></i> ${SF.esc(r.livreur_name)}` : ''}</div></div>
+                    <div class="c3" style="text-align:right;"><b>${SF.fmt.ar(r.total || 0)}</b><div style="margin-top:4px;"><span class="st ${cls(r)}">${ST[r.status] || r.status}</span></div></div></div>`).join('')}
+                ${R.length > L.length ? `<div style="text-align:center;padding:12px;" class="no-print"><button class="btn btn-secondary btn-sm" onclick="Rs.more += 100; Rs.renderBody();">Afficher plus (${R.length - L.length} restantes)</button></div>` : ''}</div></div>`;
+        },
+    };
+    Rs.init();
+    </script>
+</body>
+</html>

@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <title>Échanges & défectueux — STOCKFLOW</title>
+    <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css">
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/sf.css">
+    <script>document.documentElement.setAttribute('data-theme', localStorage.getItem('stockflow-theme') === 'dark' ? 'dark' : 'light'); try { var sfu = JSON.parse(localStorage.getItem('stockflow-ui') || '{}'); for (var k in sfu) document.documentElement.setAttribute('data-' + k, sfu[k]); } catch (e) {}</script>
+    <style>
+        .tabs { display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap; }
+        .tab { padding:9px 16px; border-radius:999px; border:1px solid var(--border-color); background:var(--bg-card); color:var(--text-secondary); font-size:13px; font-weight:700; cursor:pointer; }
+        .tab.active { background:var(--accent); color:var(--accent-contrast); border-color:var(--accent); }
+        .search-box { position:relative; max-width:360px; margin-bottom:14px; }
+        .search-box input { width:100%; padding:11px 14px 11px 40px; background:var(--bg-input); border:1px solid transparent; border-radius:var(--border-radius); color:var(--text-primary); font-size:14px; }
+        .search-box input:focus { outline:none; border-color:var(--accent); background:var(--bg-card); }
+        .search-box i { position:absolute; left:14px; top:50%; transform:translateY(-50%); color:var(--text-muted); }
+        .xcard { background:var(--bg-card); border:1px solid var(--border-color); border-radius:var(--border-radius-lg); padding:14px 16px; margin-bottom:12px; }
+        .xcard .xh { display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; align-items:flex-start; }
+        .xserial { font-family:monospace; font-weight:800; font-size:14px; }
+        .xmeta { font-size:12px; color:var(--text-muted); margin-top:3px; line-height:1.6; }
+        .xreason { background:var(--bg-input); border-radius:8px; padding:8px 10px; font-size:13px; margin-top:8px; }
+        .xtag { font-size:10.5px; font-weight:700; padding:2px 9px; border-radius:999px; white-space:nowrap; }
+        .xactions { display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
+        table .mono { font-family:monospace; }
+        .empty { text-align:center; color:var(--text-muted); padding:40px; }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar" id="sfSidebar"></aside>
+        <main class="main-content">
+            <header class="page-header">
+                <div class="page-title"><h1>Échanges & défectueux</h1><p>Valider les demandes d'échange des commerciaux · consulter le stock défectueux</p></div>
+                <div class="page-actions"><div id="sfTools"></div></div>
+            </header>
+            <div class="page-body">
+                <div class="tabs">
+                    <div class="tab active" data-t="demandes" onclick="Ech.tab('demandes')"><i class="fas fa-right-left"></i> Demandes d'échange <span id="nPending"></span></div>
+                    <div class="tab" data-t="defectueux" onclick="Ech.tab('defectueux')"><i class="fas fa-triangle-exclamation"></i> Stock défectueux</div>
+                </div>
+                <div id="panel-demandes">
+                    <div id="demList"><div class="sf-skel sf-skel-card"></div><div class="sf-skel sf-skel-card"></div></div>
+                </div>
+                <div id="panel-defectueux" style="display:none;">
+                    <div class="search-box"><i class="fas fa-search"></i><input type="text" id="defSearch" placeholder="Rechercher (produit, n° série, catégorie…)" oninput="Ech.renderDef()"></div>
+                    <div id="defList"></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="/js/sf-core.js"></script>
+    <script src="/js/sf-layout.js"></script>
+    <script>
+    const Ech = {
+        user: null, pending: [], def: [], active: 'demandes',
+        async init() {
+            this.user = await SF.Auth.require(['gestion_stock']); if (!this.user) return;
+            SF.layout({ active: '/echanges.html' });
+            SF.on('exchange:update', () => this.load());
+            SF.on('stock:update', () => { if (this.active === 'defectueux') this.loadDef(); });
+            this.load();
+        },
+        tab(name) {
+            this.active = name;
+            document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.t === name));
+            document.getElementById('panel-demandes').style.display = name === 'demandes' ? '' : 'none';
+            document.getElementById('panel-defectueux').style.display = name === 'defectueux' ? '' : 'none';
+            if (name === 'defectueux') this.loadDef();
+        },
+        async load() {
+            try { this.pending = await SF.api('/api/exchanges?status=pending'); this.renderDem(); }
+            catch (e) { SF.toast(e.message, 'error'); }
+        },
+        async loadDef() {
+            try { this.def = await SF.api('/api/defectueux'); this.renderDef(); }
+            catch (e) { SF.toast(e.message, 'error'); }
+        },
+        dispoLabel(d, isAcc) {
+            if (d === 'garantie') return ['Ancienne → garantie (à sa réception)', 'background:rgba(147,51,234,.15);color:#9333ea;'];
+            if (d === 'defectueux') return ['Ancienne → stock défectueux (à sa réception)', 'background:rgba(239,68,68,.15);color:var(--danger);'];
+            return ['Ancienne → retour en stock (à sa réception)', 'background:var(--bg-input);color:var(--text-muted);'];
+        },
+        renderDem() {
+            document.getElementById('nPending').textContent = this.pending.length ? `(${this.pending.length})` : '';
+            const box = document.getElementById('demList');
+            if (!this.pending.length) { box.innerHTML = '<div class="empty"><i class="fas fa-check-circle fa-2x"></i><p style="margin-top:12px;">Aucune demande d\'échange en attente.</p></div>'; return; }
+            box.innerHTML = this.pending.map(r => {
+                const [dl, ds] = this.dispoLabel(r.disposition, r.is_accessory);
+                return `<div class="xcard">
+                    <div class="xh">
+                        <div>
+                            <span class="xserial">${SF.esc(r.serial || '—')}</span>
+                            <div class="xmeta"><strong>${SF.esc(r.product_name || '')}</strong> · ${r.is_accessory ? 'Accessoire' : 'Ordinateur'}<br>
+                                <i class="fas fa-${r.kind === 'delivery' ? 'truck-fast' : 'store'}"></i> ${SF.esc(r.ref_label || '')} · demandé par <strong>${SF.esc(r.requested_by_name || '')}</strong> · ${SF.fmt.datetime(r.created_at)}</div>
+                        </div>
+                        <span class="xtag" style="${ds}">${dl}</span>
+                    </div>
+                    <div class="xreason"><i class="fas fa-comment-dots"></i> ${SF.esc(r.reason || '')}</div>
+                    <div class="xactions">
+                        <button class="btn btn-sm btn-primary" onclick="Ech.validate(${r.id})"><i class="fas fa-barcode"></i> Sortir la pièce de remplacement</button>
+                        <button class="btn btn-sm btn-secondary" title="Scanner avec la caméra" onclick="SF.CamScan.open(v => Ech.validate(${r.id}, v))"><i class="fas fa-camera"></i></button>
+                        <button class="btn btn-sm btn-secondary" onclick="Ech.reject(${r.id})"><i class="fas fa-xmark"></i> Refuser</button>
+                    </div>
+                </div>`;
+            }).join('');
+        },
+        // Sortie physique de la pièce de remplacement : scan OBLIGATOIRE, puis remise au commercial responsable.
+        // L'ancienne pièce passe dans « Retours à réceptionner » jusqu'à son retour au dépôt.
+        async validate(id, scanned) {
+            const r0 = this.pending.find(x => x.id === id) || {};
+            let serial = scanned;
+            if (serial == null) {
+                serial = await SF.prompt(`Scannez le n° de série de la pièce de REMPLACEMENT (${r0.product_name || 'même modèle'}, en stock au dépôt). Elle sera remise à ${r0.requested_by_name || 'le commercial'}.`,
+                    { title: 'Sortie de la pièce de remplacement', okLabel: 'Valider la sortie', placeholder: 'n° de série scanné' });
+                if (serial === null) return;   // annulé
+            }
+            serial = String(serial || '').trim();
+            if (!serial) return SF.toast('Scannez la pièce de remplacement', 'warn');
+            try {
+                const r = await SF.api(`/api/exchanges/${id}/validate`, { method: 'POST', body: { new_serial: serial } });
+                SF.toast(`${r.new_serial} sorti — remettez-le à ${r0.requested_by_name || 'le commercial'}. L'ancienne ${r0.serial || ''} est à réceptionner (elle ${r.disposition}).`, 'success', 7000);
+                this.load();
+            } catch (e) { SF.toast(e.message, 'error', 6000); }
+        },
+        async reject(id) {
+            const reason = await SF.prompt('Motif du refus (facultatif) :', { title: 'Refuser la demande', okLabel: 'Refuser', placeholder: 'ex. pièce identique, pas de problème constaté…' });
+            if (reason === null) return;
+            try {
+                await SF.api(`/api/exchanges/${id}/reject`, { method: 'POST', body: { reason } });
+                SF.toast('Demande refusée', 'info');
+                this.load();
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        renderDef() {
+            const q = (document.getElementById('defSearch').value || '').trim().toLowerCase();
+            let list = this.def;
+            if (q) list = list.filter(u => `${u.product_name || ''} ${u.brand || ''} ${u.model || ''} ${u.category || ''} ${u.serial || ''} ${u.manufacturer_sn || ''} ${u.motif || ''}`.toLowerCase().includes(q));
+            const box = document.getElementById('defList');
+            if (!list.length) { box.innerHTML = `<div class="empty"><i class="fas fa-box-open fa-2x"></i><p style="margin-top:12px;">${this.def.length ? 'Aucun résultat.' : 'Aucune pièce en stock défectueux.'}</p></div>`; return; }
+            const rows = list.map(u => `<tr>
+                <td class="mono">${SF.esc(u.serial || '—')}${u.manufacturer_sn ? `<div class="text-muted" style="font-size:11px;">SN : ${SF.esc(u.manufacturer_sn)}</div>` : ''}</td>
+                <td>${SF.esc([u.brand, u.model].filter(Boolean).join(' ') || u.product_name || '')}<div class="text-muted" style="font-size:11px;">${SF.esc(u.category || (u.is_accessory ? 'Accessoire' : 'Ordinateur'))}</div></td>
+                <td>${SF.esc(u.motif || u.note || '—')}</td>
+                <td class="text-muted" style="font-size:12px;white-space:nowrap;">${u.marked_at ? SF.fmt.datetime(u.marked_at) : (u.updated_at ? SF.fmt.datetime(u.updated_at) : '—')}${u.marked_by ? '<br>par ' + SF.esc(u.marked_by) : ''}</td>
+            </tr>`).join('');
+            box.innerHTML = `<div class="res-count text-muted" style="font-size:12px;margin-bottom:8px;">${list.length} pièce(s) défectueuse(s)</div>
+                <div class="table-container"><table><thead><tr><th>N° série</th><th>Produit</th><th>Motif</th><th>Marqué le</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+        }
+    };
+    Ech.init();
+    </script>
+</body>
+</html>

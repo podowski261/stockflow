@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <title>Profits — STOCKFLOW</title>
+    <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css">
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/sf.css">
+    <script>document.documentElement.setAttribute('data-theme', localStorage.getItem('stockflow-theme') === 'dark' ? 'dark' : 'light'); try { var sfu = JSON.parse(localStorage.getItem('stockflow-ui') || '{}'); for (var k in sfu) document.documentElement.setAttribute('data-' + k, sfu[k]); } catch (e) {}</script>
+    <style>
+        .filters { display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; margin-bottom:16px; }
+        .filters .form-group { margin-bottom:0; } .filters .form-control { min-width:140px; }
+        .kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:12px; margin-bottom:18px; }
+        .kpi { background:var(--bg-card); border:1px solid var(--border-color); border-radius:var(--border-radius-lg); padding:14px 16px; }
+        .kpi h4 { font-size:12px; color:var(--text-muted); } .kpi .v { font-size:22px; font-weight:800; color:var(--text-primary); margin-top:4px; }
+        .kpi .v.green { color:var(--success-dark); }
+        .prow { cursor:pointer; } .prow:hover { background:var(--bg-input); }
+        .items-row td { background:var(--bg-input); font-size:12.5px; padding:0; }
+        .items-inner { padding:8px 14px; }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar" id="sfSidebar"></aside>
+        <main class="main-content">
+            <header class="page-header">
+                <div class="page-title"><h1>Profits</h1><p>Bénéfices réalisés sur les ventes</p></div>
+                <div class="page-actions">
+                    <button class="btn btn-secondary" onclick="Pf.exportPDF()"><i class="fas fa-file-pdf"></i> Rapport PDF</button>
+                    <button class="btn btn-secondary" onclick="SFReport.as('xlsx', () => Pf.exportPDF())"><i class="fas fa-file-excel"></i> Excel</button>
+                    <div id="sfTools"></div>
+                </div>
+            </header>
+            <div class="page-body">
+                <div class="card"><div class="card-body">
+                    <div class="filters">
+                        <div class="form-group"><label>Du</label><input type="date" id="f_from" class="form-control" onchange="Pf.load()"></div>
+                        <div class="form-group"><label>Au</label><input type="date" id="f_to" class="form-control" onchange="Pf.load()"></div>
+                        <button class="btn btn-secondary" onclick="Pf.quick('today')">Aujourd'hui</button>
+                        <button class="btn btn-secondary" onclick="Pf.quick('month')">Ce mois</button>
+                        <button class="btn btn-secondary" onclick="Pf.quick('all')">Tout</button>
+                    </div>
+                    <div class="stats-grid" id="kpis" style="margin-bottom:12px;"></div>
+                    <p class="text-muted" style="font-size:12px;margin-bottom:10px;"><i class="fas fa-info-circle"></i> Sans prix d'achat, profit estimé : 80 000 Ar/unité (ordinateurs) ou 40 % (accessoires), marqués « est. ».</p>
+                    <div class="table-container">
+                        <table>
+                            <thead><tr><th>Date</th><th>Vente</th><th>Client</th><th>Canal</th><th class="text-right">Recette</th><th class="text-right">Coût</th><th class="text-right">Profit</th><th class="text-right">Marge</th></tr></thead>
+                            <tbody id="body"><tr><td colspan="8" class="sf-skel-cell"><span class="sf-skel sf-skel-line"></span><span class="sf-skel sf-skel-line"></span><span class="sf-skel sf-skel-line"></span></td></tr></tbody>
+                        </table>
+                    </div>
+                </div></div>
+            </div>
+        </main>
+    </div>
+
+    <script src="/js/sf-core.js"></script>
+    <script src="/js/sf-layout.js"></script>
+    <script src="/js/sf-report.js"></script>
+    <script>
+    const Pf = {
+        data: null, config: {},
+        async init() {
+            const u = await SF.Auth.require([]); if (!u) return;   // admin uniquement
+            SF.layout({ active: '/profits.html' });
+            try { this.config = await SF.api('/api/config'); } catch (e) {}
+            this.quick('month');
+        },
+        quick(mode) {
+            const t = new Date(), pad = n => String(n).padStart(2, '0');
+            const today = `${t.getFullYear()}-${pad(t.getMonth() + 1)}-${pad(t.getDate())}`;
+            if (mode === 'today') { document.getElementById('f_from').value = today; document.getElementById('f_to').value = today; }
+            else if (mode === 'month') { document.getElementById('f_from').value = `${t.getFullYear()}-${pad(t.getMonth() + 1)}-01`; document.getElementById('f_to').value = today; }
+            else { document.getElementById('f_from').value = ''; document.getElementById('f_to').value = ''; }
+            this.load();
+        },
+        async load() {
+            const q = new URLSearchParams();
+            ['from', 'to'].forEach(k => { const v = document.getElementById('f_' + k).value; if (v) q.set(k, v); });
+            try { this.data = await SF.api('/api/profits?' + q.toString()); this.render(); }
+            catch (e) { SF.toast(e.message, 'error'); }
+        },
+        chan(c) { return c === 'livraison' ? '<span class="badge badge-info">Livraison</span>' : '<span class="badge badge-secondary">Boutique</span>'; },
+        render() {
+            const d = this.data, t = d.totals;
+            document.getElementById('kpis').innerHTML =
+                SF.tile({ label: 'Ventes', value: t.sales_count, icon: 'fa-receipt', tone: 'teal' })
+                + SF.tile({ label: 'Recette', value: SF.fmt.ar(t.revenue), icon: 'fa-sack-dollar', tone: 'blue' })
+                + SF.tile({ label: 'Coût', value: SF.fmt.ar(t.cost), icon: 'fa-file-invoice-dollar', tone: 'yellow' })
+                + SF.tile({ label: 'Profit', value: SF.fmt.ar(t.profit), icon: 'fa-arrow-trend-up', tone: 'green' })
+                + SF.tile({ label: 'Marge moyenne', value: (t.margin * 100).toFixed(1) + ' %', icon: 'fa-percent', tone: 'violet' });
+            const body = document.getElementById('body');
+            if (!d.sales.length) { body.innerHTML = '<tr><td colspan="8" class="text-center text-muted">Aucune vente sur la période</td></tr>'; return; }
+            body.innerHTML = d.sales.map((s, i) => {
+                const items = s.items.map(it => `<div>• ${SF.esc(it.name || '—')}${it.serial ? ' <span style="font-family:monospace;color:var(--text-muted);">' + SF.esc(it.serial) + '</span>' : ''} — vente ${SF.fmt.ar(it.price)}, coût ${SF.fmt.ar(it.cost)}${it.estimated ? ' <span class="badge badge-info" style="font-size:9px;">est.</span>' : ''}, profit <strong style="color:var(--success-dark);">${SF.fmt.ar(it.profit)}</strong></div>`).join('');
+                const margin = s.revenue ? (s.profit / s.revenue * 100).toFixed(0) : 0;
+                return `<tr class="prow" onclick="Pf.toggle(${i})">
+                        <td class="text-muted" style="font-size:12.5px;">${SF.fmt.datetime(s.created_at)}</td>
+                        <td>#${s.sale_number || s.id}</td>
+                        <td>${SF.esc(s.client_name || '—')}</td>
+                        <td>${this.chan(s.channel)}</td>
+                        <td class="text-right">${SF.fmt.ar(s.revenue)}</td>
+                        <td class="text-right">${SF.fmt.ar(s.cost)}${s.has_estimate ? ' <span class="badge badge-info" style="font-size:9px;">est.</span>' : ''}</td>
+                        <td class="text-right" style="color:var(--success-dark);font-weight:700;">${SF.fmt.ar(s.profit)}</td>
+                        <td class="text-right">${margin} %</td></tr>
+                    <tr class="items-row" id="items-${i}" style="display:none;"><td colspan="8"><div class="items-inner">${items}</div></td></tr>`;
+            }).join('');
+        },
+        toggle(i) { const r = document.getElementById('items-' + i); if (r) r.style.display = r.style.display === 'none' ? 'table-row' : 'none'; },
+        exportPDF() {
+            if (!this.data || !this.data.sales.length) return SF.toast('Aucune donnée à exporter', 'error');
+            const from = document.getElementById('f_from').value, to = document.getElementById('f_to').value;
+            const t = this.data.totals;
+            SFReport.build({
+                company: this.config,
+                title: 'Profits des ventes',
+                period: (from || to) ? `Période : ${from ? SF.fmt.date(from) : '…'} — ${to ? SF.fmt.date(to) : '…'}` : 'Toutes les ventes',
+                filename: 'Profits.pdf',
+                summary: [
+                    { label: 'Ventes', value: t.sales_count },
+                    { label: 'Recette', value: SFReport.ar(t.revenue) },
+                    { label: 'Coût', value: SFReport.ar(t.cost) },
+                    { label: 'Profit', value: SFReport.ar(t.profit) },
+                    { label: 'Marge', value: (t.margin * 100).toFixed(1) + ' %' }
+                ],
+                sections: [{
+                    heading: 'Détail par vente',
+                    columns: [
+                        { header: 'Date', key: 'created_at', width: 24, format: v => SF.fmt.datetime(v) },
+                        { header: 'Vente', key: '_n', width: 14, format: (v, s) => '#' + (s.sale_number || s.id) },
+                        { header: 'Client', key: 'client_name', width: 34, format: v => v || '—' },
+                        { header: 'Canal', key: 'channel', width: 18, format: v => v === 'livraison' ? 'Livraison' : 'Boutique' },
+                        { header: 'Recette', key: 'revenue', width: 22, align: 'right', format: v => SFReport.fmtNum(v) },
+                        { header: 'Coût', key: 'cost', width: 22, align: 'right', format: v => SFReport.fmtNum(v) },
+                        { header: 'Profit', key: 'profit', width: 22, align: 'right', format: v => SFReport.fmtNum(v) }
+                    ],
+                    rows: this.data.sales,
+                    totals: { channel: 'TOTAL', revenue: SFReport.fmtNum(t.revenue), cost: SFReport.fmtNum(t.cost), profit: SFReport.fmtNum(t.profit) }
+                }]
+            });
+        }
+    };
+    Pf.init();
+    </script>
+</body>
+</html>

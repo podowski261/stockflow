@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <title>Installation & Préparation — STOCKFLOW</title>
+    <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css">
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/sf.css">
+    <script>document.documentElement.setAttribute('data-theme', localStorage.getItem('stockflow-theme') === 'dark' ? 'dark' : 'light'); try { var sfu = JSON.parse(localStorage.getItem('stockflow-ui') || '{}'); for (var k in sfu) document.documentElement.setAttribute('data-' + k, sfu[k]); } catch (e) {}</script>
+    <style>
+        .task-section { margin-bottom:24px; }
+        .task-section h3 { margin-bottom:12px; display:flex; align-items:center; gap:8px; }
+        .task-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:14px; }
+        .task-card { background:var(--bg-card); border:1px solid var(--border-color); border-radius:var(--border-radius-lg); padding:16px; }
+        .task-card.overdue { border-color:var(--danger); }
+        .task-head { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px; }
+        .task-id { font-size:15px; font-weight:800; color:var(--text-primary); }
+        .task-meta { font-size:12px; color:var(--text-muted); margin-top:2px; }
+        .task-progress { display:flex; gap:6px; margin:12px 0; flex-wrap:wrap; }
+        .pchip { font-size:11.5px; font-weight:700; padding:3px 9px; border-radius:999px; }
+        .pchip.done { background:rgba(34,197,94,.15); color:var(--success-dark); }
+        .pchip.prob { background:rgba(239,68,68,.15); color:var(--danger); }
+        .pchip.pend { background:var(--bg-input); color:var(--text-muted); }
+        .task-actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:6px; }
+        .cd-wrap { display:flex; align-items:center; gap:8px; margin:8px 0; }
+        .empty-state { text-align:center; padding:40px; color:var(--text-muted); }
+        .item-row { display:flex; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid var(--border-light); }
+        .item-row:last-child { border-bottom:none; }
+        .item-serial { font-family:monospace; font-weight:600; }
+        .overdue-banner { background:rgba(239,68,68,.1); border:1px solid var(--danger); color:var(--danger); border-radius:var(--border-radius); padding:12px 14px; margin-bottom:14px; font-size:13px; }
+        .icards { display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:12px; }
+        .icard { border:1px solid var(--border-color); border-radius:12px; padding:12px 13px; background:var(--bg-card); }
+        .icard.ok { border-left:3px solid var(--success); } .icard.prob { border-left:3px solid var(--danger); } .icard.pend { border-left:3px solid var(--border-color); }
+        .icard .ic-serial { font-family:monospace; font-weight:700; font-size:13.5px; }
+        .icard .ic-name { font-weight:600; font-size:13px; margin-top:2px; }
+        .icard .ic-cfg { font-size:11.5px; color:var(--text-muted); line-height:1.5; margin:6px 0; }
+        .icard .ic-time { font-size:12px; color:var(--text-secondary); margin:6px 0 2px; padding:5px 8px; border-radius:8px; background:var(--bg-input); line-height:1.5; }
+        .icard .ic-time.muted { color:var(--text-muted); background:transparent; padding:0; }
+        .icard .ic-time b { color:var(--text-primary); font-variant-numeric:tabular-nums; }
+        .icard .ic-run { color:var(--warning-dark, #b45309); font-weight:700; }
+        .icard .ic-prob { font-size:11.5px; color:var(--danger); margin:4px 0; }
+        .icard .ic-rmk { font-size:12px; color:var(--text-secondary); margin:5px 0 2px; padding:5px 8px; border-left:3px solid var(--accent); background:var(--bg-input); border-radius:6px; white-space:pre-wrap; word-break:break-word; }
+        .icard .ic-rmk-btn { font-size:11.5px; margin-top:6px; }
+        .icard .ic-btns { display:flex; gap:8px; margin-top:8px; } .icard .ic-btns .btn { flex:1; }
+        .grp-title { font-size:13px; font-weight:700; margin:12px 0 8px; display:flex; align-items:center; gap:7px; }
+        .grp-title.ok { color:var(--success-dark); } .grp-title.prob { color:var(--danger); }
+        .hist-filters { display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; margin-bottom:14px; }
+        .hist-filters .form-group { margin-bottom:0; }
+        .tm-scroll { max-height:420px; overflow:auto; }
+        /* ---- Refonte 2026-10 : onglets (avec compteurs) + recherche, une vue à la fois ---- */
+        .in-bar { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:16px; }
+        .in-bar .gtabs { margin-bottom:0 !important; }
+        .gtab .badge-n { border-radius:999px; font-size:11px; font-weight:800; padding:1px 8px; }
+        .gtab.hot .badge-n { background:var(--warning, #f0a81c) !important; color:#fff !important; border-color:transparent; }
+        .in-search { flex:1 1 240px; position:relative; min-width:0; }
+        .in-search i { position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-muted); font-size:13px; }
+        .in-search input { padding-left:34px; width:100%; }
+        .in-more { display:flex; justify-content:center; margin:14px 0 4px; }
+        .icard .ic-head { display:flex; justify-content:space-between; gap:8px; align-items:flex-start; }
+        .icard .ic-who { font-size:11.5px; color:var(--text-muted); margin-top:4px; }
+        /* ===== Téléphone : fenêtre « Tâche » — une seule zone de défilement (la feuille),
+           cartes d'unités sur toute la largeur, boutons de décision bien larges. ===== */
+        @media (max-width:768px) {
+            .tm-scroll { max-height:none; overflow:visible; }
+            .icards { grid-template-columns:minmax(0,1fr); gap:10px; }
+            .icard { padding:12px; }
+            .icard .ic-serial { font-size:14px; }
+            .icard .ic-name { font-size:14px; }
+            .icard .ic-btns { gap:8px; }
+            .icard .ic-btns .btn { min-height:44px; justify-content:center; font-size:13.5px; }
+            .cd-wrap { padding:10px 12px; background:var(--bg-input); border-radius:12px; justify-content:center; font-weight:600; }
+            .overdue-banner { padding:10px 12px; }
+            #tmFooter { flex-wrap:nowrap; }
+            #tmFooter .btn { flex:1 1 auto; white-space:normal; line-height:1.2; }
+            #tmFooter .btn-secondary { flex:0 0 auto; padding:0 18px; }
+            .hist-filters { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+            .hist-filters .form-group { min-width:0; }
+            .hist-filters .form-control { min-width:0 !important; width:100%; }
+            #tmFooter .btn-secondary:only-child { flex:1 1 auto; }
+            .hist-filters .btn { grid-column:1 / -1; justify-content:center; }
+            .task-grid { grid-template-columns:minmax(0,1fr); gap:10px; }
+            .task-card { padding:14px; }
+            .task-actions .btn { flex:1 1 auto; justify-content:center; min-height:42px; }
+            .in-bar { gap:8px; }
+            .in-bar .gtabs { width:100%; }
+            .in-bar .gtab { flex:1 1 0 !important; min-width:0; padding:6px 4px !important; font-size:12px !important; gap:5px; }
+            .in-bar .gtab > i { display:none; }
+            .in-bar .gtab .badge-n { padding:0 6px; font-size:10.5px; }
+            .in-bar .gtab .lbl-long { display:none; }
+            .in-search { flex:1 1 100%; }
+            .icard .ic-cfg { display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+            .icard .ic-cfg.full { display:block; }
+            .page-header .page-actions .btn .lbl-long { display:none; }
+        }
+        @media (min-width:769px){ .gtab .lbl-short { display:none; } }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar" id="sfSidebar"></aside>
+        <main class="main-content">
+            <header class="page-header">
+                <div class="page-title"><h1>Installation & Préparation</h1><p id="subtitle"></p></div>
+                <div class="page-actions">
+                    <button class="btn btn-secondary" onclick="Install.openHistory()" title="Historique et export"><i class="fas fa-clock-rotate-left"></i><span class="lbl-long"> Historique</span></button>
+                    <div id="sfTools"></div>
+                </div>
+            </header>
+            <div class="page-body">
+                <div class="in-bar">
+                    <div class="gtabs" id="inTabs" role="tablist" aria-label="Vues"></div>
+                    <div class="in-search"><i class="fas fa-magnifying-glass"></i><input type="search" class="form-control" id="inSearch" placeholder="N° série, modèle, technicien, tâche #…" oninput="Install.onSearch()"></div>
+                </div>
+                <div id="sections"><div class="sf-skel sf-skel-card"></div><div class="sf-skel sf-skel-card"></div><div class="sf-skel sf-skel-card"></div></div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modale détail tâche -->
+    <div class="modal-overlay" id="taskModal">
+        <div class="modal" style="max-width:640px;">
+            <div class="modal-header"><h3 id="tmTitle">Tâche</h3><button class="modal-close" onclick="SF.Modal.close('taskModal')">&times;</button></div>
+            <div class="modal-body" id="tmBody"></div>
+            <div class="modal-footer" id="tmFooter"></div>
+        </div>
+    </div>
+
+    <script src="/js/sf-core.js"></script>
+    <script src="/js/sf-layout.js"></script>
+    <script src="/js/sf-report.js"></script>
+    <script src="/js/sf-barcode.js"></script>
+    <script>
+    const Install = {
+        user: null, tasks: [], now: 0, current: null, hist: [], config: {},
+        async init() {
+            this.user = await SF.Auth.require(['technicien', 'gestion_stock']);
+            if (!this.user) return;
+            SF.layout({ active: '/installation.html' });
+            try { this.config = await SF.api('/api/config'); } catch (e) {}
+            document.getElementById('subtitle').textContent = this.isTech ? 'Vos tâches à préparer' : 'Suivi des tâches et validation des retours';
+            SF.on('install:update', () => this.load());
+            SF.on('notification', () => this.load());
+            this.load();
+        },
+        get isTech() { return this.user.role === 'technicien'; },
+        get isManager() { return this.user.role === 'admin' || this.user.role === 'gestion_stock'; },
+        async load() {
+            try {
+                const r = await SF.api('/api/installations');
+                this.tasks = r.tasks; this.now = r.now;
+                this.render();
+                if (this.current) this.refreshDetail(this.current);
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        // Une vue à la fois (onglets avec compteurs) au lieu d'une longue page empilée : sur téléphone,
+        // l'action du moment (à valider / à traiter) est tout de suite visible. Recherche commune.
+        tab: null, limit: 40,
+        onSearch() { clearTimeout(this._st); this._st = setTimeout(() => { this.limit = 40; this.render(); }, 150); },
+        setTab(k) { this.tab = k; this.limit = 40; try { sessionStorage.setItem('sf-install-tab', k); } catch (e) {} this.render(); window.scrollTo({ top: 0, behavior: 'smooth' }); },
+        more() { this.limit += 60; this.render(); },
+        // Filtre de recherche : n° série, modèle, technicien, n° de tâche, remarque.
+        q() { return (document.getElementById('inSearch').value || '').trim().toLowerCase(); },
+        hitItem(it, t, q) {
+            if (!q) return true;
+            const hay = [it.serial, it.manufacturer_sn, it.brand, it.model, it.product_name, it.tech_remark, it.problem_note,
+                t && t.technician_name, t && ('#' + t.id), t && String(t.id)].filter(Boolean).join(' ').toLowerCase();
+            return q.split(/\s+/).every(w => hay.includes(w));
+        },
+        hitTask(t, q) { return !q || (t.items || []).some(it => this.hitItem(it, t, q)) || [t.technician_name, t.created_by_name, '#' + t.id].join(' ').toLowerCase().includes(q); },
+        render() {
+            const c = document.getElementById('sections');
+            const q = this.q();
+            const by = st => this.tasks.filter(t => t.status === st && this.hitTask(t, q));
+            const clos = by('clos').slice(0, q ? 60 : 12);
+            let views;
+            if (this.isTech) {
+                const env = by('envoye'), enc = by('en_cours'), ter = by('termine');
+                const pend = enc.reduce((n, t) => n + (t.items || []).filter(i => i.result === 'pending').length, 0);
+                views = [
+                    { k: 'envoye', icon: 'fa-inbox', lbl: 'À réceptionner', short: 'Reçues', n: env.length, hot: env.length > 0, html: () => this.section('À réceptionner', 'fa-inbox', env, 'Aucune nouvelle tâche') },
+                    { k: 'en_cours', icon: 'fa-screwdriver-wrench', lbl: 'En cours', short: 'En cours', n: pend, hot: pend > 0, html: () => this.techEnCoursSection(enc) },
+                    { k: 'termine', icon: 'fa-hourglass-half', lbl: 'Terminées', short: 'Terminées', n: ter.length, html: () => this.section('Terminées — en attente de validation du stock', 'fa-hourglass-half', ter, 'Aucune tâche terminée en attente') },
+                    { k: 'clos', icon: 'fa-check-double', lbl: 'Clôturées', short: 'Clôturées', n: null, html: () => this.section('Clôturées (récentes)', 'fa-check-double', clos, 'Aucune tâche clôturée') }
+                ];
+            } else {
+                // Vue gestionnaire : cartes-unités INDIVIDUELLES (comme les produits du stock dépôt),
+                // sans regroupement par tâche. Chaque unité décidée par le technicien est validée seule.
+                const toValidate = [], inPrep = [], sent = [];
+                this.tasks.forEach(t => {
+                    if (!['envoye', 'en_cours', 'termine'].includes(t.status)) return;
+                    (t.items || []).forEach(it => {
+                        if (!this.hitItem(it, t, q)) return;
+                        const ctx = { ...it, _tech: t.technician_name, _task: t.id, _taskStatus: t.status };
+                        if (it.validated_at) sent.push(ctx);               // déjà envoyée au stock/garantie
+                        else if (it.result === 'pending') inPrep.push(ctx);// encore chez le technicien
+                        else toValidate.push(ctx);                         // décidée → prête à valider
+                    });
+                });
+                sent.sort((a, b) => String(b.validated_at).localeCompare(String(a.validated_at)));
+                this._toValidate = toValidate.map(i => i.id);
+                views = [
+                    { k: 'valider', icon: 'fa-clipboard-check', lbl: 'À valider', short: 'À valider', n: toValidate.length, hot: toValidate.length > 0, html: () => this.mgrValidateSection(toValidate) },
+                    { k: 'prep', icon: 'fa-screwdriver-wrench', lbl: 'Chez le technicien', short: 'En prépa', n: inPrep.length, html: () => this.mgrPrepSection(inPrep) },
+                    { k: 'sent', icon: 'fa-check-double', lbl: 'Déjà envoyées', short: 'Envoyées', n: sent.length, html: () => this.mgrSentSection(sent) },
+                    { k: 'clos', icon: 'fa-box-archive', lbl: 'Clôturées', short: 'Clôturées', n: null, html: () => this.section('Tâches clôturées (récentes)', 'fa-box-archive', clos, 'Aucune tâche clôturée') }
+                ];
+            }
+            // Onglet par défaut : le dernier choisi, sinon la première vue qui demande une action.
+            if (!this.tab) { try { this.tab = sessionStorage.getItem('sf-install-tab'); } catch (e) {} }
+            if (!views.some(v => v.k === this.tab)) this.tab = (views.find(v => v.hot) || views[0]).k;
+            document.getElementById('inTabs').innerHTML = views.map(v =>
+                `<button class="gtab ${v.k === this.tab ? 'active' : ''} ${v.hot ? 'hot' : ''}" role="tab" aria-selected="${v.k === this.tab}" onclick="Install.setTab('${v.k}')"><i class="fas ${v.icon}"></i> <span class="lbl-long">${v.lbl}</span><span class="lbl-short">${v.short}</span>${v.n != null ? ` <span class="badge-n">${v.n}</span>` : ''}</button>`).join('');
+            const cur = views.find(v => v.k === this.tab);
+            c.innerHTML = cur.html() || `<div class="empty-state">${q ? 'Aucun résultat pour cette recherche.' : 'Rien à afficher'}</div>`;
+            SF.Countdown.refresh();
+        },
+        // Longues listes (ex. « Déjà envoyées ») : affichées par paquets, bouton « Afficher plus ».
+        cap(arr) { return arr.length > this.limit ? arr.slice(0, this.limit) : arr; },
+        moreBtn(arr) { return arr.length > this.limit ? `<div class="in-more"><button class="btn btn-secondary" onclick="Install.more()"><i class="fas fa-angles-down"></i> Afficher plus (${arr.length - this.limit} restantes)</button></div>` : ''; },
+        section(title, icon, tasks, emptyMsg) {
+            if (!tasks.length && !emptyMsg) return '';
+            const body = tasks.length
+                ? `<div class="task-grid">${tasks.map(t => this.card(t)).join('')}</div>`
+                : `<div class="empty-state" style="padding:20px;">${emptyMsg}</div>`;
+            return `<div class="task-section"><h3><i class="fas ${icon}"></i> ${title} <span class="text-muted" style="font-size:13px;font-weight:400;">(${tasks.length})</span></h3>${body}</div>`;
+        },
+        // Gestionnaire : unités décidées, prêtes à envoyer une par une au stock (ou en garantie).
+        mgrValidateSection(items) {
+            const head = `<h3><i class="fas fa-clipboard-check"></i> À valider — retour au stock <span class="text-muted" style="font-size:13px;font-weight:400;">(${items.length})</span></h3>`;
+            if (!items.length) return `<div class="task-section">${head}<div class="empty-state" style="padding:20px;">Aucune unité à valider</div></div>`;
+            const bulk = items.length > 1 ? `<div style="margin-bottom:10px;"><button class="btn btn-sm btn-secondary" onclick="Install.validateAllShown()"><i class="fas fa-layer-group"></i> Tout envoyer (${items.length})</button></div>` : '';
+            return `<div class="task-section">${head}${bulk}<div class="icards">${this.cap(items).map(it => this.mgrUnitCard(it)).join('')}</div>${this.moreBtn(items)}</div>`;
+        },
+        // Gestionnaire : unités encore en préparation chez le technicien (lecture seule, visibilité).
+        mgrPrepSection(items) {
+            if (!items.length) return '';
+            const head = `<h3><i class="fas fa-screwdriver-wrench"></i> En préparation chez le technicien <span class="text-muted" style="font-size:13px;font-weight:400;">(${items.length})</span></h3>`;
+            const cards = this.cap(items).map(it => {
+                const cfg = it.is_accessory ? (it.category || '') : (window.SFBarcode ? SFBarcode.fullSpec(it) : [it.cpu, it.ram, it.storage].filter(Boolean).join(' · '));
+                const stat = it._taskStatus === 'envoye' ? 'À réceptionner' : 'En préparation';
+                return `<div class="icard pend">
+                    <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start;"><span class="ic-serial">${SF.esc(it.serial)}</span><span class="badge badge-secondary">${stat}</span></div>
+                    <div class="ic-name">${SF.esc([it.brand, it.model].filter(Boolean).join(' ') || it.product_name || '')}</div>
+                    ${cfg ? `<div class="ic-cfg">${SF.esc(cfg)}</div>` : ''}
+                    ${it.started_at ? `<div class="ic-time"><i class="fas fa-clock"></i> Commencée à <b>${this.hm(it.started_at)}</b> · <span class="ic-run">depuis ${this.dur(it.started_at)}</span></div>` : ''}
+                    ${it.tech_remark ? `<div class="ic-rmk"><i class="fas fa-comment-dots"></i> ${SF.esc(it.tech_remark)}</div>` : ''}
+                    <div class="ic-who"><i class="fas fa-user-gear"></i> ${SF.esc(it._tech || '—')} · tâche #${it._task}</div>
+                </div>`;
+            }).join('');
+            return `<div class="task-section">${head}<div class="icards">${cards}</div>${this.moreBtn(items)}</div>`;
+        },
+        // Gestionnaire : unités déjà envoyées (stock/garantie), conservées en cartes pour le suivi.
+        mgrSentSection(items) {
+            if (!items.length) return '';
+            const head = `<h3><i class="fas fa-check-double"></i> Déjà envoyées <span class="text-muted" style="font-size:13px;font-weight:400;">(${items.length})</span></h3>`;
+            return `<div class="task-section">${head}<div class="icards">${this.cap(items).map(it => this.mgrUnitCard(it)).join('')}</div>${this.moreBtn(items)}</div>`;
+        },
+        // Une carte-unité individuelle côté gestionnaire. Avec bouton d'envoi tant qu'elle n'est
+        // pas validée ; sinon marquée « envoyée » avec sa destination et la date (suivi).
+        mgrUnitCard(it) {
+            const cfg = it.is_accessory ? (it.category || '') : (window.SFBarcode ? SFBarcode.fullSpec(it) : [it.cpu, it.ram, it.storage].filter(Boolean).join(' · '));
+            const isProb = it.result === 'probleme';
+            const badge = isProb ? '<span class="badge badge-danger">Problème</span>' : '<span class="badge badge-success">Terminée</span>';
+            const foot = it.validated_at
+                ? `<div class="ic-cfg" style="margin-top:6px;color:${isProb ? 'var(--danger)' : 'var(--success-dark)'};font-weight:600;"><i class="fas fa-${isProb ? 'shield-halved' : 'warehouse'}"></i> ${isProb ? 'Envoyée en garantie' : 'Retournée au stock'} · ${SF.fmt.datetime(it.validated_at)}</div>`
+                : `<div class="ic-btns" style="margin-top:8px;"><button class="btn btn-sm ${isProb ? 'btn-danger' : 'btn-success'} btn-block" onclick="Install.validateItem(${it.id})"><i class="fas fa-${isProb ? 'shield-halved' : 'circle-check'}"></i> ${isProb ? 'Envoyer en garantie' : 'Envoyer au stock'}</button></div>`;
+            return `<div class="icard ${it.validated_at ? 'pend' : (isProb ? 'prob' : 'ok')}">
+                <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start;"><span class="ic-serial">${SF.esc(it.serial)}</span>${badge}</div>
+                <div class="ic-name">${SF.esc([it.brand, it.model].filter(Boolean).join(' ') || it.product_name || '')}</div>
+                ${cfg ? `<div class="ic-cfg">${SF.esc(cfg)}</div>` : ''}
+                ${it.problem_note ? `<div class="ic-prob"><i class="fas fa-triangle-exclamation"></i> ${SF.esc(it.problem_note)}</div>` : ''}
+                ${it.tech_remark ? `<div class="ic-rmk"><i class="fas fa-comment-dots"></i> ${SF.esc(it.tech_remark)}</div>` : ''}
+                ${it.started_at && it.decided_at ? `<div class="ic-time"><i class="fas fa-clock"></i> ${this.hm(it.started_at)} → ${this.hm(it.decided_at)} · <b>${this.dur(it.started_at, it.decided_at)}</b></div>` : ''}
+                <div class="ic-who"><i class="fas fa-user-gear"></i> ${SF.esc(it._tech || '—')} · tâche #${it._task}</div>
+                ${foot}
+            </div>`;
+        },
+        async validateAllShown() {
+            const ids = (this._toValidate || []).slice();
+            if (!ids.length) return;
+            if (!await SF.confirm(`Envoyer ${ids.length} unité(s) vers leur destination (stock / garantie) ?`, { okLabel: 'Tout envoyer' })) return;
+            let ok = 0, err = 0;
+            for (const id of ids) { try { await SF.api(`/api/installations/items/${id}/validate`, { method: 'POST' }); ok++; } catch (e) { err++; } }
+            SF.toast(`${ok} unité(s) envoyée(s)${err ? `, ${err} échec(s)` : ''}`, err ? 'warn' : 'success');
+            this.load();
+        },
+        // Technicien : les tâches acceptées s'affichent directement en cartes d'unités à traiter.
+        techEnCoursSection(tasks) {
+            const head = `<h3><i class="fas fa-screwdriver-wrench"></i> En cours — à traiter <span class="text-muted" style="font-size:13px;font-weight:400;">(${tasks.length})</span></h3>`;
+            if (!tasks.length) return `<div class="task-section">${head}<div class="empty-state" style="padding:20px;">Aucune tâche en cours</div></div>`;
+            const blocks = tasks.map(t => {
+                const overdue = t.deadline_ms && t.deadline_ms < this.now && !t.overdue_reason;
+                const pending = (t.items || []).filter(i => i.result === 'pending').length;
+                const cd = t.deadline_ms ? `<div class="cd-wrap"><i class="fas fa-stopwatch"></i> Temps restant : <span class="countdown" data-deadline="${t.deadline_ms}"></span></div>` : '';
+                const prog = `<div class="task-progress">
+                    <span class="pchip done">${t.items_done} terminée(s)</span>
+                    <span class="pchip prob">${t.items_problem} garantie</span>
+                    <span class="pchip pend">${pending} en attente</span></div>`;
+                const items = (t.items || []).map(it => this.itemCard(it, true).replace('class="ic-cfg"', 'class="ic-cfg full"')).join('');
+                const reasonBtn = overdue ? `<button class="btn btn-sm btn-danger" onclick="Install.giveReason(${t.id})"><i class="fas fa-comment"></i> Raison du retard</button>` : '';
+                const hint = pending
+                    ? `<div class="task-meta" style="margin-top:6px;"><i class="fas fa-circle-info"></i> Chaque unité décidée part aussitôt au gestionnaire — pas besoin de tout terminer d'un coup.</div>`
+                    : `<div class="task-meta" style="margin-top:6px;color:var(--success-dark);font-weight:600;"><i class="fas fa-check"></i> Toutes les unités traitées.</div>`;
+                return `<div class="task-card ${overdue ? 'overdue' : ''}" style="margin-bottom:14px;">
+                    <div class="task-head"><div><div class="task-id">Tâche #${t.id}</div><div class="task-meta">Envoyé par ${SF.esc(t.created_by_name || '—')} · ${t.unit_count} unité(s) · ${SF.fmt.relative(t.created_at)}</div></div>${SF.statusBadgeTask(t.status)}</div>
+                    ${cd}${overdue ? '<div class="task-meta" style="color:var(--danger);font-weight:700;">⚠ En retard — action requise</div>' : ''}
+                    ${t.overdue_reason ? `<div class="task-meta"><strong>Raison du retard :</strong> ${SF.esc(t.overdue_reason)}</div>` : ''}
+                    ${prog}
+                    <div class="icards" style="margin:10px 0;">${items}</div>
+                    ${hint}${reasonBtn ? `<div class="task-actions">${reasonBtn}</div>` : ''}
+                </div>`;
+            }).join('');
+            return `<div class="task-section">${head}${blocks}</div>`;
+        },
+        card(t) {
+            const overdue = t.status === 'en_cours' && t.deadline_ms && t.deadline_ms < this.now && !t.overdue_reason;
+            const who = this.isTech ? ('Envoyé par ' + SF.esc(t.created_by_name || '—')) : ('Technicien : ' + SF.esc(t.technician_name || '—'));
+            let cd = '';
+            if (t.status === 'en_cours' && t.deadline_ms)
+                cd = `<div class="cd-wrap"><i class="fas fa-stopwatch"></i> <span class="countdown" data-deadline="${t.deadline_ms}"></span></div>`;
+            else if (t.status === 'envoye')
+                cd = `<div class="task-meta">${t.minutes_allowed} minutes allouées · démarre à la réception</div>`;
+            const prog = `<div class="task-progress">
+                <span class="pchip done">${t.items_done} terminée(s)</span>
+                <span class="pchip prob">${t.items_problem} problème(s)</span>
+                <span class="pchip pend">${t.items_total - t.items_done - t.items_problem} en attente</span></div>`;
+            let actions = '';
+            if (this.isTech) {
+                if (t.status === 'envoye') actions = `<button class="btn btn-sm btn-primary" onclick="Install.accept(${t.id})"><i class="fas fa-play"></i> Valider la réception</button>`;
+                else if (t.status === 'en_cours') actions = `<button class="btn btn-sm btn-secondary" onclick="Install.openTask(${t.id})"><i class="fas fa-list-check"></i> Traiter</button>${overdue ? ` <button class="btn btn-sm btn-danger" onclick="Install.giveReason(${t.id})"><i class="fas fa-comment"></i> Raison du retard</button>` : ''}`;
+                else actions = '';   // termine / clos : détails déjà affichés en entier, plus besoin du bouton
+            } else {
+                if (t.status === 'termine') {
+                    const rem = (t.items || []).filter(i => !i.validated_at).length;
+                    actions = rem ? `<button class="btn btn-sm btn-secondary" onclick="Install.validateReturn(${t.id})"><i class="fas fa-clipboard-check"></i> Tout valider le reste (${rem})</button>` : '';
+                } else actions = '';   // détails déjà affichés en entier, plus besoin du bouton
+            }
+            // Détail COMPLET de chaque unité — TOUJOURS visible (technicien ET gestionnaire du stock),
+            // sans clic, quel que soit le statut. Exception : côté gestionnaire, une tâche TERMINÉE
+            // affiche plutôt la destination de chaque unité (bloc returnDetail ci-dessous).
+            const hasItems = Array.isArray(t.items) && t.items.length;
+            const inlineItems = (hasItems && !(!this.isTech && t.status === 'termine'))
+                ? `<div class="icards" style="margin:10px 0;">${t.items.map(it => this.itemCard(it, false)).join('')}</div>`
+                : '';
+            // Détail COMPLET du retour technicien (gestion, tâche terminée) : chaque unité et sa destination.
+            const returnDetail = (!this.isTech && t.status === 'termine' && Array.isArray(t.items) && t.items.length)
+                ? `<div style="margin:8px 0;border:1px solid var(--border-color);border-radius:8px;padding:6px 10px;">${t.items.map(i => {
+                    const cell = i.validated_at
+                        ? `<span class="badge badge-secondary" style="font-size:9.5px;white-space:nowrap;"><i class="fas fa-check"></i> ${i.result === 'probleme' ? 'En garantie' : 'Au stock'}</span>`
+                        : i.result === 'probleme' ? `<button class="btn btn-sm btn-danger" onclick="Install.validateItem(${i.id})" style="white-space:nowrap;"><i class="fas fa-shield-halved"></i> Envoyer en garantie</button>`
+                        : i.result === 'termine'  ? `<button class="btn btn-sm btn-success" onclick="Install.validateItem(${i.id})" style="white-space:nowrap;"><i class="fas fa-circle-check"></i> Envoyer au stock</button>`
+                        : '<span class="badge badge-secondary" style="font-size:9.5px;">En attente</span>';
+                    return `<div style="display:flex;justify-content:space-between;gap:8px;align-items:center;font-size:12px;padding:5px 0;border-bottom:1px solid var(--border-light);">
+                        <span><span style="font-family:monospace;">${SF.esc(i.serial || '—')}</span> ${SF.esc([i.brand, i.model].filter(Boolean).join(' ') || i.product_name || '')}${i.problem_note ? `<div class="text-muted" style="font-size:11px;"><i class="fas fa-triangle-exclamation"></i> ${SF.esc(i.problem_note)}</div>` : ''}</span>
+                        ${cell}</div>`;
+                }).join('')}</div>`
+                : '';
+            return `<div class="task-card ${overdue ? 'overdue' : ''}">
+                <div class="task-head"><div><div class="task-id">Tâche #${t.id}</div><div class="task-meta">${who}</div><div class="task-meta">${t.unit_count} unité(s) · ${SF.fmt.relative(t.created_at)}</div></div>${SF.statusBadgeTask(t.status)}</div>
+                ${cd}${overdue ? '<div class="task-meta" style="color:var(--danger);font-weight:700;">⚠ En retard — action requise</div>' : ''}
+                ${returnDetail}${inlineItems}${prog}
+                ${actions ? `<div class="task-actions">${actions}</div>` : ''}
+            </div>`;
+        },
+        async accept(id) {
+            if (!await SF.confirm('Valider la réception de cette tâche ? Le compte à rebours démarre.', { okLabel: 'Démarrer' })) return;
+            try { await SF.api(`/api/installations/${id}/accept`, { method: 'POST' }); SF.toast('Compte à rebours démarré', 'success'); this.load(); }
+            catch (e) { SF.toast(e.message, 'error'); }
+        },
+        async giveReason(id) {
+            const reason = await SF.prompt('Raison du retard :', { title: 'Raison du retard', okLabel: 'Enregistrer', required: true, multiline: true });
+            if (reason == null || !reason.trim()) return;
+            try { await SF.api(`/api/installations/${id}/reason`, { method: 'POST', body: { reason } }); SF.toast('Raison enregistrée', 'success'); this.load(); }
+            catch (e) { SF.toast(e.message, 'error'); }
+        },
+        async openTask(id) {
+            this.current = id;
+            await this.refreshDetail(id);
+            SF.Modal.open('taskModal');
+        },
+        async refreshDetail(id) {
+            try {
+                const t = await SF.api(`/api/installations/${id}`); this._items = t.items;
+                document.getElementById('tmTitle').textContent = `Tâche #${t.id} — ${t.technician_name || ''}`;
+                const overdue = t.status === 'en_cours' && t.deadline_ms && t.deadline_ms < t.now && !t.overdue_reason;
+                const canDecide = this.isTech && t.status === 'en_cours';
+                let body = '';
+                if (this.isManager && t.status === 'termine') {
+                    const ok = t.items.filter(i => i.result === 'termine'), pb = t.items.filter(i => i.result === 'probleme'), pend = t.items.filter(i => i.result === 'pending');
+                    if (ok.length) body += `<div class="grp-title ok"><i class="fas fa-circle-check"></i> ${ok.length} unité(s) OK → retour au stock</div><div class="icards">${ok.map(i => this.itemCard(i, false, true)).join('')}</div>`;
+                    if (pb.length) body += `<div class="grp-title prob"><i class="fas fa-shield-halved"></i> ${pb.length} unité(s) à problème → garantie fournisseur</div><div class="icards">${pb.map(i => this.itemCard(i, false, true)).join('')}</div>`;
+                    if (pend.length) body += `<div class="grp-title"><i class="fas fa-clock"></i> ${pend.length} non décidée(s)</div><div class="icards">${pend.map(i => this.itemCard(i, false)).join('')}</div>`;
+                } else {
+                    body = `<div class="icards">${t.items.map(it => this.itemCard(it, canDecide)).join('')}</div>`;
+                }
+                const cd = (t.status === 'en_cours' && t.deadline_ms) ? `<div class="cd-wrap"><i class="fas fa-stopwatch"></i> Temps restant : <span class="countdown" data-deadline="${t.deadline_ms}"></span></div>` : '';
+                document.getElementById('tmBody').innerHTML =
+                    `${overdue ? '<div class="overdue-banner"><i class="fas fa-triangle-exclamation"></i> Tâche en retard. Terminez les unités ou indiquez la raison du retard.</div>' : ''}
+                     ${t.overdue_reason ? `<div class="task-meta" style="margin-bottom:10px;"><strong>Raison du retard :</strong> ${SF.esc(t.overdue_reason)}</div>` : ''}
+                     ${cd}
+                     <div class="tm-scroll">${body}</div>`;
+                const pending = t.items.filter(i => i.result === 'pending').length;
+                const foot = [];
+                foot.push('<button class="btn btn-secondary" onclick="SF.Modal.close(\'taskModal\')">Fermer</button>');
+                if (this.isTech && t.status === 'en_cours')
+                    foot.push(`<button class="btn btn-primary" ${pending ? 'disabled' : ''} onclick="Install.finish(${t.id})"><i class="fas fa-flag-checkered"></i> Terminer la tâche${pending ? ` (${pending} restante(s))` : ''}</button>`);
+                if (this.isManager && t.status === 'termine') {
+                    const remOk = t.items.filter(i => i.result === 'termine' && !i.validated_at).length;
+                    const remPb = t.items.filter(i => i.result === 'probleme' && !i.validated_at).length;
+                    if (remOk + remPb > 0)
+                        foot.push(`<button class="btn btn-success" onclick="Install.validateReturn(${t.id})"><i class="fas fa-clipboard-check"></i> Tout valider le reste (${remOk} stock · ${remPb} garantie)</button>`);
+                }
+                document.getElementById('tmFooter').innerHTML = foot.join('');
+                SF.Countdown.refresh();
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        itemCard(it, canDecide, canValidate) {
+            const cfg = it.is_accessory ? (it.category || '') : (window.SFBarcode ? SFBarcode.fullSpec(it) : [it.cpu, it.ram, it.storage].filter(Boolean).join(' · '));
+            const cls = it.result === 'termine' ? 'ok' : it.result === 'probleme' ? 'prob' : 'pend';
+            const badge = it.result === 'termine' ? '<span class="badge badge-success">Terminée</span>' : it.result === 'probleme' ? '<span class="badge badge-danger">Problème</span>' : '<span class="badge badge-secondary">En attente</span>';
+            let btns = '';
+            if (canDecide && it.result === 'pending')
+                btns = !it.started_at
+                    ? `<div class="ic-btns"><button class="btn btn-sm btn-primary" style="flex:1;justify-content:center;" onclick="Install.startItem(${it.id})"><i class="fas fa-play"></i> Commencer</button></div>`
+                    : `<div class="ic-btns"><button class="btn btn-sm btn-success" onclick="Install.decide(${it.id},'termine')"><i class="fas fa-check"></i> Terminé</button><button class="btn btn-sm btn-danger" onclick="Install.decide(${it.id},'probleme')"><i class="fas fa-shield-halved"></i> Envoi garantie</button></div>`;
+            else if (canValidate && it.result !== 'pending')
+                btns = it.validated_at
+                    ? `<div class="ic-btns"><span class="badge badge-secondary" style="flex:1;justify-content:center;"><i class="fas fa-check"></i> Envoyée ${it.result === 'probleme' ? 'en garantie' : 'au stock'}</span></div>`
+                    : `<div class="ic-btns"><button class="btn btn-sm ${it.result === 'probleme' ? 'btn-danger' : 'btn-success'}" onclick="Install.validateItem(${it.id})"><i class="fas fa-${it.result === 'probleme' ? 'shield-halved' : 'circle-check'}"></i> ${it.result === 'probleme' ? 'Envoyer en garantie' : 'Envoyer au stock'}</button></div>`;
+            // Heures par produit : début (Commencer) → fin (Terminé / Envoi garantie) + durée.
+            const times = it.started_at
+                ? `<div class="ic-time"><i class="fas fa-clock"></i> Début <b>${this.hm(it.started_at)}</b>${it.decided_at
+                    ? ` → Fin <b>${this.hm(it.decided_at)}</b> · durée <b>${this.dur(it.started_at, it.decided_at)}</b>`
+                    : ` · <span class="ic-run">en cours depuis ${this.dur(it.started_at)}</span>`}</div>`
+                : (it.result === 'pending' ? '<div class="ic-time muted"><i class="far fa-clock"></i> Pas encore commencée</div>' : '');
+            // Remarque du technicien (par produit) : ajout / modification tant que l'unité n'est pas renvoyée.
+            const rmkBtn = canDecide && !it.validated_at
+                ? `<button class="btn btn-sm btn-secondary ic-rmk-btn" onclick="Install.remark(${it.id})"><i class="fas fa-comment-dots"></i> ${it.tech_remark ? 'Modifier la remarque' : 'Ajouter une remarque'}</button>` : '';
+            let track = '';
+            if (it.validated_at) track = `<div class="ic-cfg" style="margin-top:4px;"><i class="fas fa-${it.result === 'probleme' ? 'shield-halved' : 'warehouse'}"></i> ${it.result === 'probleme' ? 'Envoyée en garantie' : 'Retournée au stock'} · ${SF.fmt.datetime(it.validated_at)}</div>`;
+            else if (it.decided_at) track = `<div class="ic-cfg" style="margin-top:4px;"><i class="fas fa-user-check"></i> Traitée · ${SF.fmt.datetime(it.decided_at)}</div>`;
+            return `<div class="icard ${cls}">
+                <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start;"><span class="ic-serial">${SF.esc(it.serial)}</span>${badge}</div>
+                <div class="ic-name">${SF.esc([it.brand, it.model].filter(Boolean).join(' ') || it.product_name || '')}</div>
+                ${cfg ? `<div class="ic-cfg">${SF.esc(cfg)}</div>` : ''}
+                ${it.problem_note ? `<div class="ic-prob"><i class="fas fa-triangle-exclamation"></i> ${SF.esc(it.problem_note)}</div>` : ''}
+                ${it.tech_remark ? `<div class="ic-rmk"><i class="fas fa-comment-dots"></i> ${SF.esc(it.tech_remark)}</div>` : ''}
+                ${times}${track}${btns}${rmkBtn}
+            </div>`;
+        },
+        async openHistory() {
+            const t = new Date(), pad = n => String(n).padStart(2, '0');
+            const to = `${t.getFullYear()}-${pad(t.getMonth() + 1)}-${pad(t.getDate())}`;
+            const from = `${t.getFullYear()}-${pad(t.getMonth() + 1)}-01`;
+            document.getElementById('tmTitle').textContent = 'Historique des installations';
+            document.getElementById('tmBody').innerHTML = `
+                <div class="hist-filters">
+                    <div class="form-group"><label>Du</label><input type="date" id="h_from" class="form-control" value="${from}" onchange="Install.loadHistory()"></div>
+                    <div class="form-group"><label>Au</label><input type="date" id="h_to" class="form-control" value="${to}" onchange="Install.loadHistory()"></div>
+                    <button class="btn btn-secondary" onclick="Install.historyPDF()"><i class="fas fa-file-pdf"></i> Rapport PDF</button>
+                    <button class="btn btn-secondary" onclick="SFReport.as('xlsx', () => Install.historyPDF())"><i class="fas fa-file-excel"></i> Excel</button>
+                </div>
+                <div id="histResult"><div class="empty-state" style="padding:20px;">Chargement...</div></div>`;
+            document.getElementById('tmFooter').innerHTML = '<button class="btn btn-secondary" onclick="SF.Modal.close(\'taskModal\')">Fermer</button>';
+            this.current = null;
+            SF.Modal.open('taskModal');
+            this.loadHistory();
+        },
+        async loadHistory() {
+            const q = new URLSearchParams();
+            ['from', 'to'].forEach(k => { const v = document.getElementById('h_' + k).value; if (v) q.set(k, v); });
+            try {
+                this.hist = await SF.api('/api/installations/history?' + q.toString());
+                const box = document.getElementById('histResult');
+                if (!this.hist.length) { box.innerHTML = '<div class="empty-state" style="padding:20px;">Aucune installation sur la période</div>'; return; }
+                box.innerHTML = this.hist.map(t => `<div class="task-card" style="margin-bottom:10px;">
+                    <div class="task-head"><div><div class="task-id">Tâche #${t.id}</div><div class="task-meta">${this.isTech ? 'Envoyé par ' + SF.esc(t.created_by_name || '—') : 'Technicien : ' + SF.esc(t.technician_name || '—')} · ${SF.fmt.datetime(t.created_at)}</div></div>${SF.statusBadgeTask(t.status)}</div>
+                    <div class="task-progress"><span class="pchip done">${t.items_done} OK</span><span class="pchip prob">${t.items_problem} garantie</span></div>
+                    <div class="icards" style="margin-top:10px;">${t.items.map(i => this.itemCard(i, false)).join('')}</div>
+                </div>`).join('');
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        historyPDF() {
+            if (!this.hist || !this.hist.length) return SF.toast('Aucune donnée à exporter', 'error');
+            const from = document.getElementById('h_from').value, to = document.getElementById('h_to').value;
+            const rows = [];
+            this.hist.forEach(t => t.items.forEach(i => rows.push({ ...i, task_id: t.id, task_at: t.created_at, technician_name: t.technician_name, created_by_name: t.created_by_name })));
+            const resLabel = { termine: 'OK (stock)', probleme: 'Problème (garantie)', pending: 'Non décidée' };
+            SFReport.build({
+                company: this.config || {},
+                title: 'Historique des installations' + (this.isTech ? ' — ' + (this.user.full_name || this.user.username) : ''),
+                period: (from || to) ? `Période : ${from ? SF.fmt.date(from) : '…'} — ${to ? SF.fmt.date(to) : '…'}` : 'Tout',
+                filename: 'Installations.pdf',
+                summary: [
+                    { label: 'Tâches', value: this.hist.length },
+                    { label: 'Unités', value: rows.length },
+                    { label: 'OK', value: rows.filter(r => r.result === 'termine').length },
+                    { label: 'Garantie', value: rows.filter(r => r.result === 'probleme').length }
+                ],
+                sections: [{
+                    heading: 'Détail par unité',
+                    columns: [
+                        { header: 'Tâche', key: 'task_id', width: 12, format: v => '#' + v },
+                        { header: 'Date', key: 'task_at', width: 22, format: v => SF.fmt.datetime(v) },
+                        { header: 'Technicien', key: 'technician_name', width: 22, format: v => v || '—' },
+                        { header: 'N° série', key: 'serial', width: 18 },
+                        { header: 'Produit', key: '_p', width: 24, format: (v, i) => [i.brand, i.model].filter(Boolean).join(' ') || i.product_name || '—' },
+                        { header: 'Configuration', key: '_c', width: 42, format: (v, i) => i.is_accessory ? (i.category || '—') : (SFBarcode.fullSpec(i) || '—') },
+                        { header: 'Début', key: 'started_at', width: 16, format: v => v ? String(v).slice(0, 16) : '—' },
+                        { header: 'Fin', key: 'decided_at', width: 16, format: v => v ? String(v).slice(0, 16) : '—' },
+                        { header: 'Durée', key: '_d', width: 12, format: (v, i) => i.started_at && i.decided_at ? Install.dur(i.started_at, i.decided_at) : '—' },
+                        { header: 'Résultat', key: 'result', width: 22, format: v => resLabel[v] || v },
+                        { header: 'Problème', key: 'problem_note', width: 30, format: v => v || '' },
+                        { header: 'Remarque technicien', key: 'tech_remark', width: 36, format: v => v || '' }
+                    ],
+                    rows
+                }]
+            });
+        },
+        // « 2026-10-20 14:05:33 » → 14:05 (avec la date si ce n'est pas aujourd'hui).
+        hm(dt) { if (!dt) return '—'; const s = String(dt); return (s.slice(0, 10) === SF.fmt.today() ? '' : SF.fmt.date(s.slice(0, 10)) + ' ') + s.slice(11, 16); },
+        dur(a, b) {
+            const t = x => new Date(String(x).replace(' ', 'T')).getTime();
+            const m = Math.max(0, Math.round(((b ? t(b) : Date.now()) - t(a)) / 60000));
+            return m < 60 ? m + ' min' : Math.floor(m / 60) + ' h ' + String(m % 60).padStart(2, '0');
+        },
+        async startItem(itemId) {
+            try { await SF.api(`/api/installations/items/${itemId}/start`, { method: 'POST' }); if (this.current) this.refreshDetail(this.current); else this.load(); }
+            catch (e) { SF.toast(e.message, 'error'); }
+        },
+        async remark(itemId) {
+            const it = [...(this._items || []), ...this.tasks.flatMap(t => t.items || [])].find(x => x.id === itemId) || {};
+            const v = await SF.prompt('Remarque sur ce produit (travaux faits, logiciels installés, détail à signaler…) :', { title: 'Remarque technicien', okLabel: 'Enregistrer', multiline: true, defaultValue: it.tech_remark || '', placeholder: 'Ex. Windows 11 activé, Office installé, pilotes à jour' });
+            if (v == null) return;
+            try { await SF.api(`/api/installations/items/${itemId}/remark`, { method: 'POST', body: { remark: v } }); SF.toast(v.trim() ? 'Remarque enregistrée' : 'Remarque effacée', 'success'); if (this.current) this.refreshDetail(this.current); else this.load(); }
+            catch (e) { SF.toast(e.message, 'error'); }
+        },
+        async decide(itemId, result) {
+            let problem_note = '';
+            if (result === 'probleme') { problem_note = await SF.prompt('Décrivez le problème :', { title: 'Problème constaté', okLabel: 'Enregistrer', required: true, multiline: true }); if (problem_note == null || !problem_note.trim()) return; }
+            try { await SF.api(`/api/installations/items/${itemId}`, { method: 'POST', body: { result, problem_note } }); if (this.current) this.refreshDetail(this.current); else this.load(); }
+            catch (e) { SF.toast(e.message, 'error'); }
+        },
+        async finish(id) {
+            if (!await SF.confirm('Terminer cette tâche et la renvoyer au gestionnaire du stock ?', { okLabel: 'Terminer' })) return;
+            try { await SF.api(`/api/installations/${id}/finish`, { method: 'POST' }); SF.toast('Tâche terminée', 'success'); SF.Modal.close('taskModal'); this.current = null; this.load(); }
+            catch (e) { SF.toast(e.message, 'error'); }
+        },
+        async validateItem(itemId) {
+            try {
+                const r = await SF.api(`/api/installations/items/${itemId}/validate`, { method: 'POST' });
+                SF.toast(r.result === 'problem' ? 'Unité envoyée en garantie' : 'Unité envoyée au stock', 'success');
+                if (this.current) await this.refreshDetail(this.current);
+                this.load();
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        async validateReturn(id) {
+            if (!await SF.confirm('Envoyer tout le reste ? Les unités OK repartent au stock, les unités à problème vont en garantie.', { okLabel: 'Valider' })) return;
+            try { const r = await SF.api(`/api/installations/${id}/validate-return`, { method: 'POST' }); SF.toast(`Validé : ${r.ok} au stock, ${r.problem} en garantie`, 'success'); SF.Modal.close('taskModal'); this.current = null; this.load(); }
+            catch (e) { SF.toast(e.message, 'error'); }
+        }
+    };
+    // Badge de statut de tâche.
+    SF.statusBadgeTask = function (s) {
+        const m = { envoye: ['badge-info', 'Envoyée'], en_cours: ['badge-warning', 'En cours'], termine: ['badge-success', 'Terminée'], clos: ['badge-secondary', 'Clôturée'] }[s] || ['badge-secondary', s];
+        return `<span class="badge ${m[0]}">${m[1]}</span>`;
+    };
+    Install.init();
+    </script>
+</body>
+</html>

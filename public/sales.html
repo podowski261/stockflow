@@ -1,0 +1,1176 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <title>Ventes — STOCKFLOW</title>
+    <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css">
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/sf.css">
+    <script>document.documentElement.setAttribute('data-theme', localStorage.getItem('stockflow-theme') === 'dark' ? 'dark' : 'light'); try { var sfu = JSON.parse(localStorage.getItem('stockflow-ui') || '{}'); for (var k in sfu) document.documentElement.setAttribute('data-' + k, sfu[k]); } catch (e) {}</script>
+    <style>
+        .filters { display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; margin-bottom:16px; }
+        .filters .form-group { margin-bottom:0; } .filters .form-control { min-width:120px; }
+        .kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:14px; margin-bottom:18px; }
+        .kpi { background:var(--bg-card); border:1px solid var(--border-color); border-radius:var(--border-radius-lg); padding:16px; }
+        .kpi h4 { font-size:12px; color:var(--text-muted); font-weight:600; }
+        .kpi .v { font-size:22px; font-weight:800; color:var(--text-primary); margin-top:4px; }
+        .kpi-click { cursor:pointer; transition:border-color .12s, transform .12s; }
+        .kpi-click:hover { border-color:var(--accent); transform:translateY(-2px); }
+        .kpi-active { border-color:var(--accent); box-shadow:0 0 0 2px var(--accent) inset; }
+        .kpi .v.kv-warn { color:var(--warning-dark); } .kpi .v.kv-info { color:#0284c7; } .kpi .v.kv-ok { color:var(--success-dark); }
+        .pm-badge { font-size:11px; font-weight:600; padding:2px 8px; border-radius:999px; background:var(--bg-input); white-space:nowrap; }
+        /* ── Barre de filtres ── */
+        .sl-search { position:relative; margin-bottom:14px; }
+        .sl-search > i { position:absolute; left:14px; top:50%; transform:translateY(-50%); color:var(--text-muted); }
+        .sl-search input { padding-left:38px; font-size:14px; height:44px; }
+        .sl-bar { display:grid; grid-template-columns:auto 1fr; gap:10px 18px; align-items:center; }
+        .sl-bar .lbl { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.4px; color:var(--text-muted); white-space:nowrap; }
+        .sl-row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+        .sl-row .form-control { width:auto; min-width:140px; height:38px; padding:6px 10px; font-size:13px; }
+        .sl-row input[type=date] { min-width:0; } .sl-row select.form-control { min-width:190px; }
+        .sl-chip { padding:7px 13px; border-radius:999px; border:1px solid var(--border-color); background:var(--bg-card); color:var(--text-secondary); font-size:12.5px; font-weight:600; cursor:pointer; white-space:nowrap; }
+        .sl-chip:hover { border-color:var(--accent); color:var(--accent-dark); }
+        .sl-chip.active { background:var(--accent); color:var(--accent-contrast); border-color:var(--accent); }
+        .sl-sep { width:1px; height:24px; background:var(--border-color); margin:0 4px; }
+        @media (max-width:768px) { .sl-row .form-control, .sl-row select.form-control { flex:1 1 140px; min-width:0; } .sl-bar { grid-template-columns:1fr; gap:6px; } .sl-bar .lbl { margin-top:6px; } .sl-sep { display:none; } }
+        /* Statut : contrôle segmenté avec compteurs */
+        .sl-seg { display:flex; gap:6px; flex-wrap:wrap; margin:16px 0 12px; }
+        .sl-seg button { display:inline-flex; align-items:center; gap:7px; padding:8px 14px; border-radius:10px; border:1px solid var(--border-color); background:var(--bg-card); color:var(--text-secondary); font-size:13px; font-weight:600; cursor:pointer; }
+        .sl-seg button .n { font-size:11.5px; font-weight:800; padding:1px 8px; border-radius:999px; background:var(--bg-input); color:var(--text-primary); }
+        .sl-seg button.active { border-color:var(--accent); background:var(--accent-glow); color:var(--accent-dark); }
+        .sl-seg button.active .n { background:var(--accent); color:var(--accent-contrast); }
+        /* ── Tableau des ventes ── */
+        .sl-tbl { width:100%; border-collapse:collapse; font-size:13.5px; }
+        .sl-tbl th { font-size:11px; text-transform:uppercase; letter-spacing:.4px; color:var(--text-muted); font-weight:700; text-align:left; padding:10px 10px; border-bottom:1px solid var(--border-color); white-space:nowrap; }
+        .sl-tbl td { padding:11px 10px; border-bottom:1px solid var(--border-light); vertical-align:middle; }
+        .sl-tbl tbody tr { cursor:pointer; transition:background .12s; }
+        .sl-tbl tbody tr:hover { background:var(--bg-input); }
+        .sl-tbl .r { text-align:right; white-space:nowrap; }
+        .sl-tbl .num { font-weight:800; color:var(--text-primary); }
+        .sl-tbl .sub { font-size:11.5px; color:var(--text-muted); margin-top:2px; line-height:1.35; }
+        .sl-tbl .nm { font-weight:600; color:var(--text-primary); max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .sl-tbl .tot { font-weight:800; font-size:14px; font-variant-numeric:tabular-nums; }
+        .sl-foot { display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; padding:12px 10px 2px; font-size:12.5px; color:var(--text-muted); }
+        .sl-foot b { color:var(--text-primary); }
+        /* ════════ Refonte : barre de pilotage, liste par jour, cartes mobiles, détail en sections ════════ */
+        .sv-toolbar .card-body { padding:14px 16px; }
+        .sv-toolbar .sl-search { margin-bottom:12px; }
+        .sv-listhead { display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:6px; }
+        .sv-listhead .sl-seg { margin:0; }
+        .sv-count { font-size:12.5px; color:var(--text-muted); }
+        .sv-tbl th { background:var(--bg-input); position:sticky; top:0; z-index:1; }
+        .sv-tbl th:first-child { border-radius:10px 0 0 10px; } .sv-tbl th:last-child { border-radius:0 10px 10px 0; }
+        .sv-tbl tr.sv-day td { padding:14px 4px 6px; border-bottom:none; cursor:default; background:transparent !important; }
+        .sv-dayin { display:flex; justify-content:space-between; align-items:baseline; gap:10px; flex-wrap:wrap; border-bottom:2px solid var(--accent); padding-bottom:6px; }
+        .sv-dayin b { font-size:14px; text-transform:capitalize; color:var(--text-primary); }
+        .sv-dayin span { font-size:12px; color:var(--text-muted); }
+        .sv-dayin span b { font-size:12.5px; text-transform:none; }
+        .sv-tbl tr.sv-row:hover td { background:var(--bg-input); }
+        .sv-tbl tr.sv-row.is-off td { opacity:.62; }
+        .sv-tbl tr.sv-sub td { background:rgba(217,119,6,.05); border-top:none; }
+        .sv-tbl tr.sv-sub td.c-num { padding-left:22px; }
+        .sv-items { font-weight:600; color:var(--text-primary); max-width:240px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .sv-pays { display:flex; flex-wrap:wrap; gap:4px; }
+        .pchip { display:inline-flex; align-items:center; gap:5px; font-size:11.5px; font-weight:700; padding:3px 9px; border-radius:999px; white-space:nowrap;
+                 background:color-mix(in srgb, var(--c, #64748b) 13%, var(--bg-card)); color:var(--c, #64748b); }
+        .pchip i { font-size:10.5px; }
+        .sv-amt { font-weight:800; font-size:14.5px; font-variant-numeric:tabular-nums; color:var(--text-primary); }
+        .sv-foot { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:10px; margin-top:14px; }
+        .sv-foot div { background:var(--bg-input); border-radius:12px; padding:10px 12px; }
+        .sv-foot small { display:block; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.4px; color:var(--text-muted); }
+        .sv-foot b { font-size:15.5px; color:var(--text-primary); font-variant-numeric:tabular-nums; }
+        /* Détail d'une vente */
+        .sd-head { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:14px; }
+        .sd-head .sd-meta { font-size:12.5px; color:var(--text-muted); }
+        .sd-grid { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:10px; margin-bottom:14px; }
+        .sd-box { border:1px solid var(--border-color); border-radius:12px; padding:10px 12px; font-size:13px; line-height:1.6; min-width:0; overflow-wrap:anywhere; }
+        .sd-box h5, .sd-t { margin:0 0 4px; font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.5px; color:var(--text-muted); }
+        .sd-t { margin:16px 0 8px; display:flex; justify-content:space-between; align-items:center; }
+        .sd-box .big { font-size:14.5px; font-weight:700; color:var(--text-primary); }
+        .sd-items { border:1px solid var(--border-color); border-radius:12px; overflow:hidden; }
+        .sd-item { display:grid; grid-template-columns:minmax(0, 1fr) auto; gap:4px 12px; padding:10px 12px; border-bottom:1px solid var(--border-light, var(--border-color)); font-size:13px; }
+        .sd-item:last-child { border-bottom:none; }
+        .sd-item.ret { background:rgba(220,38,38,.05); }
+        .sd-item .nm { font-weight:700; color:var(--text-primary); }
+        .sd-item .cfg { font-size:11.5px; color:var(--text-muted); line-height:1.4; }
+        .sd-item .sn { font-family:monospace; font-size:12px; color:var(--text-secondary); }
+        .sd-item .pr { text-align:right; font-weight:800; white-space:nowrap; font-variant-numeric:tabular-nums; }
+        .sd-item .pr s { color:var(--text-muted); font-weight:600; }
+        .sd-pay { display:flex; flex-wrap:wrap; gap:6px; }
+        .sd-pay .pchip { font-size:12.5px; padding:5px 11px; }
+        .sd-exit { margin-top:12px; font-size:12.5px; padding:8px 11px; border-radius:10px; background:var(--bg-input); }
+        /* La liste passe en CARTES dès que SA zone est étroite (téléphone, tablette, desktop avec menu ouvert). */
+        .sv-wrap { container-type:inline-size; container-name:svlist; }
+        .sv-tbl .c-num .sub, .sv-tbl .c-amt { white-space:nowrap; }
+        /* Desktop : colonnes proportionnelles, jamais de défilement horizontal (textes longs tronqués « … »). */
+        .sv-tbl { table-layout:fixed; min-width:0 !important; }
+        .sv-tbl th:nth-child(1) { width:10%; } .sv-tbl th:nth-child(2) { width:17%; } .sv-tbl th:nth-child(3) { width:22%; }
+        .sv-tbl th:nth-child(4) { width:16%; } .sv-tbl th:nth-child(5) { width:14%; } .sv-tbl th:nth-child(6) { width:9%; } .sv-tbl th:nth-child(7) { width:12%; }
+        .sv-tbl td { overflow:hidden; }
+        .sv-tbl .nm, .sv-items, .sv-tbl td.c-itm .sub { max-width:100% !important; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .sv-tbl .c-num .sub { overflow:hidden; text-overflow:ellipsis; }
+        .sv-tbl .c-st .badge { white-space:normal; text-align:center; }
+        @container svlist (max-width: 900px) {
+            .sv-tbl thead { display:none; }
+            .sv-tbl, .sv-tbl tbody { display:block; min-width:0 !important; width:100% !important; }
+            .sv-tbl tr.sv-day { display:block; } .sv-tbl tr.sv-day td { display:block; padding:12px 2px 6px; }
+            .sv-tbl tr.sv-row { display:grid; grid-template-columns:minmax(0, 1fr) auto; grid-template-areas:"num amt" "cli amt" "itm itm" "pay st" "sel sel";
+                gap:3px 10px; padding:12px 13px; margin-bottom:9px; border:1px solid var(--border-color); border-radius:14px; background:var(--bg-card); }
+            .sv-tbl tr.sv-row td { display:block; padding:0; border:none; background:transparent !important; }
+            .sv-tbl td.c-num { grid-area:num; } .sv-tbl td.c-cli { grid-area:cli; } .sv-tbl td.c-itm { grid-area:itm; margin-top:4px; }
+            .sv-tbl td.c-pay { grid-area:pay; margin-top:4px; } .sv-tbl td.c-st { grid-area:st; align-self:end; text-align:right; }
+            .sv-tbl td.c-sel { grid-area:sel; margin-top:2px; } .sv-tbl td.c-amt { grid-area:amt; text-align:right; align-self:start; }
+            .sv-tbl .nm, .sv-items { max-width:none; }
+            .sv-tbl tr.sv-row td { min-width:0; overflow:hidden; }
+            .sv-tbl tr.sv-sub { margin:-6px 0 12px 16px; border-left:3px solid #d97706; border-top-left-radius:0; background:rgba(217,119,6,.05); }
+            .sv-tbl tr.sv-sub td.c-num { padding-left:0; }
+            .sv-tbl tr.sv-row td.c-itm .sub { max-width:none !important; white-space:normal !important; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
+            .sv-tbl tr.sv-row td.c-amt, .sv-tbl tr.sv-row td.c-st { overflow:visible; }
+            .sv-tbl tr.sv-row .nm { white-space:normal; }
+        }
+        @media (max-width:700px) {
+            .sl-row input[type=date] { flex:1 1 calc(50% - 20px); }
+            .sl-row > .text-muted { flex:0 0 auto; }
+        }
+        @media (max-width:760px) { .sd-grid { grid-template-columns:minmax(0, 1fr); } }
+        /* Récap par mode de paiement : grille propre, cartes étirées sur toute la largeur (desktop) */
+        #payRecap .pr-title { font-size:11.5px; font-weight:800; text-transform:uppercase; letter-spacing:.5px; color:var(--text-muted); margin:16px 2px 8px; }
+        #payRecap .pr-grid { grid-template-columns:repeat(auto-fit, minmax(170px, 1fr)) !important; margin-bottom:0; }
+        @media (max-width:700px) { #payRecap .pr-grid { grid-template-columns:repeat(2, minmax(0, 1fr)) !important; } }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar" id="sfSidebar"></aside>
+        <main class="main-content">
+            <header class="page-header">
+                <div class="page-title"><h1>Ventes</h1><p>Historique et actions</p></div>
+                <div class="page-actions">
+                    <button class="btn btn-primary" id="addSaleBtn" style="display:none;" onclick="Sales.openManual()"><i class="fas fa-plus"></i> Ajouter une vente</button>
+                    <button class="btn btn-secondary" onclick="Sales.exportPDF()"><i class="fas fa-file-pdf"></i> Rapport PDF</button>
+                    <button class="btn btn-secondary" onclick="SFReport.as('xlsx', () => Sales.exportPDF())"><i class="fas fa-file-excel"></i> Excel</button>
+                    <div id="sfTools"></div>
+                </div>
+            </header>
+            <div class="page-body">
+                <div class="card sv-toolbar"><div class="card-body">
+                    <div class="sl-search">
+                        <i class="fas fa-magnifying-glass"></i>
+                        <input type="text" id="f_search" class="form-control"
+                               placeholder="Rechercher : n° série, n° vente, client, tél, adresse, produit, config, vendeur, livreur…"
+                               oninput="Sales.onSearch()" onkeydown="if(event.key==='Enter')Sales.load()">
+                        <span id="searchHint" onclick="Sales.searchAllDates()" title="Vider les dates et chercher dans tout l'historique" style="display:none;cursor:pointer;position:absolute;right:12px;top:50%;transform:translateY(-50%);font-size:11px;color:var(--accent-dark);font-weight:600;"><i class="fas fa-clock-rotate-left"></i> Tout l'historique</span>
+                    </div>
+                    <div class="sl-bar">
+                        <span class="lbl">Période</span>
+                        <div class="sl-row">
+                            <button class="sl-chip" data-p="today" onclick="Sales.period('today')">Aujourd'hui</button>
+                            <button class="sl-chip" data-p="7d" onclick="Sales.period('7d')">7 jours</button>
+                            <button class="sl-chip" data-p="month" onclick="Sales.period('month')">Ce mois</button>
+                            <button class="sl-chip" data-p="all" onclick="Sales.period('all')">Tout</button>
+                            <span class="sl-sep"></span>
+                            <input type="date" id="f_from" class="form-control" title="Du" onchange="Sales.load()">
+                            <span class="text-muted">→</span>
+                            <input type="date" id="f_to" class="form-control" title="Au" onchange="Sales.load()">
+                        </div>
+                        <span class="lbl">Filtres</span>
+                        <div class="sl-row">
+                            <select id="f_commercial" class="form-control" title="Commercial" onchange="Sales.load()"><option value="">Tous les commerciaux</option></select>
+                            <select id="f_method" class="form-control" title="Paiement" onchange="Sales.load()">
+                                <option value="">Tous les paiements</option><option value="especes">Espèces</option><option value="mvola">MVola</option>
+                                <option value="orange_money">Orange Money</option><option value="airtel_money">Airtel Money</option><option value="cheque">Chèque</option><option value="virement">Virement bancaire</option>
+                            </select>
+                            <div id="f_price"></div>
+                        </div>
+                    </div>
+                </div></div>
+                <div class="card dash-card"><div class="card-header"><h3><i class="fas fa-chart-simple"></i> Synthèse de la période</h3><span class="text-muted" style="font-size:12px;" id="periodLbl"></span></div><div class="card-body"><div class="stats-grid" id="kpis"></div><div id="payRecap"></div></div></div>
+                <div class="card"><div class="card-body">
+                    <div class="sv-listhead"><div class="sl-seg" id="statusSeg"></div><span class="sv-count" id="svCount"></span></div>
+                    <div id="caBlock"></div>
+                    <div id="layBlock"></div>
+                    <div class="table-container sf-no-stack sv-wrap">
+                        <table class="sl-tbl sv-tbl">
+                            <thead><tr><th>Vente</th><th>Client</th><th>Articles</th><th>Paiement</th><th>Vendeur</th><th>Statut</th><th class="r">Montant</th></tr></thead>
+                            <tbody id="body"><tr><td colspan="7" class="sf-skel-cell"><span class="sf-skel sf-skel-line"></span><span class="sf-skel sf-skel-line"></span><span class="sf-skel sf-skel-line"></span></td></tr></tbody>
+                        </table>
+                    </div>
+                    <div class="sv-foot" id="tblFoot"></div>
+                </div></div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modale détail vente -->
+    <div class="modal-overlay" id="saleModal">
+        <div class="modal" style="max-width:760px;">
+            <div class="modal-header"><h3 id="smTitle">Vente</h3><button class="modal-close" onclick="SF.Modal.close('saleModal')">&times;</button></div>
+            <div class="modal-body" id="smBody"></div>
+            <div class="modal-footer" id="smFooter"></div>
+        </div>
+    </div>
+
+    <!-- Modale échange -->
+    <div class="modal-overlay" id="exModal">
+        <div class="modal" style="max-width:620px;">
+            <div class="modal-header"><h3><i class="fas fa-right-left"></i> Échange</h3><button class="modal-close" onclick="SF.Modal.close('exModal')">&times;</button></div>
+            <div class="modal-body">
+                <div class="form-group"><label>1. Articles RENDUS par le client <span class="text-muted" style="font-weight:400;">(cochez-en un ou plusieurs)</span></label>
+                    <div id="ex_returns" style="border:1px solid var(--border-color);border-radius:10px;padding:4px 10px;max-height:210px;overflow:auto;"></div></div>
+                <div class="form-group"><label>2. NOUVEAUX articles — n° de série <span class="text-muted" style="font-weight:400;">(scannez-en un ou plusieurs)</span></label>
+                    <div style="display:flex;gap:6px;">
+                        <input type="text" id="ex_serial" class="form-control" placeholder="N° de série (boutique / présentoir) puis Entrée" autocomplete="off"
+                               onkeydown="if(event.key==='Enter'){event.preventDefault();Sales.exScan();}">
+                        <button type="button" class="btn btn-secondary" title="Scanner avec la caméra" onclick="SF.CamScan.open(v => { document.getElementById('ex_serial').value = v; Sales.exScan(); })"><i class="fas fa-camera"></i></button>
+                    </div>
+                    <div id="ex_newlist" style="margin-top:8px;"></div></div>
+                <div id="ex_diff" style="font-size:13.5px;margin:8px 0;padding:10px 12px;border-radius:10px;background:var(--bg-input);"></div>
+                <label style="font-size:12.5px;font-weight:600;color:var(--text-secondary);">Mode de paiement de la différence</label>
+                <select id="ex_method" class="form-control" onchange="Sales.exMethodChange()">
+                    <option value="especes">Espèces</option><option value="mvola">MVola</option><option value="orange_money">Orange Money</option><option value="airtel_money">Airtel Money</option><option value="cheque">Chèque</option><option value="virement">Virement bancaire</option>
+                </select>
+                <div id="ex_mm" style="display:none;margin-top:10px;"><div class="form-row">
+                    <div class="form-group"><label id="ex_phoneLbl">Numéro émetteur</label><input type="text" id="ex_phone" class="form-control"></div>
+                    <div class="form-group" id="ex_refWrap" style="display:none;"><label id="ex_refLbl">N° du chèque *</label><input type="text" id="ex_ref" class="form-control"></div>
+                </div></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="SF.Modal.close('exModal')">Annuler</button>
+                <button class="btn btn-primary" onclick="Sales.submitExchange()"><i class="fas fa-right-left"></i> Valider l'échange</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modale retour -->
+    <div class="modal-overlay" id="retModal">
+        <div class="modal" style="max-width:520px;">
+            <div class="modal-header"><h3><i class="fas fa-rotate-left"></i> Retour / annulation (partielle possible)</h3><button class="modal-close" onclick="SF.Modal.close('retModal')">&times;</button></div>
+            <div class="modal-body">
+                <div class="form-group"><label>Articles concernés <span class="text-muted" style="font-weight:400;">— quantité par produit, ou cochez les n° de série précis</span></label><div id="retUnits" style="border:1px solid var(--border-color);border-radius:10px;padding:4px 10px;max-height:300px;overflow:auto;"></div>
+                    <div id="retSum" style="font-size:13px;margin-top:6px;"></div></div>
+                <div class="form-group"><label>Type</label><select id="ret_type" class="form-control" onchange="Sales.retTypeHint()">
+                    <option value="remboursement">Remboursement (retour de l'argent)</option>
+                    <option value="refacture">Annuler et refaire une nouvelle facture (client qui ne veut pas « échange »)</option>
+                    <option value="garantie">Retour en garantie (défaut client)</option>
+                    <option value="retour_stock">Retour SANS remboursement (l'argent reste acquis — cas rare)</option>
+                </select></div>
+                <div id="retHint" style="display:none;margin:-6px 0 12px;padding:9px 11px;border-radius:8px;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.45);font-size:12.5px;line-height:1.55;">
+                    <i class="fas fa-triangle-exclamation" style="color:#b45309;"></i> <b>Sans remboursement, l'argent de cette vente reste dans la caisse et dans le chiffre d'affaires.</b><br>
+                    Le client repart avec un <b>autre article</b> ? Utilisez <b>« Échange »</b> ou <b>« Annuler et refaire une nouvelle facture »</b> : sinon le même argent est compté deux fois.</div>
+                <div id="retHint2" style="display:none;margin:-6px 0 12px;padding:9px 11px;border-radius:8px;background:rgba(37,99,235,.08);border:1px solid rgba(37,99,235,.35);font-size:12.5px;line-height:1.55;">
+                    <i class="fas fa-file-invoice" style="color:#1d4ed8;"></i> La vente est <b>annulée</b> et son montant <b>sort de la caisse</b> (sans mention d'échange).
+                    Faites ensuite une <b>nouvelle vente normale</b> au POS avec le nouvel article : le client reçoit une facture neuve et l'argent n'est compté <b>qu'une fois</b>.</div>
+                <div class="form-group"><label>Motif *</label><textarea id="ret_reason" class="form-control" rows="2" placeholder="Obligatoire"></textarea></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="SF.Modal.close('retModal')">Annuler</button>
+                <button class="btn btn-danger" onclick="Sales.submitReturn()"><i class="fas fa-rotate-left"></i> Confirmer</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modale vente manuelle rétroactive (admin) -->
+    <div class="modal-overlay" id="manualModal">
+        <div class="modal" style="max-width:600px;">
+            <div class="modal-header"><h3>Ajouter une vente (régularisation)</h3><button class="modal-close" onclick="SF.Modal.close('manualModal')">&times;</button></div>
+            <div class="modal-body">
+                <p class="text-muted" style="font-size:12px;margin-bottom:12px;"><i class="fas fa-circle-info"></i> Régularise une vente non enregistrée : les articles sortent du stock et sont comptés dans la caisse à la date choisie.</p>
+                <div class="form-row">
+                    <div class="form-group"><label>Date de la vente *</label><input type="date" id="m_date" class="form-control"></div>
+                    <div class="form-group"><label>Paiement</label><select id="m_method" class="form-control">
+                        <option value="especes">Espèces</option><option value="mvola">MVola</option><option value="orange_money">Orange Money</option><option value="airtel_money">Airtel Money</option><option value="cheque">Chèque</option><option value="virement">Virement bancaire</option>
+                    </select></div>
+                </div>
+                <div class="form-group"><label>Numéro de série de l'article</label>
+                    <input type="text" id="m_serial" class="form-control" placeholder="Scannez ou saisissez, puis Entrée" onkeydown="if(event.key==='Enter'){event.preventDefault();Sales.manualAdd();}">
+                </div>
+                <div id="m_cart" style="border:1px solid var(--border-color);border-radius:10px;padding:8px 10px;min-height:60px;margin-bottom:10px;"></div>
+                <div style="display:flex;justify-content:space-between;font-weight:800;font-size:16px;"><span>Total</span><span id="m_total">0 Ar</span></div>
+                <div class="form-row" style="margin-top:10px;">
+                    <div class="form-group"><label>Client <span style="color:var(--danger);">*</span></label><input type="text" id="m_client" class="form-control"></div>
+                    <div class="form-group"><label>Contact <span style="color:var(--danger);">*</span></label><input type="text" id="m_phone" class="form-control" inputmode="tel" placeholder="034 12 345 67"></div>
+                    <div class="form-group"><label>Commercial (facultatif)</label><select id="m_commercial" class="form-control"><option value="">—</option></select></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="SF.Modal.close('manualModal')">Annuler</button>
+                <button class="btn btn-primary" id="m_submit" disabled onclick="Sales.submitManual()"><i class="fas fa-check"></i> Enregistrer la vente</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modale correction de vente (admin) -->
+    <div class="modal-overlay" id="editModal">
+        <div class="modal" style="max-width:460px;">
+            <div class="modal-header"><h3 id="edTitle">Corriger la vente</h3><button class="modal-close" onclick="SF.Modal.close('editModal')">&times;</button></div>
+            <div class="modal-body">
+                <p class="text-muted" style="font-size:12px;margin-bottom:12px;"><i class="fas fa-circle-info"></i> Corrige une erreur de saisie (paiement, client). Le total et les articles ne changent pas.</p>
+                <div class="form-group"><label>Mode de paiement</label><select id="ed_method" class="form-control" onchange="Sales.edMethodChange()">
+                    <option value="especes">Espèces</option><option value="mvola">MVola</option><option value="orange_money">Orange Money</option><option value="airtel_money">Airtel Money</option><option value="cheque">Chèque</option><option value="virement">Virement bancaire</option>
+                </select></div>
+                <div class="form-row" id="ed_mmWrap">
+                    <div class="form-group"><label id="ed_phoneLbl">Numéro émetteur</label><input type="text" id="ed_phone" class="form-control"></div>
+                    <div class="form-group" id="ed_refWrap"><label id="ed_refLbl">N° du chèque</label><input type="text" id="ed_ref" class="form-control"></div>
+                </div>
+                <div class="form-group"><label>Client</label><input type="text" id="ed_client" class="form-control"></div>
+                <div class="form-row">
+                    <div class="form-group"><label>Téléphone client</label><input type="text" id="ed_cphone" class="form-control"></div>
+                    <div class="form-group"><label>Adresse client</label><input type="text" id="ed_caddress" class="form-control"></div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group"><label>NIF client</label><input type="text" id="ed_nif" class="form-control"></div>
+                    <div class="form-group"><label>STAT client</label><input type="text" id="ed_stat" class="form-control"></div>
+                </div>
+                <div class="form-group"><label>RCS client</label><input type="text" id="ed_rcs" class="form-control"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="SF.Modal.close('editModal')">Annuler</button>
+                <button class="btn btn-primary" onclick="Sales.submitEdit()"><i class="fas fa-check"></i> Enregistrer</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modale correction des infos client (caisse / gestion stock) — avant réimpression -->
+    <div class="modal-overlay" id="clientEditModal">
+        <div class="modal" style="max-width:460px;">
+            <div class="modal-header"><h3 id="ceTitle">Corriger le client</h3><button class="modal-close" onclick="SF.Modal.close('clientEditModal')">&times;</button></div>
+            <div class="modal-body">
+                <p class="text-muted" style="font-size:12px;margin-bottom:12px;"><i class="fas fa-circle-info"></i> Corrige les informations du client avant réimpression. Le total, les articles et le paiement ne changent pas.</p>
+                <div class="form-group"><label>Client <span style="color:var(--danger);">*</span></label><input type="text" id="ce_name" class="form-control"></div>
+                <div class="form-row">
+                    <div class="form-group"><label>Téléphone client <span style="color:var(--danger);">*</span></label><input type="text" id="ce_phone" class="form-control" inputmode="tel"></div>
+                    <div class="form-group"><label>Adresse client</label><input type="text" id="ce_address" class="form-control"></div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group"><label>NIF client</label><input type="text" id="ce_nif" class="form-control"></div>
+                    <div class="form-group"><label>STAT client</label><input type="text" id="ce_stat" class="form-control"></div>
+                </div>
+                <div class="form-group"><label>RCS client</label><input type="text" id="ce_rcs" class="form-control"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="SF.Modal.close('clientEditModal')">Annuler</button>
+                <button class="btn btn-primary" onclick="Sales.submitClientEdit()"><i class="fas fa-check"></i> Enregistrer &amp; réimprimer</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modale encaissement livraison (confirmer livrée & payée depuis la page ventes) -->
+    <div class="modal-overlay" id="delPayModal">
+        <div class="modal" style="max-width:460px;">
+            <div class="modal-header"><h3>Encaissement de la livraison</h3><button class="modal-close" onclick="SF.Modal.close('delPayModal')">&times;</button></div>
+            <div class="modal-body" id="delPayBody"></div>
+            <div class="modal-footer"><button class="btn btn-secondary" onclick="SF.Modal.close('delPayModal')">Annuler</button><button class="btn btn-primary" onclick="Sales.submitCompleteDelivery()"><i class="fas fa-check"></i> Confirmer livrée &amp; payée</button></div>
+        </div>
+    </div>
+
+    <script src="/js/sf-core.js"></script>
+    <script src="/js/sf-layout.js"></script>
+    <script src="/js/sf-invoice.js"></script>
+    <script src="/js/sf-report.js"></script>
+    <script src="/js/sf-barcode.js"></script>
+    <script src="/js/sf-pay.js"></script>
+    <script>
+    const Sales = {
+        user: null, list: [], config: {}, current: null, manualCart: [], statusFilter: null,
+        async init() {
+            this.user = await SF.Auth.require(['caisse', 'gestion_stock', 'commercial']);
+            if (!this.user) return;
+            SF.layout({ active: '/sales.html' });
+            SF.PriceRange.mount(document.getElementById('f_price'), () => this.render(), { label: 'Montant' });
+            try { this.config = await SF.api('/api/config'); } catch (e) {}
+            // Par défaut : seulement les ventes du jour (on change la date pour voir le passé).
+            this.today(false);
+            if (this.user.role === 'admin') document.getElementById('addSaleBtn').style.display = '';
+            SF.on('sale:new', () => this.load());
+            this.load();
+        },
+        // Ramène le filtre sur la journée courante (côté client, sans requête serveur inutile).
+        today(reload = true) {
+            const d = SF.fmt.today();
+            document.getElementById('f_from').value = d;
+            document.getElementById('f_to').value = d;
+            if (reload) this.load();
+        },
+        // Périodes rapides : aujourd'hui, 7 derniers jours, mois en cours, tout l'historique.
+        period(p) {
+            const t = SF.fmt.today();
+            const from = p === 'today' ? t : p === '7d' ? new Date(Date.parse(t + 'T00:00:00Z') - 6 * 86400000).toISOString().slice(0, 10)
+                       : p === 'month' ? t.slice(0, 8) + '01' : '';
+            document.getElementById('f_from').value = from;
+            document.getElementById('f_to').value = p === 'all' ? '' : t;
+            this.load();
+        },
+        markPeriod() {
+            const f = document.getElementById('f_from').value, to = document.getElementById('f_to').value, t = SF.fmt.today();
+            const d7 = new Date(Date.parse(t + 'T00:00:00Z') - 6 * 86400000).toISOString().slice(0, 10);
+            const cur = !f && !to ? 'all' : (to === t && f === t) ? 'today' : (to === t && f === d7) ? '7d' : (to === t && f === t.slice(0, 8) + '01') ? 'month' : '';
+            document.querySelectorAll('.sl-chip[data-p]').forEach(b => b.classList.toggle('active', b.dataset.p === cur));
+            const lbl = !f && !to ? 'Tout l\'historique' : f === to ? SF.fmt.date(f) : `${f ? SF.fmt.date(f) : '…'} → ${to ? SF.fmt.date(to) : '…'}`;
+            document.getElementById('periodLbl').textContent = lbl;
+        },
+        // Raccourci recherche : vide les dates pour chercher dans tout l'historique.
+        searchAllDates() {
+            document.getElementById('f_from').value = '';
+            document.getElementById('f_to').value = '';
+            this.load();
+        },
+        // ---- Vente manuelle rétroactive (admin) : panier par n° de série ----
+        async openManual() {
+            this.manualCart = [];
+            document.getElementById('m_date').value = SF.fmt.today();
+            document.getElementById('m_date').max = SF.fmt.today();
+            document.getElementById('m_serial').value = '';
+            document.getElementById('m_client').value = '';
+            document.getElementById('m_method').value = 'especes';
+            // Liste des commerciaux (réutilise le filtre déjà peuplé, sinon charge).
+            const src = document.getElementById('f_commercial');
+            document.getElementById('m_commercial').innerHTML = '<option value="">—</option>' +
+                [...src.options].filter(o => o.value).map(o => `<option value="${o.value}">${SF.esc(o.textContent)}</option>`).join('');
+            this.renderManualCart();
+            SF.Modal.open('manualModal');
+            setTimeout(() => document.getElementById('m_serial').focus(), 100);
+        },
+        async manualAdd() {
+            const serial = document.getElementById('m_serial').value.trim();
+            if (!serial) return;
+            try {
+                const rows = await SF.api('/api/units/search?q=' + encodeURIComponent(serial));
+                const u = rows.find(x => x.serial === serial || x.manufacturer_sn === serial) || (rows.length === 1 ? rows[0] : null);
+                if (!u) return SF.toast('N° série introuvable : ' + serial, 'error');
+                if (!u.sellable) return SF.toast(`Non vendable (${SF.UNIT_STATUS[u.status] || u.status})`, 'error');
+                if (this.manualCart.some(c => c.unit_id === u.id)) { SF.toast('Déjà dans le panier', 'warn'); document.getElementById('m_serial').value = ''; return; }
+                this.manualCart.push({ unit_id: u.id, serial: u.serial, name: [u.brand, u.model].filter(Boolean).join(' ') || u.product_name, price: u.sale_price || 0 });
+                document.getElementById('m_serial').value = '';
+                this.renderManualCart();
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        manualRemove(unitId) { this.manualCart = this.manualCart.filter(c => c.unit_id !== unitId); this.renderManualCart(); },
+        renderManualCart() {
+            const box = document.getElementById('m_cart');
+            box.innerHTML = this.manualCart.length ? this.manualCart.map(c => `<div style="display:flex;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--border-light);">
+                <div style="flex:1;"><div style="font-size:13px;font-weight:600;">${SF.esc(c.name)}</div><div class="text-muted" style="font-size:11px;font-family:monospace;">${SF.esc(c.serial)}</div></div>
+                <div style="font-weight:700;">${SF.fmt.ar(c.price)}</div>
+                <button class="btn btn-sm btn-danger" onclick="Sales.manualRemove(${c.unit_id})"><i class="fas fa-times"></i></button></div>`).join('')
+                : '<div class="text-muted" style="text-align:center;padding:14px;font-size:12.5px;">Aucun article</div>';
+            document.getElementById('m_total').textContent = SF.fmt.ar(this.manualCart.reduce((s, c) => s + c.price, 0));
+            document.getElementById('m_submit').disabled = !this.manualCart.length;
+        },
+        async submitManual() {
+            if (!this.manualCart.length) return;
+            const sale_date = document.getElementById('m_date').value;
+            if (!sale_date) return SF.toast('Date requise', 'error');
+            if (!SF.checkClient('m_client', 'm_phone')) return;
+            const btn = document.getElementById('m_submit'); btn.disabled = true;
+            try {
+                const r = await SF.api('/api/sales/manual', { method: 'POST', body: {
+                    sale_date,
+                    client: { name: document.getElementById('m_client').value.trim(), phone: document.getElementById('m_phone').value.trim() },
+                    commercial_id: document.getElementById('m_commercial').value || null,
+                    payment: { method: document.getElementById('m_method').value },
+                    unit_ids: this.manualCart.map(c => c.unit_id)
+                }});
+                SF.toast(`Vente enregistrée (${SF.fmt.date(sale_date)})`, 'success');
+                SF.Modal.close('manualModal');
+                this.load();
+            } catch (e) { SF.toast(e.message, 'error'); btn.disabled = false; }
+        },
+        get canReturn() { return ['admin', 'caisse'].includes(this.user.role); },   // retour/remboursement = caisse (argent)
+        get canSeeCA() {
+            const u = this.user, roles = u.roles || [u.role];
+            if (roles.includes('caisse')) return true;
+            return u.role === 'admin' && (!!u.full_ca || !!this.periodToday);   // autres admins : CA du jour seulement
+        },    // chiffre d'affaires global = caisse + admin seulement
+        // Recherche « live » (anti-rebond) : cherche dès la saisie sur TOUT l'historique.
+        onSearch() {
+            clearTimeout(this._searchT);
+            this._searchT = setTimeout(() => this.load(), 300);
+        },
+        async load() {
+            const q = new URLSearchParams();
+            const s = document.getElementById('f_search').value.trim();
+            // La recherche se combine avec le filtre de dates (et commercial/paiement) : on cherche
+            // DANS la période choisie. Le raccourci « Tout l'historique » (visible en recherche quand
+            // une date est posée) vide les dates pour chercher partout.
+            const from = document.getElementById('f_from').value, to = document.getElementById('f_to').value;
+            { const d = new Date(), t = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; this.periodToday = from === t && to === t; }
+            document.getElementById('searchHint').style.display = (s && (from || to)) ? '' : 'none';
+            if (from) q.set('from', from);
+            if (to) q.set('to', to);
+            const com = document.getElementById('f_commercial').value; if (com) q.set('commercial_id', com);
+            const m = document.getElementById('f_method').value; if (m) q.set('method', m);
+            if (s) q.set('search', s);
+            try {
+                this.list = await SF.api('/api/sales?' + q.toString());
+                // CA = argent réellement encaissé sur la période (avances, reste atelier, remboursements inclus).
+                this.caEnc = 0;
+                if (this.canSeeCA) {
+                    const cq = new URLSearchParams(); if (from) cq.set('from', from); if (to) cq.set('to', to);
+                    try { const r = await SF.api('/api/ca?' + cq.toString()); this.caEnc = r.ca || 0; this.caByMethod = r.by_method || {}; } catch (e) {}
+                }
+                this.markPeriod(); this.renderKpis(); this.render();
+                this.loadLayaways(from, to, s);
+                this.loadCaDetail(from, to, s);
+                // commercial filter options from data
+                const sel = document.getElementById('f_commercial');
+                if (sel.options.length <= 1) {
+                    const map = new Map(); this.list.forEach(s => { if (s.commercial_id) map.set(s.commercial_id, s.commercial_name); });
+                    sel.innerHTML = '<option value="">Tous les commerciaux</option>' + [...map].map(([id, n]) => `<option value="${id}">${SF.esc(n)}</option>`).join('');
+                }
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        // Encaissements de la période qui ne sont pas des ventes finalisées de la liste (acompte de livraison,
+        // versement d'avance, reste atelier) + remboursements : explique le CA affiché.
+        async loadCaDetail(from, to, search) {
+            const box = document.getElementById('caBlock'); if (!box) return;
+            if (!this.canSeeCA) { box.innerHTML = ''; return; }
+            let r;
+            try { const q = new URLSearchParams(); if (from) q.set('from', from); if (to) q.set('to', to); r = await SF.api('/api/ca/detail?' + q.toString()); }
+            catch (e) { box.innerHTML = ''; return; }
+            let rows = r.rows || [];
+            if (search) { const k = search.toLowerCase(); rows = rows.filter(x => [x.client_name, x.client_phone, x.commercial_name, x.items, x.by_name, x.num].some(v => String(v || '').toLowerCase().includes(k))); }
+            if (!rows.length) { box.innerHTML = ''; return; }
+            const K = { acompte_livraison: ['Acompte livraison', 'fa-truck', '#0891b2', 'Livraison n°'], versement_avance: ['Versement avance', 'fa-hand-holding-dollar', '#7c3aed', 'Avance n°'],
+                        reste_atelier: ['Reste atelier', 'fa-screwdriver-wrench', '#d97706', 'Vente n°'], remboursement: ['Remboursement', 'fa-rotate-left', '#dc2626', 'Vente n°'] };
+            const ML = { especes: 'Espèces', mvola: 'MVola', orange_money: 'Orange Money', airtel_money: 'Airtel Money', virement: 'Virement', cheque: 'Chèque' };
+            const open = this._caOpen === true;   // replié par défaut : la liste des ventes reste au premier plan
+            box.innerHTML = `<div style="border:1px solid var(--border-color);border-left:4px solid #0891b2;border-radius:10px;margin:0 0 12px;background:var(--bg-card);">
+                <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;cursor:pointer;flex-wrap:wrap;" onclick="Sales._caOpen=${!open};Sales.loadCaDetail(${JSON.stringify(from || '')},${JSON.stringify(to || '')},${JSON.stringify(search || '')})">
+                    <i class="fas fa-coins" style="color:#0891b2;"></i>
+                    <b>Encaissements hors ventes finalisées</b><span class="text-muted" style="font-size:12.5px;">${rows.length} mouvement(s) · comptés dans le CA</span>
+                    <i class="fas fa-chevron-${open ? 'up' : 'down'}" style="margin-left:auto;"></i></div>
+                ${open ? `<div style="padding:0 12px 10px;font-size:12.5px;color:var(--text-muted);">CA de la période = ventes encaissées <b style="color:var(--text-primary)">${SF.fmt.ar(r.sales)}</b> + autres encaissements <b style="color:var(--text-primary)">${SF.fmt.ar(r.other)}</b>${r.refunds ? ` − remboursements <b style="color:#b91c1c">${SF.fmt.ar(r.refunds)}</b>` : ''} = <b style="color:var(--text-primary)">${SF.fmt.ar(r.ca)}</b></div>
+                <div class="table-container" style="border-top:1px solid var(--border-color);"><table class="sl-tbl"><thead><tr><th>Type</th><th>Client</th><th>Commercial / caisse</th><th>Articles</th><th>Mode</th><th class="r">Montant</th></tr></thead><tbody>
+                ${rows.map(x => { const k = K[x.kind] || K.acompte_livraison, neg = x.kind === 'remboursement';
+                    return `<tr>
+                    <td data-label="Type"><span style="display:inline-flex;align-items:center;gap:6px;font-weight:700;color:${k[2]};"><i class="fas ${k[1]}"></i> ${k[0]}</span>
+                        <div class="text-muted" style="font-size:11.5px;">${x.num != null ? `${k[3]} ${x.num}${x.num_date ? ' du ' + SF.fmt.date(x.num_date) : ''} · ` : ''}${SF.fmt.date(x.created_at)} ${String(x.created_at || '').slice(11, 16)}</div></td>
+                    <td data-label="Client">${SF.esc(x.client_name || '—')}${x.client_phone ? `<div class="text-muted" style="font-size:11.5px;">${SF.esc(x.client_phone)}</div>` : ''}</td>
+                    <td data-label="Par">${SF.esc(x.commercial_name || '—')}${x.by_name ? `<div class="text-muted" style="font-size:11.5px;">encaissé par ${SF.esc(x.by_name)}</div>` : ''}</td>
+                    <td data-label="Articles" style="font-size:12.5px;">${SF.esc(x.items || '')}${x.total ? `<div class="text-muted" style="font-size:11.5px;">total ${SF.fmt.ar(x.total)}</div>` : ''}</td>
+                    <td data-label="Mode">${SF.esc(ML[x.method] || x.method || '—')}</td>
+                    <td data-label="Montant" class="r" style="font-weight:800;${neg ? 'color:#b91c1c;' : ''}">${neg ? '− ' + SF.fmt.ar(-x.amount) : SF.fmt.ar(x.amount)}</td></tr>`; }).join('')}
+                </tbody></table></div>` : ''}</div>`;
+        },
+        // Réservations avec avance créées sur la période : articles mis de côté pour un client (hors stock
+        // disponible) — le stock voit quels produits sont partis en réservation et à quelle date.
+        async loadLayaways(from, to, search) {
+            const box = document.getElementById('layBlock'); if (!box) return;
+            let rows = [];
+            try {
+                const q = new URLSearchParams({ items: 1 }); if (from) q.set('from', from); if (to) q.set('to', to);
+                rows = await SF.api('/api/layaways?' + q.toString());
+            } catch (e) { box.innerHTML = ''; return; }
+            if (search) { const k = search.toLowerCase(); rows = rows.filter(l => [l.client_name, l.client_phone, l.commercial_name, l.items_summary, 'AV' + l.layaway_number,
+                ...(l.items || []).map(i => i.serial)].some(v => String(v || '').toLowerCase().includes(k))); }
+            if (!rows.length) { box.innerHTML = ''; return; }
+            const open = this._layOpen === true;
+            const st = l => l.expired ? '<span class="badge badge-danger">Expirée</span>'
+                : l.status === 'active' ? '<span class="badge badge-warning">Réservé</span>'
+                : l.status === 'vendu' ? '<span class="badge badge-success">Soldée → vendue</span>' : '<span class="badge badge-secondary">Annulée / remise en vente</span>';
+            const units = rows.reduce((t, l) => t + (l.items || []).filter(i => !i.is_service).length, 0);
+            box.innerHTML = `<div style="border:1px solid var(--border-color);border-left:4px solid #7c3aed;border-radius:10px;margin:0 0 12px;background:var(--bg-card);">
+                <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;cursor:pointer;" onclick="Sales._layOpen=${!open};Sales.loadLayaways(${JSON.stringify(from || '')},${JSON.stringify(to || '')},${JSON.stringify(search || '')})">
+                    <i class="fas fa-hand-holding-dollar" style="color:#7c3aed;"></i>
+                    <b>Réservations avec avance</b><span class="text-muted" style="font-size:12.5px;">${rows.length} avance(s) · ${units} article(s) mis de côté — hors stock disponible</span>
+                    <i class="fas fa-chevron-${open ? 'up' : 'down'}" style="margin-left:auto;"></i></div>
+                ${open ? `<div class="table-container" style="border-top:1px solid var(--border-color);"><table class="sl-tbl"><thead><tr><th>Avance</th><th>Client</th><th>Vendeur</th><th>Articles réservés</th><th>Date limite</th><th>Statut</th><th class="r">Avance / Total</th></tr></thead><tbody>
+                ${rows.map(l => `<tr>
+                    <td data-label="Avance"><b>AV${String(l.created_at || '').slice(0, 10).replace(/-/g, '')}-${String(l.layaway_number).padStart(4, '0')}</b><div class="text-muted" style="font-size:11.5px;">${SF.fmt.date(l.created_at)} ${String(l.created_at || '').slice(11, 16)}</div></td>
+                    <td data-label="Client">${SF.esc(l.client_name || '—')}${l.client_phone ? `<div class="text-muted" style="font-size:11.5px;">${SF.esc(l.client_phone)}</div>` : ''}</td>
+                    <td data-label="Vendeur">${SF.esc(l.commercial_name || l.cashier_name || '—')}</td>
+                    <td data-label="Articles">${(l.items || []).map(i => `<div style="font-size:12.5px;">${SF.esc(i.product_name || '')}${i.serial ? ` <span style="font-family:monospace;color:var(--text-muted);">${SF.esc(i.serial)}</span>` : ''}</div>`).join('') || SF.esc(l.items_summary || '')}</td>
+                    <td data-label="Date limite">${l.due_date ? SF.fmt.date(l.due_date) : '—'}</td>
+                    <td data-label="Statut">${st(l)}</td>
+                    <td data-label="Montant" class="r">${SF.fmt.ar(l.deposit)}<div class="text-muted" style="font-size:11.5px;">/ ${SF.fmt.ar(l.total)}</div></td></tr>`).join('')}
+                </tbody></table></div>` : ''}</div>`;
+        },
+        renderKpis() {
+            // CA & articles vendus = ventes RÉELLEMENT ENCAISSÉES uniquement (statut 'completed'),
+            // cohérent avec la trésorerie du serveur. On exclut donc :
+            //  - 'en_livraison'  : livraison pas encore livrée/payée ;
+            //  - 'returned'      : entièrement retournée ;
+            //  - 'annulee'       : vente/livraison annulée (sinon comptée en double, ex. unité re-vendue) ;
+            //  - 'exchanged'     : remplacée par une nouvelle vente (qui, elle, est comptée).
+            const active = this.list.filter(s => s.status === 'completed');
+            // CA NET = total facturé − remboursements (retour partiel remboursé). Articles = non retournés.
+            const ca = this.caEnc || 0;   // CA encaissé de la période (serveur, /api/ca)
+            const arts = active.reduce((t, s) => t + (s.item_count_net != null ? s.item_count_net : s.item_count), 0);
+            // Statuts : contrôle segmenté avec compteurs (filtre la liste au clic).
+            const n = k => this.list.filter(s => this.cat(s) === k).length;
+            const f = this.statusFilter;
+            const deliv = this.list.filter(s => s.status === 'en_livraison' && this.cat(s)).reduce((t, s) => t + (s.total || 0), 0);
+            document.getElementById('kpis').innerHTML =
+                (this.canSeeCA ? SF.tile({ label: "Chiffre d'affaires (encaissé)", value: SF.fmt.ar(ca), icon: 'fa-sack-dollar', cls: 'accent', sub: 'argent reçu sur la période', title: 'Argent réellement reçu sur la période (filtre de dates), remboursements déduits' }) : '')
+                + SF.tile({ label: 'Ventes', value: this.list.length, icon: 'fa-receipt', tone: 'teal', sub: `${n('vendue')} vendue(s)` })
+                + SF.tile({ label: 'Articles vendus', value: arts > 1 ? `${arts} pièces` : arts, icon: 'fa-cart-shopping', tone: 'blue', sub: 'hors retours' })
+                + SF.tile({ label: 'Livraisons en cours', value: n('sortir') + n('livraison'), icon: 'fa-truck-fast', tone: 'yellow', sub: SF.fmt.ar(deliv) + ' non encaissé' });
+            // Récap par mode de paiement (argent reçu − remboursements de ce mode) — même base que le CA.
+            const bm = this.caByMethod || {};
+            document.getElementById('payRecap').innerHTML = '';
+            if (this.canSeeCA) {
+                const mmTot = (bm.mvola || 0) + (bm.orange_money || 0) + (bm.airtel_money || 0);
+                const pct = v => ca ? ` · ${Math.round(v * 100 / ca)} %` : '';
+                document.getElementById('payRecap').innerHTML = `<div class="pr-title"><i class="fas fa-wallet"></i> Récap par mode de paiement</div><div class="stats-grid pr-grid">`
+                    + SF.tile({ label: 'Espèces', value: SF.fmt.ar(bm.especes || 0), icon: 'fa-money-bill-wave', tone: 'green', sub: 'dans le tiroir' + pct(bm.especes || 0) })
+                    + SF.tile({ label: 'Mobile money (total)', value: SF.fmt.ar(mmTot), icon: 'fa-mobile-screen-button', tone: 'violet', sub: 'MVola + Orange + Airtel' + pct(mmTot) })
+                    + SF.tile({ label: 'MVola', value: SF.fmt.ar(bm.mvola || 0), icon: 'fa-mobile-screen', tone: 'yellow', sub: pct(bm.mvola || 0).replace(' · ', '') || '—' })
+                    + SF.tile({ label: 'Orange Money', value: SF.fmt.ar(bm.orange_money || 0), icon: 'fa-mobile-screen', tone: 'coral', sub: pct(bm.orange_money || 0).replace(' · ', '') || '—' })
+                    + SF.tile({ label: 'Airtel Money', value: SF.fmt.ar(bm.airtel_money || 0), icon: 'fa-mobile-screen', tone: 'blue', sub: pct(bm.airtel_money || 0).replace(' · ', '') || '—' })
+                    + ((bm.cheque || 0) || (bm.virement || 0) ? SF.tile({ label: 'Chèque / virement', value: SF.fmt.ar((bm.cheque || 0) + (bm.virement || 0)), icon: 'fa-building-columns', tone: 'teal', sub: `chèque ${SF.fmt.ar(bm.cheque || 0)} · virement ${SF.fmt.ar(bm.virement || 0)}` }) : '') + '</div>';
+            }
+            const seg = (key, label, icon) => `<button class="${f === key ? 'active' : ''}" onclick="Sales.toggleStatus(${key ? `'${key}'` : 'null'})"><i class="fas ${icon}"></i> ${label} <span class="n">${key ? n(key) : this.list.length}</span></button>`;
+            document.getElementById('statusSeg').innerHTML =
+                seg(null, 'Toutes', 'fa-list')
+                + seg('vendue', 'Vendues', 'fa-check')
+                + seg('sortir', 'À sortir du stock', 'fa-box-open')
+                + seg('livraison', 'En livraison', 'fa-truck-fast');
+        },
+        toggleStatus(key) {
+            this.statusFilter = !key || this.statusFilter === key ? null : key;
+            this.renderKpis(); this.render();
+        },
+        pmLabel(m) { return { especes:'Espèces', mvola:'MVola', orange_money:'Orange Money', airtel_money:'Airtel Money', cheque:'Chèque', virement:'Virement bancaire', mixte:'Mixte' }[m] || m; },
+        // Libellé du paiement d'une vente (gère le mixte via s.payments et « à la livraison »).
+        payText(s) {
+            const P = Array.isArray(s.payments) ? s.payments : [];
+            if (!P.length && Math.round(s.total || 0) === 0 && s.channel !== 'livraison') return 'Gratuit (0 Ar)';
+            if (s.channel === 'livraison' && !P.length && !s.payment_method) return 'À la livraison';
+            if (P.length > 1) return P.map(p => `${this.pmLabel(p.method)} ${SF.fmt.ar(p.amount)}${(p.method === 'cheque' || p.method === 'virement') && p.ref ? ' (' + (p.method === 'cheque' ? 'n° ' : 'réf. ') + SF.esc(p.ref) + ')' : ''}`).join('  +  ');
+            const one = P.length === 1 ? P[0] : (s.payment_method ? { method: s.payment_method, phone: s.payment_phone, ref: s.payment_ref } : null);
+            if (!one) return 'À la livraison';
+            if (one.method === 'especes') return 'Espèces';
+            if (one.method === 'cheque') return `Chèque n° ${SF.esc(one.ref)}${one.phone ? ' (' + SF.esc(one.phone) + ')' : ''}`;
+            if (one.method === 'virement') return `Virement bancaire${one.ref ? ' · réf. ' + SF.esc(one.ref) : ''}`;
+            return `${this.pmLabel(one.method)}${one.phone ? ' · ' + SF.esc(one.phone) : ''}`;
+        },
+        // Statut d'une vente. Une livraison n'est « Vendue » qu'une fois LIVRÉE :
+        // avant sortie du stock (livraison 'facturee') → « À sortir » ; en cours de route → « En livraison ».
+        statusBadge(s) {
+            if (s.status === 'returned')  return '<span class="badge badge-danger">Retournée</span>';
+            if (s.status === 'exchanged') return '<span class="badge badge-warning">Échangée</span>';
+            if (s.status === 'annulee')   return '<span class="badge badge-secondary">Annulée</span>';
+            if (s.status === 'en_livraison') {
+                if (s.delivery_status === 'facturee') return '<span class="badge dl-badge dl-facturee"><i class="fas fa-box-open"></i> À sortir</span>';
+                if (s.delivery_status === 'annulee')  return '<span class="badge badge-secondary">Annulée</span>';
+                if (s.delivery_status === 'retournee') return '<span class="badge badge-danger">Retournée</span>';
+                return '<span class="badge dl-badge dl-en_livraison"><i class="fas fa-truck-fast"></i> En livraison</span>';
+            }
+            // Une vente issue d'un échange (échange_of renseigné) n'est pas une vente ordinaire :
+            // son total est l'écart encaissé, pas le prix d'un article.
+            if (s.exchange_of != null) return '<span class="badge badge-warning"><i class="fas fa-right-left"></i> Échange</span>';
+            return '<span class="badge badge-success">Vendue</span>';
+        },
+        // Catégorie d'une vente pour le récap cliquable.
+        cat(s) {
+            if (s.status === 'completed') return 'vendue';
+            if (s.status === 'en_livraison') {
+                if (s.delivery_status === 'facturee') return 'sortir';
+                if (s.delivery_status === 'annulee' || s.delivery_status === 'retournee') return null;
+                return 'livraison';
+            }
+            return null;
+        },
+        // Colonne « Articles » : un seul article → son nom (sinon le nombre).
+        itemsCell(s) {
+            const n = s.item_count_net != null ? s.item_count_net : s.item_count;
+            if (s.item_count === 1 && n === 1 && s.items_summary) return `<div class="sv-items" title="${SF.esc(s.items_summary)}">${SF.esc(s.items_summary)}</div>`;
+            // Plusieurs articles : « N pièces » + aperçu des produits (liste complète au survol).
+            // Articles repris lors d'un ÉCHANGE : la vente reste valable (remplacés par la vente d'échange),
+            // on les compte donc comme « échangés » et non « retournés ».
+            const exch = s.exch_n || 0, gone = (s.item_count || 0) - (n || 0), ret = Math.max(0, gone - exch);
+            if (exch && s.items_summary) return `<div class="sv-items" title="${SF.esc(s.items_summary)}">${SF.esc(s.items_summary)}</div>`
+                + `<div class="sub" style="color:#d97706;font-weight:600;"><i class="fas fa-right-left"></i> ${exch} pièce${exch > 1 ? 's' : ''} échangée${exch > 1 ? 's' : ''}${ret ? ` · ${ret} retournée${ret > 1 ? 's' : ''}` : ''}</div>`;
+            return `<div class="sv-items" title="${SF.esc(s.items_summary || '')}"><b>${n}</b> ${n > 1 ? 'pièces' : 'pièce'}${ret > 0 ? ` <span class="sub" style="display:inline;color:var(--danger);">(${ret} retournée${ret > 1 ? 's' : ''})</span>` : ''}</div>`
+                + (s.items_summary ? `<div class="sub" style="max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${SF.esc(s.items_summary)}">${SF.esc(s.items_summary)}</div>` : '');
+        },
+        // Libellé COURT du paiement pour la liste (gère « à la livraison » → pas de « null »).
+        // Acompte versé AVANT la vente (avance caisse ou acompte de livraison) : compté le jour où il a été
+        // versé ; à la date de la vente, seul le solde est encaissé.
+        avanceNote(s) {
+            const amt = (s.prior_lay || 0) + (s.prior_dv || 0);
+            if (!(amt > 0)) return '';
+            const days = [...new Set([s.prior_lay_days, s.prior_dv_days].filter(Boolean).join(',').split(',').filter(Boolean).map(d => SF.fmt.date(d).slice(0, 5)))];
+            return `<div class="sub" style="color:#7c3aed;font-weight:600;" title="Acompte compté dans la caisse du jour où il a été versé — seul le solde est encaissé à la date de la vente">
+                <i class="fas fa-hand-holding-dollar"></i> acompte ${SF.fmt.ar(amt)}${days.length ? ' le ' + days.join(', ') : ''} · solde ${SF.fmt.ar(Math.max(0, (s.total || 0) - amt))}</div>`;
+        },
+        // Détail d'une vente : versements de l'acompte (date, mode, montant) + solde payé à la date de la vente.
+        priorBox(s) {
+            const lay = s.layaway && s.layaway.deposit > 0;
+            const P = lay ? (s.layaway.payments || []) : ((s.delivery && s.delivery.acompte_payments) || []);
+            const amt = lay ? s.layaway.deposit : P.reduce((t, x) => t + (x.amount || 0), 0);
+            if (!(amt > 0)) return '';
+            return `<div style="margin-top:8px;padding:8px 11px;border-radius:8px;background:rgba(124,58,237,.08);border:1px solid rgba(124,58,237,.3);">
+                <b style="color:#7c3aed;"><i class="fas fa-hand-holding-dollar"></i> Acompte déjà versé : ${SF.fmt.ar(amt)}</b>${lay ? ` (avance n° ${SF.esc(s.layaway.number)})` : ' (livraison)'}
+                ${P.map(x => `<div style="font-size:12.5px;">• le ${SF.fmt.date(x.sale_date)} — ${this.pmLabel(x.method)} ${SF.fmt.ar(x.amount)}</div>`).join('')}
+                <div style="font-size:12.5px;margin-top:3px;">Solde payé à la date de cette vente : <b>${SF.fmt.ar(Math.max(0, (s.total || 0) - amt))}</b> (paiement ci-dessus). L'acompte est compté dans la caisse du jour où il a été versé.</div></div>`;
+        },
+        // Liste : sous le prix total, ce qui a réellement été payé le jour de la vente (si différent).
+        paidSub(s) {
+            // Livraison pas encore payée : reste à encaisser = prix total − acompte déjà versé (compté le jour de l'acompte).
+            if (s.status === 'en_livraison') {
+                const prior = s.prior_dv || 0;
+                return `<div class="sub" style="color:#b45309;font-weight:700;">à encaisser ${SF.fmt.ar(Math.max(0, (s.total || 0) - prior))}</div>`
+                    + (prior > 0 ? `<div class="sub" style="color:#7c3aed;">acompte ${SF.fmt.ar(prior)} déjà payé</div>` : '');
+            }
+            const paid = s.paid_sum || 0;
+            if (Math.abs(paid - (s.total || 0)) < 1 || s.status !== 'completed') return '';
+            const day = String(s.sale_date || '').slice(0, 10);
+            return `<div class="sub" style="color:var(--success-dark);font-weight:600;">${day === SF.fmt.today() ? "payé aujourd'hui" : 'payé ce jour'} ${SF.fmt.ar(paid)}</div>`;
+        },
+        // Détail : prix total, acompte déjà versé, payé le jour de la vente (« aujourd'hui »), reste éventuel.
+        amountsBox(s) {
+            const day = String(s.sale_date || s.created_at || '').slice(0, 10), today = SF.fmt.today();
+            const lay = s.layaway && s.layaway.deposit > 0;
+            const prior = lay ? s.layaway.deposit : ((s.delivery && s.delivery.acompte_payments) || []).reduce((t, x) => t + (x.amount || 0), 0);
+            const paidDay = s.initial_paid != null ? s.initial_paid : (s.payments || []).reduce((t, p) => t + (p.amount || 0), 0);
+            const later = (s.balance_payments || []);
+            const pending = s.status === 'en_livraison';
+            const rest = Math.max(0, (s.total || 0) - prior - paidDay - later.reduce((t, p) => t + (p.amount || 0), 0));
+            const row = (l, v, st = '') => `<div style="display:flex;justify-content:space-between;gap:10px;padding:3px 0;${st}"><span>${l}</span><b>${v}</b></div>`;
+            return `<div style="margin-top:10px;margin-left:auto;max-width:380px;padding:10px 14px;border-radius:12px;background:var(--bg-input);font-size:13.5px;">
+                ${row('Prix total', SF.fmt.ar(s.total), 'font-size:16px;')}
+                ${prior > 0 ? row('Acompte déjà versé (avant)', '− ' + SF.fmt.ar(prior), 'color:#7c3aed;') : ''}
+                ${pending ? row('À encaisser à la livraison', SF.fmt.ar(Math.max(0, (s.total || 0) - prior)), 'color:#b45309;')
+                    : row(day === today ? "Payé aujourd'hui" : `Payé le ${SF.fmt.date(day)}`, SF.fmt.ar(paidDay), 'color:var(--success-dark);font-size:15px;')}
+                ${later.map(p => row(`Payé le ${SF.fmt.date(p.sale_date || p.created_at)}`, SF.fmt.ar(p.amount), 'color:var(--success-dark);')).join('')}
+                ${!pending && rest > 0 ? row('Reste à payer', SF.fmt.ar(rest), 'color:var(--danger);') : ''}</div>`;
+        },
+        payShort(s) {
+            const m = s.payment_method;
+            if (!m) return (s.channel === 'livraison' || s.status === 'en_livraison') ? 'À la livraison' : '—';
+            return this.pmLabel(m);
+        },
+        // Puces de paiement (mode + montant) d'une vente de la liste (« pays » = méthode:montant|…).
+        PM: { especes: ['Espèces', 'fa-money-bill-wave', '#16a34a'], mvola: ['MVola', 'fa-mobile-screen', '#ca8a04'], orange_money: ['Orange Money', 'fa-mobile-screen', '#ea580c'],
+              airtel_money: ['Airtel Money', 'fa-mobile-screen', '#dc2626'], cheque: ['Chèque', 'fa-money-check', '#0891b2'], virement: ['Virement', 'fa-building-columns', '#4f46e5'] },
+        chip(method, amount, extra) {
+            const m = this.PM[method] || [this.pmLabel(method), 'fa-wallet', '#64748b'];
+            return `<span class="pchip" style="--c:${m[2]}"><i class="fas ${m[1]}"></i> ${m[0]}${amount != null ? ' ' + SF.fmt.ar(amount) : ''}${extra || ''}</span>`;
+        },
+        payChips(s) {
+            const P = String(s.pays || '').split('|').filter(Boolean).map(x => { const [m, a] = x.split(':'); return { m, a: +a || 0 }; });
+            if (s.status === 'en_livraison') return `<span class="pchip" style="--c:#b45309"><i class="fas fa-truck-fast"></i> À la livraison</span>`;
+            if (!P.length) return Math.round(s.total || 0) === 0 ? `<span class="pchip"><i class="fas fa-gift"></i> 0 Ar</span>` : `<span class="pm-badge">${SF.esc(this.payShort(s))}</span>`;
+            return P.length === 1 ? this.chip(P[0].m) : P.map(p => this.chip(p.m, p.a)).join('');
+        },
+        // Vente d'échange affichée sous la vente d'origine : nouvel article remis + écart payé.
+        exchRow(c, parent) {
+            return `<tr class="sv-row sv-sub" onclick="Sales.open(${c.id})">
+                <td class="c-num"><div class="num"><i class="fas fa-turn-up fa-rotate-90" style="font-size:11px;color:#d97706;"></i> #${c.sale_number}</div><div class="sub"><i class="far fa-clock"></i> ${String(c.created_at || '').slice(11, 16)}</div></td>
+                <td class="c-cli"><div class="sub" style="color:#d97706;font-weight:700;"><i class="fas fa-right-left"></i> Échange de la vente n° ${parent.sale_number}</div><div class="sub">même client</div></td>
+                <td class="c-itm"><div class="sv-items" title="${SF.esc(c.items_summary || '')}">${SF.esc(c.items_summary || '—')}</div><div class="sub">nouvel article remis au client</div></td>
+                <td class="c-pay"><div class="sv-pays">${Math.round(c.total || 0) ? this.payChips(c) : '<span class="pchip" style="--c:#d97706"><i class="fas fa-equals"></i> même prix</span>'}</div></td>
+                <td class="c-sel"><div class="nm"><i class="fas fa-user-tie" style="font-size:10.5px;color:var(--text-muted);"></i> ${SF.esc(c.commercial_name || '—')}</div></td>
+                <td class="c-st">${this.statusBadge(c)}</td>
+                <td class="r c-amt"><div class="sv-amt">${SF.fmt.ar(c.total)}</div><div class="sub">écart payé</div></td></tr>`;
+        },
+        dayLabel(d) { try { return new Date(d + 'T12:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }); } catch (e) { return d; } },
+        render() {
+            const body = document.getElementById('body');
+            const pr = document.getElementById('f_price');
+            const rows = this.list.filter(s => (!this.statusFilter || this.cat(s) === this.statusFilter) && SF.PriceRange.test(pr, s.total));
+            const foot = document.getElementById('tblFoot');
+            document.getElementById('svCount').textContent = rows.length ? `${rows.length} vente(s) affichée(s)` : '';
+            if (!rows.length) { body.innerHTML = '<tr><td colspan="7" class="text-center text-muted" style="padding:28px;"><i class="fas fa-inbox"></i> Aucune vente pour ces critères</td></tr>'; foot.innerHTML = ''; return; }
+            // Regroupement par jour (en-tête : nombre de ventes, facturé, payé le jour).
+            // Livraisons pas encore payées : groupe à part (elles « roulent » d'un jour à l'autre jusqu'à la confirmation).
+            const PENDING = 'pending';
+            const dayOf = s => s.status === 'en_livraison' ? PENDING : String(s.sale_date || s.created_at || '').slice(0, 10);
+            // Échanges : la vente d'échange s'affiche SOUS sa vente d'origine (une seule ligne logique), si celle-ci est listée.
+            const ids = new Set(rows.map(s => s.id)), kids = new Map();
+            rows.forEach(s => { if (s.exchange_of && ids.has(s.exchange_of)) (kids.get(s.exchange_of) || kids.set(s.exchange_of, []).get(s.exchange_of)).push(s); });
+            const days = new Map();
+            rows.filter(s => !(s.exchange_of && ids.has(s.exchange_of))).forEach(s => { const d = dayOf(s); (days.get(d) || days.set(d, []).get(d)).push(s); });
+            if (days.has(PENDING)) { const L = days.get(PENDING); days.delete(PENDING); days.set(PENDING, L); }   // en dernier
+            const multi = days.size > 1;
+            const paidOf = s => s.status === 'completed' ? (s.paid_sum || 0) : 0;
+            const items = [];
+            [...days].forEach(([d, L]) => {
+                if (multi || L.length > 3) items.push({ day: d, n: L.length, tot: L.reduce((t, s) => t + (s.total || 0), 0), paid: L.reduce((t, s) => t + paidOf(s), 0), due: L.reduce((t, s) => t + Math.max(0, (s.total || 0) - (s.prior_dv || 0)), 0) });
+                L.forEach(s => items.push(s));
+            });
+            SF.renderChunks(body, items, s => s.day ? `
+                <tr class="sv-day"><td colspan="7"><div class="sv-dayin" ${s.day === PENDING ? 'style="border-color:#f59e0b;"' : ''}><b>${s.day === PENDING ? '<i class="fas fa-truck-fast" style="color:#b45309;"></i> Livraisons en cours — à encaisser' : this.dayLabel(s.day)}</b><span>${s.n} vente(s) · ${s.day === PENDING ? `à encaisser <b>${SF.fmt.ar(s.due)}</b>${s.due !== s.tot ? ` (sur ${SF.fmt.ar(s.tot)}, acomptes déduits)` : ''}` : `facturé <b>${SF.fmt.ar(s.tot)}</b>`}${this.canSeeCA && s.day !== PENDING ? ` · payé ce jour <b>${SF.fmt.ar(s.paid)}</b>` : ''}</span></div></td></tr>` : `
+                <tr class="sv-row ${['returned', 'annulee'].includes(s.status) || s.delivery_status === 'annulee' ? 'is-off' : ''}" onclick="Sales.open(${s.id})">
+                    <td class="c-num"><div class="num">#${s.sale_number}</div><div class="sub"><i class="far fa-clock"></i> ${s.status === 'en_livraison' ? SF.fmt.date(s.created_at) + ' ' : ''}${String(s.created_at || '').slice(11, 16)}</div></td>
+                    <td class="c-cli"><div class="nm" title="${SF.esc(s.client_name || '')}">${SF.esc(s.client_name || '—')}</div>${s.client_phone ? `<div class="sub"><i class="fas fa-phone" style="font-size:9.5px;"></i> ${SF.esc(s.client_phone)}</div>` : ''}${s.exchange_of && s.exch_of_num ? `<div class="sub" style="color:#d97706;font-weight:600;"><i class="fas fa-right-left"></i> échange de la vente n° ${s.exch_of_num}${s.exch_of_date ? ' du ' + SF.fmt.date(s.exch_of_date).slice(0, 5) : ''}</div>` : ''}</td>
+                    <td class="c-itm">${this.itemsCell(s)}</td>
+                    <td class="c-pay"><div class="sv-pays">${this.payChips(s)}</div>${this.avanceNote(s)}</td>
+                    <td class="c-sel"><div class="nm" title="${SF.esc(s.commercial_name || '')}"><i class="fas fa-user-tie" style="font-size:10.5px;color:var(--text-muted);"></i> ${SF.esc(s.commercial_name || '—')}</div>${s.livreur_name ? `<div class="sub"><i class="fas fa-truck" style="font-size:10px;"></i> ${SF.esc(s.livreur_name)}</div>` : ''}</td>
+                    <td class="c-st">${this.statusBadge(s)}</td>
+                    <td class="r c-amt"><div class="sv-amt">${SF.fmt.ar(s.total)}</div>${this.paidSub(s)}</td>
+                </tr>${(kids.get(s.id) || []).map(c => this.exchRow(c, s)).join('')}`);
+            const sum = rows.reduce((t, s) => t + (s.total || 0), 0);
+            const paid = rows.reduce((t, s) => t + paidOf(s), 0);
+            const toCollect = rows.filter(s => s.status === 'en_livraison').reduce((t, s) => t + Math.max(0, (s.total || 0) - (s.prior_dv || 0)), 0);
+            foot.innerHTML = `<div><small>Ventes affichées</small><b>${rows.length}</b></div>
+                <div><small>Montant facturé</small><b>${SF.fmt.ar(sum)}</b></div>
+                ${this.canSeeCA ? `<div><small>Payé à la vente</small><b>${SF.fmt.ar(paid)}</b></div>` : ''}
+                ${toCollect ? `<div><small>À encaisser (livraisons)</small><b style="color:#b45309;">${SF.fmt.ar(toCollect)}</b></div>` : ''}`;
+        },
+        async open(id) {
+            try {
+                const s = await SF.api('/api/sales/' + id);
+                this.current = s;
+                document.getElementById('smTitle').textContent = `Vente n° ${s.sale_number} — ${SF.fmt.date(s.created_at)}`;
+                const channel = s.exchange_of ? ['Échange', 'fa-right-left', '#d97706'] : s.delivery ? [`Livraison${s.delivery.number ? ' n° ' + s.delivery.number : ''}`, 'fa-truck', '#0891b2'] : (s.channel === 'livraison' ? ['Livraison', 'fa-truck', '#0891b2'] : ['Boutique', 'fa-store', '#16a34a']);
+                const nItems = s.items.filter(it => !it.returned).length;
+                const items = s.items.map(it => { const cfg = it.is_accessory ? (it.category || '') : SFBarcode.fullSpec(it);
+                    return `<div class="sd-item ${it.returned ? 'ret' : ''}"><div>
+                        <div class="nm">${SF.esc([it.brand, it.model].filter(Boolean).join(' ') || it.product_name)}
+                            ${it.is_gift ? ' <span class="badge badge-success" style="font-size:9.5px;"><i class="fas fa-gift"></i> Cadeau</span>' : ''}${it.returned ? ' <span class="badge badge-danger" style="font-size:9.5px;">Retourné</span>' : ''}</div>
+                        ${cfg ? `<div class="cfg">${SF.esc(cfg)}</div>` : ''}${it.color ? `<div class="cfg"><i class="fas fa-palette"></i> ${SF.esc(it.color)}</div>` : ''}
+                        ${it.serial ? `<div class="sn"><i class="fas fa-barcode"></i> ${SF.esc(it.serial)}${it.manufacturer_sn ? ` · SN ${SF.esc(it.manufacturer_sn)}` : ''}</div>` : ''}</div>
+                        <div class="pr">${it.is_gift ? '<span class="text-muted">0 Ar</span>' : it.returned ? `<s>${SF.fmt.ar(it.unit_price)}</s>` : SF.fmt.ar(it.unit_price)}</div></div>`; }).join('');
+                const discLine = (s.discount_amount > 0) ? `<div style="text-align:right;font-size:13px;color:var(--text-muted);margin-top:6px;">Remise${s.discount_type === 'percent' ? ' (' + s.discount_value + ' %)' : ''} : − ${SF.fmt.ar(s.discount_amount)}</div>` : '';
+                const P = Array.isArray(s.payments) ? s.payments : [];
+                const payChips = P.length ? P.map(p => this.chip(p.method, p.amount, p.phone ? ` · ${SF.esc(p.phone)}` : (p.ref ? ` · ${SF.esc(p.ref)}` : ''))).join('')
+                    : `<span class="pchip" style="--c:#b45309"><i class="fas fa-truck-fast"></i> ${SF.esc(this.payText(s))}</span>`;
+                document.getElementById('smBody').innerHTML = `
+                    <div class="sd-head">${this.statusBadge(s)}
+                        <span class="pchip" style="--c:${channel[2]}"><i class="fas ${channel[1]}"></i> ${channel[0]}</span>
+                        <span class="sd-meta"><i class="far fa-clock"></i> ${SF.fmt.datetime(s.created_at)}${s.ref ? ` · Réf. ${SF.esc(s.ref)}` : ''}</span></div>
+                    <div class="sd-grid">
+                        <div class="sd-box"><h5><i class="fas fa-user"></i> Client</h5>
+                            <div class="big">${SF.esc(s.client_name || '—')}</div>
+                            ${s.client_phone ? `<div><i class="fas fa-phone" style="font-size:11px;color:var(--text-muted);"></i> ${SF.esc(s.client_phone)}</div>` : ''}
+                            ${s.client_address ? `<div><i class="fas fa-location-dot" style="font-size:11px;color:var(--text-muted);"></i> ${SF.esc(s.client_address)}</div>` : ''}
+                            ${s.client_nif || s.client_stat ? `<div class="text-muted" style="font-size:12px;">${s.client_nif ? 'NIF ' + SF.esc(s.client_nif) : ''}${s.client_stat ? ' · STAT ' + SF.esc(s.client_stat) : ''}</div>` : ''}</div>
+                        <div class="sd-box"><h5><i class="fas fa-user-tie"></i> Vente</h5>
+                            <div><span class="text-muted">Commercial :</span> <b>${SF.esc(s.commercial_name || '—')}</b></div>
+                            <div><span class="text-muted">Caisse :</span> ${SF.esc(s.cashier_name || '—')}</div>
+                            ${s.delivery && s.delivery.livreur ? `<div><span class="text-muted">Livreur :</span> <i class="fas fa-truck" style="font-size:11px;"></i> ${SF.esc(s.delivery.livreur)}</div>` : ''}
+                            ${s.note ? `<div class="text-muted" style="font-size:12px;"><i class="fas fa-note-sticky"></i> ${SF.esc(s.note)}</div>` : ''}</div>
+                    </div>
+                    <div class="sd-t"><span><i class="fas fa-box"></i> Articles (${nItems} ${nItems > 1 ? 'pièces' : 'pièce'})</span></div>
+                    <div class="sd-items">${items}</div>
+                    ${discLine}
+                    <div class="sd-t"><span><i class="fas fa-wallet"></i> Paiement</span></div>
+                    <div class="sd-pay">${payChips}</div>
+                    ${this.priorBox(s)}
+                    ${this.amountsBox(s)}
+                    ${s.exit_check ? `<div class="sd-exit" style="color:${s.exit_check.status === 'ok' ? 'var(--success-dark)' : 'var(--danger)'};"><i class="fas fa-door-open"></i> Sortie ${s.exit_check.status === 'ok' ? 'contrôlée' : '— anomalie signalée'} le ${SF.fmt.datetime(s.exit_check.checked_at)} par ${SF.esc(s.exit_check.checked_by_name || '—')}</div>` : ''}`;
+                const foot = ['<button class="btn btn-secondary" onclick="SF.Modal.close(\'saleModal\')">Fermer</button>',
+                    `<button class="btn btn-secondary" onclick="SFInvoice.chooser(Sales.current, Sales.config)"><i class="fas fa-print"></i> Réimprimer</button>`];
+                // Livraison en cours (non confirmée) : actions caisse, comme sur la page Livraisons.
+                const dv = s.delivery;
+                const activeDelivery = dv && ['en_livraison', 'facturee'].includes(dv.status);
+                if (this.canReturn && activeDelivery) {
+                    if (dv.status === 'en_livraison')
+                        foot.push(`<button class="btn btn-success" onclick="Sales.completeDelivery()"><i class="fas fa-check"></i> Livrée &amp; payée</button>`);
+                    else
+                        foot.push(`<span class="text-muted" style="font-size:12px;align-self:center;"><i class="fas fa-clock"></i> En attente de sortie du stock</span>`);
+                    if (dv.status === 'facturee') foot.push(`<button class="btn btn-secondary" onclick="SF.partialCancelDelivery(${dv.id}).then(r => { if (r) { SF.Modal.close('saleModal'); Sales.load(); } })"><i class="fas fa-scissors"></i> Annulation partielle</button>`);
+                    foot.push(`<button class="btn btn-danger" onclick="Sales.cancelDelivery()"><i class="fas fa-ban"></i> Annuler la livraison</button>`);
+                }
+                // Retour / échange : uniquement sur une vente aboutie (pas sur une livraison en cours).
+                const returnable = s.items.some(it => !it.returned) && !activeDelivery;
+                if (this.canReturn && returnable) foot.push(`<button class="btn btn-secondary" onclick="Sales.openExchange()"><i class="fas fa-right-left"></i> Échange</button>`);
+                if (this.canReturn && returnable) foot.push(`<button class="btn btn-danger" onclick="Sales.openReturn()"><i class="fas fa-rotate-left"></i> Retour</button>`);
+                // Caisse / gestion stock : corriger les infos client (NIF/STAT/RCS…) avant réimpression.
+                const canEditClient = (this.user.roles || [this.user.role]).some(r => ['caisse', 'gestion_stock'].includes(r));
+                if (this.user.role !== 'admin' && canEditClient)
+                    foot.push(`<button class="btn btn-secondary" onclick="Sales.openClientEdit()"><i class="fas fa-user-pen"></i> Corriger le client</button>`);
+                if (this.user.role === 'admin') {
+                    foot.push(`<button class="btn btn-secondary" onclick="Sales.openEdit()"><i class="fas fa-pen"></i> Modifier</button>`);
+                    foot.push(`<button class="btn btn-danger" onclick="Sales.deleteSale()"><i class="fas fa-trash"></i> Supprimer</button>`);
+                }
+                document.getElementById('smFooter').innerHTML = foot.join('');
+                SF.Modal.open('saleModal');
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        // ---- Livraison : confirmer / annuler depuis la page ventes (caisse), comme sur Livraisons ----
+        async completeDelivery() {
+            const dv = this.current && this.current.delivery; if (!dv) return;
+            const acompte = Math.max(0, Math.min(dv.total || 0, dv.acompte || 0));
+            const reste = Math.max(0, (dv.total || 0) - acompte);
+            if (dv.payment_status === 'a_livraison' && reste > 0) {
+                const acLine = acompte > 0 ? `<div style="font-size:12.5px;color:var(--text-muted);margin-bottom:4px;">Acompte déjà versé : ${SF.fmt.ar(acompte)}</div>` : '';
+                document.getElementById('delPayBody').innerHTML = `${acLine}<div style="font-size:14px;margin-bottom:10px;">Reste à encaisser : <b>${SF.fmt.ar(reste)}</b></div><div id="del_paybox"></div>`;
+                SF.Modal.open('delPayModal');
+                SFPay.mount(document.getElementById('del_paybox'), reste);
+            } else {
+                try { await SF.api(`/api/deliveries/${dv.id}/complete`, { method: 'POST', body: {} }); SF.toast('Livraison confirmée', 'success'); SF.Modal.close('saleModal'); this.load(); }
+                catch (e) { SF.toast(e.message, 'error'); }
+            }
+        },
+        async submitCompleteDelivery() {
+            const dv = this.current && this.current.delivery; if (!dv) return;
+            const pr = await SFPay.confirm(document.getElementById('del_paybox')); if (pr.cancelled) return;
+            if (pr.error) return SF.toast(pr.error, 'error');
+            try { await SF.api(`/api/deliveries/${dv.id}/complete`, { method: 'POST', body: { payment: { payments: pr.payments } } }); SF.toast('Livraison confirmée & payée', 'success'); SF.Modal.close('delPayModal'); SF.Modal.close('saleModal'); this.load(); }
+            catch (e) { SF.toast(e.message, 'error'); }
+        },
+        async cancelDelivery() {
+            const dv = this.current && this.current.delivery; if (!dv) return;
+            const reason = await SF.prompt('Motif de l\'annulation :', { title: 'Annuler la livraison', okLabel: 'Annuler la livraison', required: true, multiline: true }); if (reason == null || !reason.trim()) return;
+            try { await SF.api(`/api/deliveries/${dv.id}/cancel`, { method: 'POST', body: { reason } }); SF.toast('Livraison annulée', 'success'); SF.Modal.close('saleModal'); this.load(); }
+            catch (e) { SF.toast(e.message, 'error'); }
+        },
+        // ---- Admin : corriger / supprimer une vente ----
+        openEdit() {
+            const s = this.current; if (!s) return;
+            document.getElementById('edTitle').textContent = `Corriger la vente #${s.sale_number}`;
+            document.getElementById('ed_method').value = s.payment_method || 'especes';
+            document.getElementById('ed_ref').value = s.payment_ref || '';
+            document.getElementById('ed_phone').value = s.payment_phone || '';
+            document.getElementById('ed_client').value = s.client_name || '';
+            document.getElementById('ed_cphone').value = s.client_phone || '';
+            document.getElementById('ed_caddress').value = s.client_address || '';
+            document.getElementById('ed_nif').value = s.client_nif || '';
+            document.getElementById('ed_stat').value = s.client_stat || '';
+            document.getElementById('ed_rcs').value = s.client_rcs || '';
+            this.edMethodChange();
+            SF.Modal.open('editModal');
+        },
+        edMethodChange() {
+            const m = document.getElementById('ed_method').value;
+            const mm = ['mvola', 'orange_money', 'airtel_money'].includes(m), chq = m === 'cheque', vir = m === 'virement';
+            document.getElementById('ed_mmWrap').style.display = (mm || chq || vir) ? '' : 'none';
+            // Mobile money : plus de référence (juste le n° émetteur). Chèque : n° du chèque. Virement : réf. (facultative).
+            document.getElementById('ed_refWrap').style.display = (chq || vir) ? '' : 'none';
+            document.getElementById('ed_refLbl').textContent = vir ? 'Réf. du virement' : 'N° du chèque';
+            document.getElementById('ed_phoneLbl').textContent = chq ? 'Bénéficiaire' : 'Numéro émetteur';
+        },
+        async submitEdit() {
+            try {
+                await SF.api('/api/sales/' + this.current.id, { method: 'PATCH', body: {
+                    payment_method: document.getElementById('ed_method').value,
+                    payment_ref: document.getElementById('ed_ref').value.trim(),
+                    payment_phone: document.getElementById('ed_phone').value.trim(),
+                    client_name: document.getElementById('ed_client').value.trim(),
+                    client_phone: document.getElementById('ed_cphone').value.trim(),
+                    client_address: document.getElementById('ed_caddress').value.trim(),
+                    client_nif: document.getElementById('ed_nif').value.trim(),
+                    client_stat: document.getElementById('ed_stat').value.trim(),
+                    client_rcs: document.getElementById('ed_rcs').value.trim()
+                }});
+                SF.toast('Vente corrigée', 'success');
+                SF.Modal.close('editModal'); SF.Modal.close('saleModal'); this.load();
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        // ---- Caisse / gestion stock : corriger les infos client puis réimprimer ----
+        openClientEdit() {
+            const s = this.current; if (!s) return;
+            document.getElementById('ceTitle').textContent = `Corriger le client — vente #${s.sale_number}`;
+            document.getElementById('ce_name').value = s.client_name || '';
+            document.getElementById('ce_phone').value = s.client_phone || '';
+            document.getElementById('ce_address').value = s.client_address || '';
+            document.getElementById('ce_nif').value = s.client_nif || '';
+            document.getElementById('ce_stat').value = s.client_stat || '';
+            document.getElementById('ce_rcs').value = s.client_rcs || '';
+            SF.Modal.open('clientEditModal');
+        },
+        async submitClientEdit() {
+            if (!SF.checkClient('ce_name', 'ce_phone')) return;
+            try {
+                const r = await SF.api(`/api/sales/${this.current.id}/client`, { method: 'PATCH', body: {
+                    client_name: document.getElementById('ce_name').value.trim(),
+                    client_phone: document.getElementById('ce_phone').value.trim(),
+                    client_address: document.getElementById('ce_address').value.trim(),
+                    client_nif: document.getElementById('ce_nif').value.trim(),
+                    client_stat: document.getElementById('ce_stat').value.trim(),
+                    client_rcs: document.getElementById('ce_rcs').value.trim()
+                }});
+                this.current = r.sale;
+                SF.toast('Client corrigé', 'success');
+                SF.Modal.close('clientEditModal');
+                SFInvoice.chooser(this.current, this.config);   // réimpression avec les infos corrigées
+                this.load();
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        async deleteSale() {
+            const s = this.current; if (!s) return;
+            if (!await SF.confirm(`Supprimer la vente #${s.sale_number} ? Les articles reviennent au stock.`, { danger: true, okLabel: 'Supprimer' })) return;
+            try {
+                const r = await SF.api('/api/sales/' + s.id, { method: 'DELETE' });
+                SF.toast('Vente supprimée' + (r.restored ? ` — ${r.restored} article(s) remis en stock` : ''), 'success');
+                SF.Modal.close('saleModal'); this.load();
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        // Retour PARTIEL : les articles sont regroupés par produit (ex. 10 souris) avec une quantité à
+        // retourner (0 par défaut) ; les n° de série restent sélectionnables un par un.
+        openReturn() {
+            const items = this.current.items.filter(it => !it.returned);
+            const groups = new Map();
+            items.forEach(it => { const k = (it.product_id || it.product_name) + '|' + (it.unit_price || 0); (groups.get(k) || groups.set(k, []).get(k)).push(it); });
+            let gi = 0;
+            document.getElementById('retUnits').innerHTML = [...groups.values()].map(list => {
+                const g = gi++, it0 = list[0];
+                const lines = list.map(it => `<label style="display:flex;align-items:center;gap:8px;padding:3px 0 3px 4px;font-size:12.5px;"><input type="checkbox" class="ret-u" data-g="${g}" data-price="${it.unit_price || 0}" value="${it.id}" onchange="Sales.retSync(${g})"> <span style="font-family:monospace;">${it.is_service ? '<i class="fas fa-screwdriver-wrench"></i> service' : SF.esc(it.serial || '—')}</span></label>`).join('');
+                return `<div style="padding:8px 0;border-bottom:1px solid var(--border-color);">
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <div style="flex:1;min-width:0;"><b style="overflow-wrap:anywhere;">${SF.esc(it0.product_name)}</b><div class="text-muted" style="font-size:12px;">${list.length} pièce(s) × ${SF.fmt.ar(it0.unit_price)}</div></div>
+                        ${list.length > 1 ? `<div style="display:flex;align-items:center;gap:4px;flex-shrink:0;">
+                            <button type="button" class="btn btn-sm btn-secondary" onclick="Sales.retQty(${g},-1)">−</button>
+                            <input type="number" id="retQ${g}" class="form-control" min="0" max="${list.length}" value="0" style="width:56px;text-align:center;padding:6px;" oninput="Sales.retQty(${g},0)">
+                            <button type="button" class="btn btn-sm btn-secondary" onclick="Sales.retQty(${g},1)">+</button>
+                            <button type="button" class="btn btn-sm btn-secondary" onclick="Sales.retQty(${g},'all')">Tout</button></div>` : ''}
+                    </div>
+                    ${list.length > 1 ? `<details style="margin-top:4px;"><summary class="text-muted" style="font-size:12px;cursor:pointer;">Choisir les n° de série</summary>${lines}</details>` : lines}
+                </div>`;
+            }).join('');
+            document.getElementById('ret_reason').value = '';
+            this.retSum();
+            this.retTypeHint();
+            SF.Modal.open('retModal');
+        },
+        retQty(g, delta) {
+            const boxes = [...document.querySelectorAll(`.ret-u[data-g="${g}"]`)], inp = document.getElementById('retQ' + g);
+            let n = delta === 'all' ? boxes.length : (parseInt(inp.value, 10) || 0) + (typeof delta === 'number' ? delta : 0);
+            n = Math.max(0, Math.min(boxes.length, n)); inp.value = n;
+            boxes.forEach((b, i) => { b.checked = i < n; });
+            this.retSum();
+        },
+        retSync(g) {
+            const inp = document.getElementById('retQ' + g);
+            if (inp) inp.value = document.querySelectorAll(`.ret-u[data-g="${g}"]:checked`).length;
+            this.retSum();
+        },
+        retSum() {
+            const sel = [...document.querySelectorAll('.ret-u:checked')];
+            const tot = sel.reduce((t, b) => t + (+b.dataset.price || 0), 0), all = document.querySelectorAll('.ret-u').length;
+            document.getElementById('retSum').innerHTML = sel.length
+                ? `<b>${sel.length}</b> / ${all} article(s) sélectionné(s) · valeur <b>${SF.fmt.ar(tot)}</b>${sel.length < all ? ' — le reste de la facture est conservé' : ''}`
+                : '<span class="text-muted">Aucun article sélectionné.</span>';
+        },
+        retTypeHint() { const t = document.getElementById('ret_type').value; document.getElementById('retHint').style.display = t === 'retour_stock' ? '' : 'none'; document.getElementById('retHint2').style.display = t === 'refacture' ? '' : 'none'; },
+        async submitReturn() {
+            const item_ids = [...document.querySelectorAll('.ret-u:checked')].map(c => +c.value);
+            if (!item_ids.length) return SF.toast('Sélectionnez au moins un article', 'error');
+            const reason = document.getElementById('ret_reason').value.trim();
+            if (!reason) return SF.toast('Motif obligatoire', 'error');
+            if (document.getElementById('ret_type').value === 'retour_stock'
+                && !confirm("Retour SANS remboursement : l'argent de la vente reste dans la caisse et le CA.\nSi le client prend un autre article, annulez et utilisez « Échange ».\n\nConfirmer le retour sans remboursement ?")) return;
+            try {
+                const r = await SF.api(`/api/sales/${this.current.id}/return`, { method: 'POST', body: { item_ids, type: document.getElementById('ret_type').value, reason } });
+                SF.toast(document.getElementById('ret_type').value === 'refacture' ? `Vente annulée (${SF.fmt.ar(r.refund)} sortis) — faites maintenant la nouvelle vente au POS` : r.refund > 0 ? `Remboursé : ${SF.fmt.ar(r.refund)}` : 'Retour enregistré', 'success', 6000);
+                SF.Modal.close('retModal'); SF.Modal.close('saleModal'); this.load();
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        exNew: [],
+        async openExchange() {
+            const items = this.current.items.filter(it => !it.returned && it.unit_id);
+            document.getElementById('ex_returns').innerHTML = items.map(it => `<label style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border-color);font-size:13px;">
+                <input type="checkbox" class="ex-r" value="${it.unit_id}" data-price="${it.unit_price || 0}" onchange="Sales.updateDiff()">
+                <span style="flex:1;min-width:0;overflow-wrap:anywhere;"><b>${SF.esc(it.product_name)}</b> <span class="text-muted" style="font-family:monospace;font-size:12px;">${SF.esc(it.serial || '')}</span></span>
+                <b style="white-space:nowrap;">${SF.fmt.ar(it.unit_price)}</b></label>`).join('') || '<div class="text-muted" style="padding:8px;">Aucun article échangeable.</div>';
+            this.exNew = [];
+            document.getElementById('ex_serial').value = '';
+            this.renderExNew();
+            this.exMethodChange();
+            SF.Modal.open('exModal');
+            setTimeout(() => document.getElementById('ex_serial').focus(), 100);
+        },
+        exReturned() { return [...document.querySelectorAll('.ex-r:checked')].map(c => ({ id: +c.value, price: +c.dataset.price || 0 })); },
+        // Ajoute un nouvel article par n° de série (déjà sorti du dépôt : boutique / présentoir).
+        async exScan() {
+            const serial = document.getElementById('ex_serial').value.trim();
+            if (!serial) return;
+            try {
+                const rows = await SF.api('/api/units/search?q=' + encodeURIComponent(serial));
+                const u = rows.find(x => x.serial === serial || x.manufacturer_sn === serial || x.router_id === serial);
+                if (!u) return SF.toast('N° de série introuvable : ' + serial, 'error');
+                if (u.status === 'stock')
+                    return SF.toast('Article encore au DÉPÔT : faites d\'abord la sortie du stock avant l\'échange à la caisse', 'error', 5000);
+                if (!['presentoir', 'consignation', 'reserve'].includes(u.status))
+                    return SF.toast(`Non disponible (${SF.UNIT_STATUS[u.status] || u.status})`, 'error');
+                if (this.current.items.some(it => it.unit_id === u.id)) return SF.toast('Cet article fait partie de la vente — scannez un autre article', 'error');
+                if (this.exNew.some(n => n.id === u.id)) return SF.toast('Déjà ajouté', 'warn');
+                this.exNew.push({ id: u.id, serial: u.serial, price: u.sale_price || 0, label: [u.brand, u.model].filter(Boolean).join(' ') || u.product_name, src: u.status === 'consignation' ? 'boutique' : 'présentoir' });
+                document.getElementById('ex_serial').value = '';
+                this.renderExNew();
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        exRemove(id) { this.exNew = this.exNew.filter(n => n.id !== id); this.renderExNew(); },
+        renderExNew() {
+            document.getElementById('ex_newlist').innerHTML = this.exNew.map(n => `<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;border:1px solid var(--border-color);border-radius:8px;margin-bottom:5px;font-size:13px;">
+                <i class="fas fa-check-circle" style="color:var(--success);"></i><span style="flex:1;min-width:0;overflow-wrap:anywhere;"><b>${SF.esc(n.label)}</b> <span class="text-muted" style="font-family:monospace;font-size:12px;">${SF.esc(n.serial)}</span> <span class="badge badge-info" style="font-size:9px;">${n.src}</span></span>
+                <b style="white-space:nowrap;">${SF.fmt.ar(n.price)}</b><button type="button" class="btn btn-sm btn-secondary" onclick="Sales.exRemove(${n.id})" title="Retirer"><i class="fas fa-xmark"></i></button></div>`).join('');
+            this.updateDiff();
+        },
+        updateDiff() {
+            const ret = this.exReturned(), box = document.getElementById('ex_diff');
+            const oldT = ret.reduce((t, r) => t + r.price, 0), newT = this.exNew.reduce((t, n) => t + n.price, 0);
+            if (!ret.length && !this.exNew.length) { box.innerHTML = '<span class="text-muted">Cochez les articles rendus et scannez les nouveaux.</span>'; return; }
+            const diff = newT - oldT;
+            box.innerHTML = `<div style="display:flex;justify-content:space-between;"><span>Rendus (${ret.length})</span><b>${SF.fmt.ar(oldT)}</b></div>
+                <div style="display:flex;justify-content:space-between;"><span>Nouveaux (${this.exNew.length})</span><b>${SF.fmt.ar(newT)}</b></div>
+                <div style="display:flex;justify-content:space-between;border-top:1px solid var(--border-color);margin-top:5px;padding-top:5px;font-size:15px;">
+                    <span>${diff > 0 ? 'Le client paie en plus' : diff < 0 ? 'À rembourser au client' : 'Aucun écart'}</span><b style="color:${diff > 0 ? 'var(--accent)' : diff < 0 ? 'var(--danger)' : 'inherit'};">${SF.fmt.ar(Math.abs(diff))}</b></div>`;
+        },
+        exMethodChange() {
+            const m = document.getElementById('ex_method').value;
+            const mm = ['mvola','orange_money','airtel_money'].includes(m), chq = m === 'cheque', vir = m === 'virement';
+            document.getElementById('ex_mm').style.display = (mm || chq || vir) ? 'block' : 'none';
+            // Mobile money : plus de référence, juste le n° émetteur (facultatif). Chèque : n° obligatoire. Virement : réf. facultative.
+            document.getElementById('ex_refWrap').style.display = (chq || vir) ? 'block' : 'none';
+            document.getElementById('ex_refLbl').textContent = vir ? 'Réf. du virement (facultatif)' : 'N° du chèque *';
+            document.getElementById('ex_phoneLbl').textContent = chq ? 'Bénéficiaire' : 'Numéro émetteur';
+        },
+        async submitExchange() {
+            const ret = this.exReturned();
+            if (!ret.length) return SF.toast('Cochez au moins un article rendu', 'error');
+            if (!this.exNew.length) return SF.toast('Scannez au moins un nouvel article', 'error');
+            const method = document.getElementById('ex_method').value;
+            try {
+                const r = await SF.api(`/api/sales/${this.current.id}/exchange`, { method: 'POST', body: {
+                    return_unit_ids: ret.map(x => x.id), new_unit_ids: this.exNew.map(n => n.id),
+                    payment: { method, ref: document.getElementById('ex_ref').value.trim(), phone: document.getElementById('ex_phone').value.trim() }
+                }});
+                let msg = 'Échange enregistré';
+                if (r.price_diff > 0) msg += ` · encaissé ${SF.fmt.ar(r.price_diff)}`;
+                else if (r.price_diff < 0) msg += ` · remboursé ${SF.fmt.ar(-r.price_diff)}`;
+                else msg += ' · aucun écart (valeur égale)';
+                if (r.exchange_fee > 0) msg += ` · droit d'échange ${SF.fmt.ar(r.exchange_fee)}`;
+                SF.toast(msg, 'success');
+                SF.Modal.close('exModal'); SF.Modal.close('saleModal');
+                SFInvoice.chooser(r.sale, this.config);
+                this.load();
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        exportPDF() {
+            if (!this.list.length) return SF.toast('Aucune vente à exporter', 'error');
+            const active = this.list.filter(s => s.status === 'completed');
+            const ca = this.caEnc || 0;   // CA encaissé de la période
+            // Articles vendus = ventes encaissées uniquement (comme le CA) : exclut annulées / en livraison / retournées.
+            const arts = active.reduce((t, s) => t + ((s.item_count_net != null ? s.item_count_net : s.item_count) || 0), 0);
+            const from = document.getElementById('f_from').value, to = document.getElementById('f_to').value;
+            const statusLabel = s => s === 'returned' ? 'Retournée' : (s === 'exchanged' ? 'Échangée' : (s === 'annulee' ? 'Annulée' : (s === 'en_livraison' ? 'En livraison' : 'Vendue')));
+            SFReport.build({
+                company: this.config,
+                title: 'Rapport des ventes',
+                period: (from || to) ? `Période : ${from ? SF.fmt.date(from) : '…'} — ${to ? SF.fmt.date(to) : '…'}` : 'Toutes les ventes',
+                filename: 'Rapport-ventes.pdf',
+                summary: [
+                    { label: 'Ventes', value: this.list.length },
+                    ...(this.canSeeCA ? [{ label: "Chiffre d'affaires", value: SFReport.ar(ca) }] : []),
+                    { label: 'Articles vendus', value: arts }
+                ],
+                sections: [{
+                    heading: 'Détail des ventes',
+                    columns: [
+                        { header: 'Date & heure', key: 'created_at', width: 22, format: v => SF.fmt.datetime(v) },
+                        { header: 'N°', key: 'sale_number', width: 8, format: v => '#' + v },
+                        { header: 'Client', key: 'client_name', width: 22, format: v => v || '—' },
+                        { header: 'Contact', key: 'client_phone', width: 16, format: v => v || '—' },
+                        { header: 'Commercial', key: 'commercial_name', width: 20, format: v => v || '—' },
+                        { header: 'Caisse', key: 'cashier_name', width: 18, format: v => v || '—' },
+                        { header: 'Articles', key: 'items_summary', width: 34, format: v => v || '—' },
+                        { header: 'Paiement', key: 'payment_method', width: 24, format: (v, s) => this.pmLabel(v) + (s.payment_ref ? ' · ' + s.payment_ref : '') },
+                        { header: 'Statut', key: 'status', width: 13, format: (v, s) => (s && s.exchange_of != null && v === 'completed') ? 'Échange' : statusLabel(v) },
+                        { header: 'Total', key: 'total', width: 16, align: 'right', format: v => SFReport.fmtNum(v) }
+                    ],
+                    rows: this.list,
+                    ...(this.canSeeCA ? { totals: { status: "CHIFFRE D'AFFAIRES", total: SFReport.fmtNum(ca) } } : {})
+                }]
+            });
+        }
+    };
+    Sales.init();
+    </script>
+</body>
+</html>

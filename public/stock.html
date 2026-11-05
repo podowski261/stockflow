@@ -1,0 +1,1939 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <title>Stock dépôt — STOCKFLOW</title>
+    <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css">
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/sf.css">
+    <script>document.documentElement.setAttribute('data-theme', localStorage.getItem('stockflow-theme') === 'dark' ? 'dark' : 'light'); try { var sfu = JSON.parse(localStorage.getItem('stockflow-ui') || '{}'); for (var k in sfu) document.documentElement.setAttribute('data-' + k, sfu[k]); } catch (e) {}</script>
+    <style>
+        .stock-toolbar { display:flex; gap:10px; align-items:center; margin-bottom:18px; flex-wrap:wrap; }
+        .sticky-toolbar { position:sticky; top:var(--topbar-height); z-index:20; background:var(--bg-body); padding:10px 0; margin:-4px 0 14px; border-bottom:1px solid var(--border-color); }
+        .sc-reappro { position:absolute; bottom:8px; left:8px; width:30px; height:30px; border-radius:8px; border:none; background:rgba(34,197,94,.9); color:#fff; cursor:pointer; font-size:14px; }
+        .sc-rupture { position:absolute; top:8px; right:8px; background:var(--danger); color:#fff; font-weight:800; font-size:10.5px; text-transform:uppercase; border-radius:6px; padding:3px 8px; }
+        .search-box { position:relative; flex:1; min-width:220px; max-width:420px; }
+        .search-box input { width:100%; padding:11px 14px 11px 40px; background:var(--bg-input); border:1px solid transparent; border-radius:var(--border-radius); color:var(--text-primary); font-family:var(--font-body); font-size:14px; }
+        .search-box input:focus { outline:none; border-color:var(--accent); background:var(--bg-card); }
+        .search-box i { position:absolute; left:14px; top:50%; transform:translateY(-50%); color:var(--text-muted); }
+        .stock-layout { display:grid; gap:18px; align-items:start; }
+        .stock-layout.with-cart { grid-template-columns:1fr 330px; }
+        .stock-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:16px; }
+        .stock-card { background:var(--bg-card); border:1px solid var(--border-color); border-radius:var(--border-radius-lg); overflow:hidden; transition:transform .12s, box-shadow .12s, border-color .12s; display:flex; flex-direction:column; position:relative; }
+        .stock-card.clickable { cursor:pointer; } .stock-card.clickable:hover { transform:translateY(-2px); box-shadow:var(--shadow-md); border-color:var(--accent); }
+        .sc-img { height:120px; background:var(--bg-input) center/cover no-repeat; display:flex; align-items:center; justify-content:center; color:var(--text-dark); font-size:32px; position:relative; }
+        .sc-cond { position:absolute; top:8px; left:8px; font-size:10px; font-weight:700; text-transform:uppercase; padding:3px 8px; border-radius:6px; background:rgba(0,0,0,.55); color:#fff; }
+        .sc-presentoir { position:absolute; top:8px; right:8px; font-size:10px; font-weight:700; padding:3px 8px; border-radius:6px; background:var(--info); color:#fff; }
+        .sc-gear { position:absolute; bottom:8px; right:8px; width:30px; height:30px; border-radius:8px; border:none; background:rgba(0,0,0,.5); color:#fff; cursor:pointer; font-size:13px; }
+        /* Raccourci admin : autre photo Internet, à gauche de la roue « Gérer ». */
+        .sc-photo { position:absolute; bottom:8px; right:44px; width:30px; height:30px; border-radius:8px; border:none; background:rgba(0,0,0,.5); color:#fff; cursor:pointer; font-size:13px; }
+        .sc-photo:disabled { opacity:.7; cursor:wait; }
+        .sc-incart { position:absolute; top:8px; right:8px; background:var(--accent); color:var(--accent-contrast); font-weight:800; font-size:12px; border-radius:999px; padding:2px 9px; }
+        .sc-body { padding:13px 14px; flex:1; display:flex; flex-direction:column; }
+        .sc-title { font-size:14.5px; font-weight:700; color:var(--text-primary); line-height:1.25; }
+        .sc-spec { font-size:11.5px; color:var(--text-muted); margin:3px 0 8px; line-height:1.35; min-height:16px; }
+        /* Code couleur fournisseur : bandeau en haut de la carte (segments si plusieurs fournisseurs) + puce. */
+        .stock-card.has-sup::before { content:''; position:absolute; left:0; right:0; top:0; height:5px; background:var(--sup); z-index:2; }
+        .sc-sups { display:flex; flex-wrap:wrap; gap:4px; margin:3px 0 0; }
+        .sc-sup { display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:700; color:var(--text-secondary); border:1px solid var(--border-color); padding:1px 7px; border-radius:999px; cursor:pointer; background:var(--bg-card); max-width:100%; }
+        .sc-sup i, .sup-leg i { width:9px; height:9px; border-radius:50%; background:var(--c); flex-shrink:0; display:inline-block; }
+        .sc-sup span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        #supLegend { display:flex; gap:6px; overflow-x:auto; padding:2px 0 10px; scrollbar-width:thin; }
+        #supLegend:empty { display:none; }
+        .sup-leg { display:inline-flex; align-items:center; gap:6px; white-space:nowrap; font-size:12px; font-weight:600; padding:5px 11px; border-radius:999px; border:1px solid var(--border-color); background:var(--bg-card); color:var(--text-primary); cursor:pointer; flex-shrink:0; }
+        .sup-leg b { color:var(--text-muted); font-weight:600; }
+        .sup-leg.active { border-color:var(--c); box-shadow:inset 0 0 0 1px var(--c); background:color-mix(in srgb, var(--c) 12%, var(--bg-card)); }
+        .sc-emps { display:flex; flex-wrap:wrap; gap:4px; margin:3px 0 0; }
+        .sc-emp { display:inline-flex; align-items:center; gap:4px; font-size:11.5px; font-weight:700; color:var(--accent); background:var(--accent-light,rgba(99,102,241,.12)); padding:1px 7px; border-radius:6px; }
+        .sc-emp-add { border:1px dashed var(--border-color); background:transparent; color:var(--text-muted); cursor:pointer; font-family:inherit; }
+        .sc-emp-add:hover { border-color:var(--accent); color:var(--accent); background:var(--accent-light,rgba(99,102,241,.1)); }
+        .sc-foot { display:flex; justify-content:space-between; align-items:flex-end; margin-top:auto; }
+        .sc-price { font-size:15px; font-weight:800; color:var(--text-primary); }
+        .sc-qty { text-align:right; }
+        .sc-qty .n { font-size:20px; font-weight:800; color:var(--accent-contrast); background:var(--accent); border-radius:8px; padding:1px 9px; }
+        .sc-notes { font-size:10.5px; margin-top:3px; text-align:right; }
+        .empty-state { text-align:center; padding:60px 20px; color:var(--text-muted); }
+        .icart { background:var(--bg-card); border:1px solid var(--border-color); border-radius:var(--border-radius-lg); position:sticky; top:16px; display:flex; flex-direction:column; max-height:calc(100vh - 110px); }
+        .icart-h { padding:15px 16px; border-bottom:1px solid var(--border-color); display:flex; justify-content:space-between; align-items:center; }
+        .icart-h h3 { font-size:15px; } .icart-items { flex:1; overflow-y:auto; padding:6px 12px; min-height:100px; }
+        .icart-empty { text-align:center; color:var(--text-muted); padding:30px 8px; font-size:12.5px; }
+        .ii { display:flex; gap:8px; align-items:center; padding:10px 2px; border-bottom:1px solid var(--border-light); }
+        .ii-b { flex:1; min-width:0; } .ii-t { font-size:13px; font-weight:600; color:var(--text-primary); }
+        .ii-s { font-size:11px; color:var(--text-muted); }
+        .stepper { display:flex; align-items:center; gap:6px; }
+        .stepper button { width:24px; height:24px; border-radius:6px; border:1px solid var(--border-color); background:var(--bg-input); color:var(--text-primary); cursor:pointer; font-weight:700; }
+        .stepper span { min-width:20px; text-align:center; font-weight:700; }
+        .icart-f { padding:15px 16px; border-top:1px solid var(--border-color); }
+        @media (max-width:900px){ .stock-layout.with-cart{ grid-template-columns:1fr; } .icart{ position:static; max-height:none; } }
+        .dest-opt { display:flex; align-items:center; gap:6px; padding:9px; border:1px solid var(--border-color); border-radius:10px; cursor:pointer; font-size:12.5px; }
+        .dest-opt.active { border-color:var(--accent); background:var(--accent-glow); font-weight:700; }
+        /* Choix du type de sortie EN PREMIER : 4 grands boutons sous le récap stock dépôt. */
+        .sortie-types { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; }
+        @media (max-width:700px){ .sortie-types { grid-template-columns:1fr 1fr; } }
+        .stype { display:flex; flex-direction:column; align-items:center; gap:7px; padding:16px 10px; border:1.5px solid var(--border-color); border-radius:14px; cursor:pointer; font-size:13px; font-weight:600; text-align:center; color:var(--text-secondary); background:var(--bg-card); transition:border-color .12s, background .12s, color .12s; }
+        .stype i { font-size:24px; }
+        .icart-types { display:none; }
+        .stype:hover { border-color:var(--accent); }
+        .stype.active { border-color:var(--accent); background:var(--accent-glow); color:var(--text-color); font-weight:800; box-shadow:0 0 0 1px var(--accent) inset; }
+        /* Barre d'outils : sur desktop, le bloc repliable est transparent (tout visible). */
+        .st-ftoggle, .m-lbl { display:none; }
+        .st-extra { display:contents; }
+        /* ===== Téléphone ===== */
+        @media (max-width:768px) {
+            .sticky-toolbar { position:static; margin:0 0 12px; padding:0; border:0; background:none; }
+            .stock-toolbar { display:grid; grid-template-columns:1fr auto auto; gap:8px; margin-bottom:12px; }
+            .search-box { min-width:0; max-width:none; }
+            .search-box input { min-height:44px; }
+            .st-ftoggle { display:inline-flex; width:46px; padding:0; justify-content:center; }
+            .stock-toolbar.open .st-ftoggle { background:var(--accent); color:var(--accent-contrast); border-color:var(--accent); }
+            .st-cam { width:46px; padding:0; justify-content:center; }
+            .st-cam .btn-label { display:none; }
+            .st-extra { display:none; order:5; grid-column:1 / -1; grid-template-columns:1fr 1fr; gap:8px; padding:12px; background:var(--bg-card); border:1px solid var(--border-color); border-radius:14px; }
+            .stock-toolbar.open .st-extra { display:grid; }
+            .st-extra select.form-control { max-width:none !important; width:100%; }
+            .st-extra .btn { justify-content:center; }
+            .st-extra .m-lbl { display:inline; }
+            /* Indicateurs : bandeau horizontal qui défile (gain de hauteur). */
+            .st-grid, .sv-grid { display:flex !important; overflow-x:auto; contain:inline-size; gap:8px !important; margin:0 -14px 10px !important; padding:0 14px 2px; scrollbar-width:none; }
+            .st-grid::-webkit-scrollbar, .sv-grid::-webkit-scrollbar { display:none; }
+            .st-card, .sv-card { flex:0 0 auto; min-width:128px; padding:9px 12px !important; }
+            .sv-card { min-width:170px; }
+            .st-lbl, .sv-lbl { font-size:11px !important; white-space:nowrap; }
+            .st-val { font-size:18px !important; } .sv-val { font-size:15px !important; white-space:nowrap; }
+            .st-sub, .sv-sub { white-space:nowrap; }
+            /* Cartes produit → lignes compactes (vignette à gauche). */
+            .stock-grid { grid-template-columns:1fr; gap:10px; }
+            .stock-card { flex-direction:row; border-radius:14px; }
+            .sc-img { width:96px; height:auto; min-height:104px; flex-shrink:0; font-size:26px; }
+            .sc-cond, .sc-presentoir, .sc-rupture, .sc-incart { font-size:9px; padding:2px 6px; top:6px; left:6px; right:auto; }
+            .sc-gear, .sc-reappro { width:34px; height:34px; bottom:6px; }
+            .sc-reappro { left:6px; } .sc-gear { right:6px; }
+            .sc-photo { width:30px; height:30px; top:6px; right:6px; bottom:auto; }
+            .sc-body { padding:10px 12px; min-width:0; }
+            .sc-title { font-size:14px; }
+            .sc-spec { margin:3px 0 6px; }
+            .sc-emp-add { min-height:26px; }
+            .sc-qty .n { font-size:17px; }
+            .sortie-types { gap:8px; }
+            .stype { flex-direction:row; justify-content:center; padding:11px 8px; font-size:12.5px; }
+            .stype i { font-size:17px; }
+            /* Panier d'envoi : barre fixe en bas (au-dessus de la navigation), dépliable. */
+            .icart { position:fixed !important; left:8px; right:8px; bottom:calc(68px + env(safe-area-inset-bottom,0px)); top:auto; z-index:850; max-height:72vh !important; box-shadow:0 -8px 30px rgba(16,24,40,.22); }
+            /* Une seule ligne repliée : [titre ⌃][n][🗑] [Envoyer] ; dépliée : la liste au-dessous. */
+            .icart { flex-direction:row !important; flex-wrap:wrap; align-items:center; }
+            .icart .icart-items { display:none; order:3; flex-basis:100%; max-height:46vh; border-top:1px solid var(--border-color); }
+            .icart.open .icart-items { display:block; }
+            #sortieBar { display:none !important; }
+            .icart-types { display:grid; order:2; flex-basis:100%; grid-template-columns:repeat(4, minmax(0,1fr)); gap:6px; padding:0 10px 10px; }
+            .ict { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; min-height:48px; padding:6px 4px; border:1px solid var(--input-border); border-radius:10px; background:var(--bg-card); color:var(--text-secondary); font:inherit; font-size:11.5px; font-weight:600; cursor:pointer; }
+            .ict i { font-size:15px; color:var(--text-muted); }
+            .ict span { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%; }
+            .ict.active { border-color:var(--accent); background:var(--accent-soft); color:var(--text-primary); box-shadow:inset 0 0 0 1px var(--accent); }
+            .ict.active i { color:var(--accent-dark); }
+            .stock-layout.with-cart { padding-bottom:150px !important; }
+            .icart-h { flex:1 1 auto; min-width:0; cursor:pointer; padding:8px 6px 8px 14px; border:0; gap:8px; }
+            .icart-h h3 { font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+            .icart-h h3::after { content:'\f077'; font-family:'Font Awesome 6 Free'; font-weight:900; font-size:11px; margin-left:8px; color:var(--text-muted); }
+            .icart.open .icart-h h3::after { content:'\f078'; }
+            .icart-h .btn { min-height:36px; width:36px; padding:0; justify-content:center; }
+            .icart-f { flex:0 0 auto; padding:8px 10px 8px 0; border:0; display:flex; align-items:center; gap:8px; }
+            .icart-f > div { margin:0 !important; }
+            .icart-f > div > span:first-child { display:none; }
+            #icartTotal { display:inline-flex; min-width:28px; height:28px; padding:0 8px; border-radius:999px; align-items:center; justify-content:center; background:var(--bg-input); font-size:13px; }
+            .icart-f .btn { width:auto !important; min-height:42px; padding:0 16px; }
+            .stock-layout.with-cart { padding-bottom:80px; }
+            .stepper button { width:34px; height:34px; }
+        }
+        /* ---- Fenêtre « Gérer » un produit : en-tête, onglets, unités à sélection multiple ---- */
+        #prodModal .modal-body { padding-bottom:0; }
+        .pm-head { display:grid; grid-template-columns:120px minmax(0,1fr) auto; gap:18px; align-items:start; margin-bottom:16px; }
+        .pm-img { width:120px; height:120px; border-radius:10px; border:1px solid var(--border-color); background:var(--bg-card-hover) center/cover no-repeat; display:flex; align-items:center; justify-content:center; color:var(--text-dark); font-size:34px; }
+        .pm-info { display:grid; grid-template-columns:max-content minmax(0,1fr); gap:5px 14px; font-size:13px; align-content:start; }
+        .pm-dt { color:var(--text-muted); }
+        .pm-dd { color:var(--text-primary); min-width:0; overflow-wrap:anywhere; }
+        .pm-sub { color:var(--text-muted); font-size:12px; }
+        .pm-counts { display:flex; flex-direction:column; gap:6px; min-width:118px; }
+        .pm-counts > div { display:flex; align-items:baseline; justify-content:space-between; gap:10px; padding:7px 11px; border:1px solid var(--border-color); border-radius:8px; background:var(--bg-card-hover); }
+        .pm-counts b { font-size:16px; color:var(--text-primary); font-variant-numeric:tabular-nums; }
+        .pm-counts span { font-size:11.5px; color:var(--text-muted); order:-1; }
+        .pm-tabs { display:flex; gap:4px; border-bottom:1px solid var(--border-color); margin:0 0 14px; }
+        .pm-tab { background:none; border:none; border-bottom:2px solid transparent; margin-bottom:-1px; padding:9px 14px; font:inherit; font-size:13.5px; font-weight:600; color:var(--text-muted); cursor:pointer; display:inline-flex; align-items:center; gap:7px; }
+        .pm-tab span { font-size:11px; background:var(--neutral-soft); color:var(--neutral-ink); border-radius:6px; padding:1px 7px; }
+        .pm-tab.active { color:var(--text-primary); border-bottom-color:var(--accent); }
+        .pm-tab:hover { color:var(--text-primary); }
+        .pm-h4 { margin:4px 0 10px; font-size:14px; }
+        .pu-toolbar { display:flex; flex-wrap:wrap; align-items:center; gap:8px 10px; margin-bottom:10px; }
+        .pu-all { display:inline-flex; align-items:center; gap:7px; font-size:13px; font-weight:600; color:var(--text-secondary); cursor:pointer; padding:6px 10px; border:1px solid var(--input-border); border-radius:8px; background:var(--bg-card); margin:0; }
+        .pu-all input { width:16px; height:16px; margin:0; }
+        .pu-search { position:relative; flex:1 1 180px; min-width:150px; }
+        .pu-search i { position:absolute; left:11px; top:50%; transform:translateY(-50%); color:var(--text-dark); font-size:12px; }
+        .pu-search input { width:100%; height:34px; padding:6px 10px 6px 31px; border:1px solid var(--input-border); border-radius:8px; background:var(--bg-input); color:var(--text-primary); font:inherit; font-size:13px; }
+        .pu-search input:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-glow); }
+        .pu-chips { display:flex; gap:6px; flex-wrap:wrap; }
+        .pu-chip { border:1px solid var(--input-border); background:var(--bg-card); color:var(--text-secondary); border-radius:7px; padding:5px 10px; font:inherit; font-size:12.5px; font-weight:600; cursor:pointer; }
+        .pu-chip span { color:var(--text-muted); font-weight:500; margin-left:3px; }
+        .pu-chip.active { background:var(--text-primary); border-color:var(--text-primary); color:var(--bg-card); }
+        .pu-chip.active span { color:inherit; opacity:.7; }
+        .pu-tools { display:flex; gap:8px; align-items:center; margin-left:auto; }
+        .pu-lbl { display:inline-flex; align-items:center; gap:0; }
+        .pu-lbl .form-control { width:64px; min-height:32px; height:32px; padding:4px 8px; border-radius:7px 0 0 7px; border-right:none; font-size:12.5px; }
+        .pu-lbl .btn { border-radius:0 7px 7px 0; }
+        .pu-list { border:1px solid var(--border-color); border-radius:10px; overflow:hidden; max-height:340px; overflow-y:auto; }
+        .pu-row { display:grid; grid-template-columns:22px minmax(150px,1fr) minmax(0,1.6fr) auto; gap:12px; align-items:center; padding:9px 12px; border-bottom:1px solid var(--border-light); cursor:default; }
+        #prodModal .pu-row[onclick] { cursor:pointer; }
+        .pu-row:last-child { border-bottom:none; }
+        .pu-row:hover { background:var(--bg-card-hover); }
+        .pu-row.sel { background:var(--accent-soft); }
+        .pu-cb { width:16px; height:16px; margin:0; cursor:pointer; }
+        .pu-serial { font-family:ui-monospace, Consolas, monospace; font-size:13px; font-weight:600; color:var(--text-primary); min-width:0; overflow-wrap:anywhere; }
+        .pu-serial small { display:block; font-family:var(--font-body); font-weight:400; font-size:11px; color:var(--text-muted); }
+        .pu-meta { display:flex; flex-wrap:wrap; align-items:center; gap:6px; min-width:0; }
+        .pu-act .btn { min-height:30px; padding:4px 9px; }
+        .pu-empty { padding:18px; text-align:center; color:var(--text-muted); font-size:13px; }
+        .pu-bar { position:sticky; bottom:0; z-index:2; display:none; flex-wrap:wrap; align-items:center; gap:8px; margin:12px -22px 0; padding:12px 22px; background:var(--bg-card); border-top:1px solid var(--border-color); box-shadow:0 -6px 16px -10px rgba(16,24,40,.25); }
+        .pu-bar.show { display:flex; }
+        .pu-count { font-size:13px; color:var(--text-secondary); margin-right:auto; }
+        .pu-count b { color:var(--text-primary); font-size:15px; }
+        .pu-bar .btn[data-n]:not([disabled])::after { content:attr(data-n); font-size:11px; font-weight:700; margin-left:2px; padding:0 6px; border-radius:6px; background:rgba(16,24,40,.07); }
+        .pu-bar .btn-danger[data-n]:not([disabled]):hover::after { background:rgba(255,255,255,.2); }
+        .pm-form { padding-bottom:4px; }
+        .pm-sec { font-size:11.5px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--text-muted); margin:4px 0 10px; padding-bottom:6px; border-bottom:1px solid var(--border-light); }
+        .pm-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:0 14px; margin-bottom:8px; }
+        .pm-grid .pm-span { grid-column:1 / -1; }
+        .pm-checks { display:flex; flex-wrap:wrap; gap:6px 16px; margin:2px 0 12px; }
+        .pm-checks label { display:flex; align-items:center; gap:6px; font-size:13px; cursor:pointer; }
+        .pm-danger { margin:6px 0 4px; padding-top:14px; border-top:1px solid var(--border-light); }
+        /* Historique des modifications (admin) */
+        .ph-list { display:flex; flex-direction:column; gap:8px; padding:4px 0 8px; }
+        .ph-row { border:1px solid var(--border-color); border-radius:10px; padding:10px 12px; background:var(--bg-card); font-size:13px; line-height:1.55; }
+        .ph-who { display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin-bottom:4px; }
+        .ph-when { margin-left:auto; font-size:11.5px; color:var(--text-muted); white-space:nowrap; }
+        .ph-ch { word-break:break-word; } .ph-ch .fa-arrow-right { font-size:10px; color:var(--text-muted); margin:0 3px; }
+        .pm-foot { position:sticky; bottom:0; display:flex; justify-content:flex-end; align-items:center; gap:8px; margin:12px -22px 0; padding:14px 22px 16px; background:var(--bg-card); border-top:1px solid var(--border-color); }
+        @media (max-width: 768px) {
+            .pm-head { grid-template-columns:76px minmax(0,1fr); gap:12px; }
+            .pm-img { width:76px; height:76px; font-size:24px; }
+            .pm-info { grid-template-columns:minmax(0,1fr); gap:0; }
+            .pm-dt { font-size:11px; margin-top:5px; }
+            .pm-counts { grid-column:1 / -1; flex-direction:row; }
+            .pm-counts > div { flex:1; flex-direction:column; align-items:flex-start; gap:0; }
+            .pm-tab { flex:1; justify-content:center; }
+            .pu-tools { margin-left:0; width:100%; }
+            .pu-lbl { flex:1; }
+            .pu-lbl .form-control { width:72px; min-height:38px; height:38px; }
+            .pu-lbl .btn { flex:1; min-height:38px; justify-content:center; }
+            .pm-foot .btn { flex:1; justify-content:center; }
+            .pm-danger .btn { width:100%; justify-content:center; }
+            .pu-list { max-height:none; }
+            .pu-row { grid-template-columns:22px minmax(0,1fr) auto; gap:4px 10px; padding:11px 12px; }
+            .pu-meta { grid-column:2 / -1; grid-row:2; }
+            .pu-bar, .pm-foot { margin-left:-16px; margin-right:-16px; padding-left:16px; padding-right:16px; }
+            .pu-bar .btn { flex:1 1 auto; justify-content:center; }
+            .pu-count { width:100%; }
+            .pm-grid { grid-template-columns:minmax(0,1fr) minmax(0,1fr); }
+        }
+        @media (max-width: 420px) { .pm-grid { grid-template-columns:minmax(0,1fr); } }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar" id="sfSidebar"></aside>
+        <main class="main-content">
+            <header class="page-header">
+                <div class="page-title"><h1>Stock dépôt</h1><p id="subtitle">Produits disponibles</p></div>
+                <div class="page-actions"><div id="sfTools"></div></div>
+            </header>
+            <div class="page-body">
+                <div class="stock-toolbar sticky-toolbar">
+                    <div class="search-box"><i class="fas fa-search"></i><input type="text" id="search" placeholder="Rechercher (nom, config, description…)" oninput="Stock.debouncedSearch()"></div>
+                    <!-- Téléphone : filtres + outils repliés derrière ce bouton (desktop : tout reste visible). -->
+                    <button class="btn btn-secondary st-ftoggle" type="button" title="Filtres et outils" onclick="this.closest('.stock-toolbar').classList.toggle('open')"><i class="fas fa-sliders"></i></button>
+                    <div class="st-extra">
+                    <select id="filterCat" class="form-control" style="max-width:170px;" onchange="Stock.onCatChange()"><option value="">Toutes catégories</option></select>
+                    <select id="filterSub" class="form-control" style="max-width:160px;" onchange="Stock.applyFilters()"><option value="">Toutes sous-catég.</option></select>
+                    <select id="filterBrand" class="form-control" style="max-width:150px;" onchange="Stock.applyFilters()"><option value="">Toutes marques</option></select>
+                    <select id="filterSup" class="form-control" style="max-width:170px;" onchange="Stock.setSup(this.value, true)"><option value="">Tous fournisseurs</option></select>
+                    <select id="filterSort" class="form-control" style="max-width:170px;" onchange="Stock.applyFilters()">
+                        <option value="">Trier…</option>
+                        <option value="price_asc">Prix ↑ (bas → haut)</option>
+                        <option value="price_desc">Prix ↓ (haut → bas)</option>
+                        <option value="name">Nom (A → Z)</option>
+                        <option value="stock_asc">Stock (faible d'abord)</option>
+                    </select>
+                    <button class="btn btn-secondary" title="Rapport PDF" onclick="Stock.exportPDF()"><i class="fas fa-file-pdf"></i><span class="m-lbl"> PDF</span></button>
+                    <button class="btn btn-secondary" title="Exporter tous les produits en Excel (feuilles séparées ordinateurs / accessoires)" onclick="Stock.exportExcel()"><i class="fas fa-file-excel"></i><span class="m-lbl"> Excel</span></button>
+                    <button class="btn btn-secondary" id="trashBtn" style="display:none;" title="Corbeille — unités retirées et produits supprimés" onclick="location.href='/corbeille.html'"><i class="fas fa-trash-can-arrow-up"></i> Corbeille</button>
+                    <button class="btn btn-secondary" id="newServiceBtn" style="display:none;" onclick="Stock.openService()"><i class="fas fa-screwdriver-wrench"></i> Nouveau service</button>
+                    </div>
+                    <button class="btn btn-primary st-cam" title="Scanner avec la caméra (téléphone)" onclick="SF.CamScan.open(s => Stock.scanAdd(s))"><i class="fas fa-camera"></i> <span class="btn-label">Caméra</span></button>
+                </div>
+                <div id="stockStats"></div>
+                <div id="autoImgBox"></div>
+                <div id="stockValue"></div>
+                <div id="returnsBanner"></div>
+                <div id="consignBanner"></div>
+                <div id="sortieBar" style="display:none;margin:4px 0 18px;">
+                    <div style="font-size:12.5px;font-weight:600;color:var(--text-secondary);margin-bottom:8px;"><i class="fas fa-paper-plane"></i> Type de sortie</div>
+                    <div class="sortie-types">
+                        <div class="stype active" data-t="installation" onclick="Stock.setSortieType('installation')"><i class="fas fa-screwdriver-wrench"></i> Installation</div>
+                        <div class="stype" data-t="reserve" onclick="Stock.setSortieType('reserve')"><i class="fas fa-user-tag"></i> Réservé à vendre</div>
+                        <div class="stype" data-t="presentation" onclick="Stock.setSortieType('presentation')"><i class="fas fa-store"></i> Sortie boutique</div>
+                        <div class="stype" data-t="garantie" onclick="Stock.setSortieType('garantie')"><i class="fas fa-shield-halved"></i> Garantie</div>
+                    </div>
+                </div>
+                <div id="supLegend" title="Fournisseurs — cliquer pour filtrer"></div>
+                <div class="stock-layout" id="layout">
+                    <div id="grid"><div class="sf-skel sf-skel-card"></div><div class="sf-skel sf-skel-card"></div><div class="sf-skel sf-skel-card"></div></div>
+                    <div class="icart" id="icart" style="display:none;">
+                        <div class="icart-h" onclick="if(!event.target.closest('button'))this.parentElement.classList.toggle('open')"><h3 id="icartTitle"><i class="fas fa-screwdriver-wrench"></i> Installation</h3><button class="btn btn-sm btn-secondary" onclick="Stock.clearCart()" title="Vider le panier"><i class="fas fa-trash"></i></button></div>
+                        <div class="icart-types" id="icartTypes">
+                            <button type="button" class="ict active" data-t="installation" onclick="Stock.setSortieType('installation')"><i class="fas fa-screwdriver-wrench"></i><span>Installation</span></button>
+                            <button type="button" class="ict" data-t="reserve" onclick="Stock.setSortieType('reserve')"><i class="fas fa-user-tag"></i><span>Réservé</span></button>
+                            <button type="button" class="ict" data-t="presentation" onclick="Stock.setSortieType('presentation')"><i class="fas fa-store"></i><span>Boutique</span></button>
+                            <button type="button" class="ict" data-t="garantie" onclick="Stock.setSortieType('garantie')"><i class="fas fa-shield-halved"></i><span>Garantie</span></button>
+                        </div>
+                        <div class="icart-items" id="icartItems"><div class="icart-empty">Panier vide</div></div>
+                        <div class="icart-f">
+                            <div style="display:flex;justify-content:space-between;font-weight:700;margin-bottom:10px;"><span>Total unités</span><span id="icartTotal">0</span></div>
+                            <button class="btn btn-primary" style="width:100%;" id="sendBtn" disabled onclick="Stock.openInstall()"><i class="fas fa-paper-plane"></i> Envoyer</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modale détail produit -->
+    <div class="modal-overlay" id="prodModal">
+        <div class="modal" style="max-width:880px;">
+            <div class="modal-header"><h3 id="pmTitle">Produit</h3><button class="modal-close" onclick="SF.Modal.close('prodModal')">&times;</button></div>
+            <div class="modal-body" id="pmBody"></div>
+        </div>
+    </div>
+
+    <!-- Modale retours de présentation à réceptionner -->
+    <div class="modal-overlay" id="consignModal">
+        <div class="modal" style="max-width:620px;">
+            <div class="modal-header"><h3>Retours de présentation à réceptionner</h3><button class="modal-close" onclick="SF.Modal.close('consignModal')">&times;</button></div>
+            <div class="modal-body">
+                <p class="text-muted" style="font-size:12.5px;margin-bottom:12px;">Présentations annulées par la caisse. Validez la réception physique : les articles rejoindront le stock.</p>
+                <div id="consignReturnList"></div>
+            </div>
+            <div class="modal-footer"><button class="btn btn-secondary" onclick="SF.Modal.close('consignModal')">Fermer</button></div>
+        </div>
+    </div>
+
+    <!-- Modale valeur du stock / profit estimé (admin) -->
+    <div class="modal-overlay" id="valueModal">
+        <div class="modal" style="max-width:820px;">
+            <div class="modal-header"><h3 id="vmTitle">Valeur du stock</h3><button class="modal-close" onclick="SF.Modal.close('valueModal')">&times;</button></div>
+            <div class="modal-body" id="vmBody"></div>
+        </div>
+    </div>
+
+    <!-- Modale retours à réceptionner -->
+    <div class="modal-overlay" id="returnsModal">
+        <div class="modal" style="max-width:640px;">
+            <div class="modal-header"><h3>Retours de vente à réceptionner</h3><button class="modal-close" onclick="SF.Modal.close('returnsModal')">&times;</button></div>
+            <div class="modal-body">
+                <p class="text-muted" style="font-size:12.5px;margin-bottom:12px;">Validez la réception physique des articles retournés par la caisse. Ils rejoindront alors le stock (ou la garantie).</p>
+                <div class="table-container" style="max-height:340px;overflow:auto;">
+                    <table><thead><tr><th><input type="checkbox" id="retAll" onchange="Stock.toggleAllReturns(this.checked)"></th><th>N° série</th><th>Produit</th><th>Type</th><th>Destination</th><th>Motif</th></tr></thead>
+                    <tbody id="returnsBody"></tbody></table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="SF.Modal.close('returnsModal')">Fermer</button>
+                <button class="btn btn-success" onclick="Stock.receiveReturns()"><i class="fas fa-check"></i> Valider la réception</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modale sortie de stock : installation OU réservé à vendre -->
+    <div class="modal-overlay" id="installModal">
+        <div class="modal" style="max-width:460px;">
+            <div class="modal-header"><h3 id="installModalTitle">Sortie de stock</h3><button class="modal-close" onclick="SF.Modal.close('installModal')">&times;</button></div>
+            <div class="modal-body">
+                <p class="text-muted" id="installCount" style="margin-bottom:12px;"></p>
+                <div id="destChoiceWrap">
+                    <label style="font-size:12.5px;font-weight:600;color:var(--text-secondary);">Destination</label>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:6px 0 14px;">
+                        <label class="dest-opt active" data-d="installation"><input type="radio" name="dest" value="installation" checked onchange="Stock.destChange()"> <i class="fas fa-screwdriver-wrench"></i> Installation</label>
+                        <label class="dest-opt" data-d="reserve"><input type="radio" name="dest" value="reserve" onchange="Stock.destChange()"> <i class="fas fa-user-tag"></i> Réservé à vendre</label>
+                        <label class="dest-opt" data-d="presentation"><input type="radio" name="dest" value="presentation" onchange="Stock.destChange()"> <i class="fas fa-store"></i> Sortie boutique</label>
+                        <label class="dest-opt" data-d="garantie"><input type="radio" name="dest" value="garantie" onchange="Stock.destChange()"> <i class="fas fa-shield-halved"></i> Garantie</label>
+                    </div>
+                </div>
+                <div class="form-group" id="techWrap"><label>Technicien *</label><select id="installTech" class="form-control"></select></div>
+                <div class="form-group" id="comWrap" style="display:none;"><label>Commercial *</label><select id="installCom" class="form-control"></select></div>
+                <div class="form-group" id="garWrap" style="display:none;"><label>Type de garantie</label>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                        <label class="dest-opt active" data-g="garantie_fournisseur"><input type="radio" name="garType" value="garantie_fournisseur" checked onchange="Stock.garTypeChange()"> <i class="fas fa-industry"></i> Fournisseur</label>
+                        <label class="dest-opt" data-g="garantie_exceptionnel"><input type="radio" name="garType" value="garantie_exceptionnel" onchange="Stock.garTypeChange()"> <i class="fas fa-wrench"></i> Exceptionnelle</label>
+                    </div>
+                </div>
+                <div class="form-group"><label id="installNoteLbl">Note (optionnel)</label><input type="text" id="installNote" class="form-control" placeholder="Consigne / raison"></div>
+                <p class="text-muted" style="font-size:12px;" id="installEta"></p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="SF.Modal.close('installModal')">Annuler</button>
+                <button class="btn btn-primary" onclick="Stock.sendInstall()"><i class="fas fa-paper-plane"></i> Confirmer la sortie</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modale ré-approvisionnement -->
+    <div class="modal-overlay" id="reModal">
+        <div class="modal" style="max-width:460px;">
+            <div class="modal-header"><h3 id="reTitle">Ré-approvisionner</h3><button class="modal-close" onclick="SF.Modal.close('reModal')">&times;</button></div>
+            <div class="modal-body">
+                <div id="reSpec" style="background:var(--bg-input);border-radius:10px;padding:10px 12px;font-size:12.5px;line-height:1.6;margin-bottom:12px;"></div>
+                <div class="form-group"><label>Fournisseur</label><input type="text" id="re_supplierName" class="form-control" readonly style="background:var(--bg-input);"><div class="text-muted" style="font-size:11px;margin-top:3px;"><i class="fas fa-lock"></i> Fournisseur d'origine du produit (conservé).</div></div>
+                <div class="form-row">
+                    <div class="form-group"><label>Quantité à ajouter *</label><input type="number" id="re_qty" class="form-control" min="1" value="1"></div>
+                    <div class="form-group"><label>Prix de vente (Ar)</label><input type="text" inputmode="numeric" id="re_price" class="form-control money-input"></div>
+                </div>
+                <div class="form-group"><label>Garantie (jours)</label><input type="number" id="re_warranty" class="form-control" min="0" placeholder="valeur du fournisseur par défaut"></div>
+                <div class="form-group" id="re_sn_grp"><label>Numéros de série constructeur (optionnel)</label><textarea id="re_serials" class="form-control" rows="2" placeholder="Un par ligne (facultatif)"></textarea></div>
+                <!-- Kit STARLINK : n° de série de l'antenne + ID du routeur, obligatoires pour chaque kit. -->
+                <div class="form-group" id="re_sl" style="display:none;"><label><i class="fas fa-satellite-dish"></i> Kits Starlink — antenne et routeur *</label>
+                    <div id="re_sl_rows" style="display:grid;gap:8px;"></div>
+                    <div class="text-muted" style="font-size:11px;margin-top:4px;">Une ligne par kit : n° de série de l'antenne (dish) et ID du routeur. Douchette : Entrée passe au champ suivant.</div></div>
+                <p class="text-muted" style="font-size:11.5px;"><i class="fas fa-tag"></i> Les unités s'ajoutent au même produit. Étiquettes code-barres directes à la validation.</p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="SF.Modal.close('reModal')">Annuler</button>
+                <button class="btn btn-success" id="reBtn" onclick="Stock.submitReappro()"><i class="fas fa-check"></i> Valider &amp; imprimer</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modale : nouveau service (illimité, sans stock) -->
+    <div class="modal-overlay" id="serviceModal">
+        <div class="modal" style="max-width:420px;">
+            <div class="modal-header"><h3><i class="fas fa-screwdriver-wrench"></i> Nouveau service</h3><button class="modal-close" onclick="SF.Modal.close('serviceModal')">&times;</button></div>
+            <div class="modal-body">
+                <p class="text-muted" style="font-size:12.5px;margin-bottom:12px;">Un service (diagnostic, installation, réinstallation…) n'a pas de stock : il est <b>illimité</b> et son prix entre en caisse à chaque utilisation.</p>
+                <div class="form-group"><label>Nom du service *</label><input type="text" id="svc_name" class="form-control" placeholder="Ex : Diagnostic"></div>
+                <div class="form-group"><label>Catégorie</label><input type="text" id="svc_cat" class="form-control" placeholder="Service" value="Service"></div>
+                <div class="form-group"><label>Prix (Ar) *</label><input type="text" inputmode="numeric" id="svc_price" class="form-control money-input" placeholder="0"></div>
+                <div class="form-group"><label>Description</label><textarea id="svc_desc" class="form-control" rows="2" placeholder="Ex : Diagnostic complet du matériel + devis de réparation"></textarea></div>
+                <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;cursor:pointer;"><input type="checkbox" id="svc_atelier"> Service atelier — ordinateur du client (fiche + étiquette)</label>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="SF.Modal.close('serviceModal')">Annuler</button>
+                <button class="btn btn-primary" onclick="Stock.createService()"><i class="fas fa-check"></i> Créer</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modale : nouveau prix répercuté sur les unités → étiquettes à réimprimer -->
+    <div class="modal-overlay" id="repriceModal">
+        <div class="modal" style="max-width:480px;">
+            <div class="modal-header"><h3><i class="fas fa-tags"></i> Nouveau prix appliqué</h3><button class="modal-close" onclick="SF.Modal.close('repriceModal')">&times;</button></div>
+            <div class="modal-body" id="repriceBody"></div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="SF.Modal.close('repriceModal')">Fermer</button>
+                <button class="btn btn-primary" id="repricePrintBtn" onclick="Stock.printRepriced()"><i class="fas fa-print"></i> Imprimer les étiquettes</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modale : corbeille (produits supprimés — admin) -->
+    <div class="modal-overlay" id="usageModal">
+        <div class="modal" style="max-width:620px;">
+            <div class="modal-header"><h3><i class="fas fa-shop"></i> Usage magasin <span class="text-muted" id="usageSub" style="font-size:13px;font-weight:500;"></span></h3><button class="modal-close" onclick="SF.Modal.close('usageModal')">&times;</button></div>
+            <div class="modal-body">
+                <p class="text-muted" style="font-size:12.5px;margin-bottom:12px;">Produits utilisés par le magasin (matériel interne) : hors stock vendable, historique conservé.</p>
+                <style>.um-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border-light);}.um-t{flex:1;min-width:0;overflow-wrap:anywhere;}</style>
+                <div id="usageBody"></div>
+            </div>
+        </div>
+    </div>
+    <div class="modal-overlay" id="trashModal">
+        <div class="modal" style="max-width:640px;">
+            <div class="modal-header"><h3><i class="fas fa-trash-can-arrow-up"></i> Corbeille — produits supprimés</h3><button class="modal-close" onclick="SF.Modal.close('trashModal')">&times;</button></div>
+            <div class="modal-body">
+                <p class="text-muted" style="font-size:12.5px;margin-bottom:12px;">Produits supprimés par l'admin. <b>Restaurer</b> remet le produit et ses unités au stock (avec leur historique). Les unités dont le n° de série a été re-créé depuis sont ignorées.</p>
+                <div id="trashBody"></div>
+            </div>
+            <div class="modal-footer"><button class="btn btn-secondary" onclick="SF.Modal.close('trashModal')">Fermer</button></div>
+        </div>
+    </div>
+
+    <!-- Correction de la configuration d'UNE unité (admin) -->
+    <div class="modal-overlay" id="reconfModal">
+        <div class="modal" style="max-width:640px;">
+            <div class="modal-header"><h3><i class="fas fa-sliders"></i> Corriger la configuration</h3><button class="modal-close" onclick="SF.Modal.close('reconfModal')">&times;</button></div>
+            <div class="modal-body" id="reconfBody"></div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="SF.Modal.close('reconfModal')">Annuler</button>
+                <button class="btn btn-primary" id="rcSave" onclick="Stock.reconfSave()"><i class="fas fa-check"></i> Déplacer l'unité</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/sf-core.js"></script>
+    <script src="/js/sf-layout.js"></script>
+    <script src="/js/sf-report.js"></script>
+    <script src="/js/sf-barcode.js"></script>
+    <script>
+    const Stock = {
+        user: null, list: [], current: null, currentUnits: [], technicians: [], commercials: [], settings: {}, cart: [], _t: null,
+        groupFilter: null,
+        sortieType: 'installation',
+        sortieMeta: {
+            installation: { label: 'Installation', icon: 'fa-screwdriver-wrench' },
+            reserve:      { label: 'Réservé à vendre', icon: 'fa-user-tag' },
+            presentation: { label: 'Sortie boutique', icon: 'fa-store' },
+            garantie:     { label: 'Garantie', icon: 'fa-shield-halved' }
+        },
+        async init() {
+            this.user = await SF.Auth.require(['gestion_stock', 'commercial']);
+            if (!this.user) return;
+            const g = new URLSearchParams(location.search).get('g');
+            this.groupFilter = (g === 'pc' || g === 'acc') ? g : null;
+            SF.layout({ active: '/stock.html' });
+            try { this.settings = await SF.api('/api/settings'); } catch (e) {}
+            try { this.config = await SF.api('/api/config'); } catch (e) {}
+            if (this.isManager) { try { this.reSuppliers = await SF.api('/api/suppliers'); } catch (e) { this.reSuppliers = []; } }
+            document.getElementById('subtitle').textContent = this.isManager ? 'Choisissez le type de sortie, puis scannez / cliquez les produits · engrenage pour gérer' : 'Produits disponibles';
+            if (this.isManager) { document.getElementById('layout').classList.add('with-cart'); document.getElementById('icart').style.display = 'flex'; document.getElementById('newServiceBtn').style.display = ''; document.getElementById('sortieBar').style.display = ''; this.setSortieType(this.sortieType); }
+            // Corbeille : réservée à l'admin (restauration des produits supprimés).
+            if (this.isManager) { const tb = document.getElementById('trashBtn'); if (tb) tb.style.display = ''; }
+            SF.on('stock:update', () => { this.load(); this.loadReturns(); this.loadConsignReturns(); });
+            SF.on('install:update', () => this.load());
+            SF.on('consignment:update', () => this.loadConsignReturns());
+            SF.on('notification', () => { this.loadReturns(); this.loadConsignReturns(); });
+            this.load();
+            if (this.isManager) { this.loadReturns(); this.loadConsignReturns(); }
+            // Scanner physique actif sur toute la page.
+            SF.Scanner.init(code => this.scanAdd(code));
+        },
+        get isManager() { return this.user.role === 'admin' || this.user.role === 'gestion_stock'; },
+        config: {},
+        openService() {
+            document.getElementById('svc_name').value = '';
+            document.getElementById('svc_cat').value = 'Service';
+            document.getElementById('svc_price').value = '';
+            document.getElementById('svc_desc').value = '';
+            document.getElementById('svc_atelier').checked = false;
+            SF.Modal.open('serviceModal');
+        },
+        async createService() {
+            const name = document.getElementById('svc_name').value.trim();
+            const sale_price = SF.money.val(document.getElementById('svc_price'));
+            if (!name) return SF.toast('Nom du service requis', 'error');
+            try {
+                await SF.api('/api/services', { method: 'POST', body: { name, category: document.getElementById('svc_cat').value.trim() || 'Service', sale_price, description: document.getElementById('svc_desc').value.trim(), service_atelier: document.getElementById('svc_atelier').checked } });
+                SF.toast('Service créé', 'success');
+                SF.Modal.close('serviceModal');
+                this.load();
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        async exportPDF() {
+            if (!this.list.length) return SF.toast('Stock vide', 'error');
+            const totalUnits = this.list.reduce((s, p) => s + (p.total || 0), 0);
+            const totalAvail = this.list.reduce((s, p) => s + (p.available || 0), 0);
+            const totalValue = this.list.reduce((s, p) => s + (p.sale_price || 0) * (p.total || 0), 0);
+            const sections = [{
+                heading: 'Détail par produit',
+                columns: [
+                    { header: 'Produit', key: '_p', width: 34, format: (v, p) => [p.brand, p.model].filter(Boolean).join(' ') || p.name },
+                    { header: 'Type', key: 'category', width: 22, format: v => v || '—' },
+                    { header: 'Configuration', key: '_c', width: 44, format: (v, p) => p.is_accessory ? (p.subcategory || '—') : this.specLine(p) },
+                    { header: 'Dispo.', key: 'available', width: 12, align: 'right' },
+                    { header: 'Prépa.', key: 'in_prep', width: 12, align: 'right' },
+                    { header: 'Total', key: 'total', width: 12, align: 'right' },
+                    { header: 'Prix U.', key: 'sale_price', width: 18, align: 'right', format: v => SFReport.fmtNum(v) },
+                    { header: 'Valeur', key: '_v', width: 20, align: 'right', format: (v, p) => SFReport.fmtNum((p.sale_price || 0) * (p.total || 0)) }
+                ],
+                rows: this.list,
+                totals: { sale_price: 'VALEUR TOTALE', _v: SFReport.fmtNum(totalValue), total: totalUnits, available: totalAvail }
+            }];
+            // Problèmes déclarés en garantie (panne / motif par n° de série) — pour le suivi SAV.
+            // Section ajoutée seulement si des unités en garantie ont un motif renseigné.
+            let garUnits = [];
+            try { garUnits = await SF.api('/api/garantie'); } catch (e) { garUnits = []; }
+            const withNote = (garUnits || []).filter(u => (u.note || '').trim());
+            if (withNote.length) {
+                const stLabel = { garantie_fournisseur: 'À envoyer (fourn.)', garantie_a_renvoyer: 'Confié au responsable', retour_fournisseur: 'Chez le fournisseur', garantie_retournee: 'Revenue', garantie_exceptionnel: 'Interne (exception.)' };
+                const rows = [...withNote].sort((a, b) => String(a.supplier_name || '').localeCompare(String(b.supplier_name || '')));
+                sections.push({
+                    heading: 'Problèmes déclarés en garantie',
+                    columns: [
+                        { header: 'N° série', key: 'serial', width: 18, format: v => v || '—' },
+                        { header: 'Produit', key: '_p', width: 28, format: (v, u) => [u.brand, u.model].filter(Boolean).join(' ') || u.product_name || '—' },
+                        { header: 'Fournisseur', key: 'supplier_name', width: 22, format: v => v || '—' },
+                        { header: 'État', key: 'status', width: 22, format: v => stLabel[v] || v },
+                        { header: 'Problème déclaré', key: 'note', width: 44, format: v => v || '—' }
+                    ],
+                    rows, totals: { _p: `Total : ${rows.length} unité(s)` }
+                });
+            }
+            SFReport.build({
+                company: this.config,
+                title: 'Situation du stock',
+                period: 'État au ' + new Date().toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+                filename: 'Situation-stock.pdf',
+                summary: [
+                    { label: 'Modèles', value: this.list.length },
+                    { label: 'Unités détenues', value: totalUnits },
+                    { label: 'Disponibles', value: totalAvail },
+                    { label: 'Valeur du stock', value: SFReport.ar(totalValue) }
+                ],
+                sections
+            });
+        },
+        // Export Excel de TOUS les produits (indépendant du filtre en cours) : deux feuilles
+        // séparées « Ordinateurs » et « Accessoires », toute la configuration + prix + quantité.
+        async exportExcel() {
+            let list;
+            try { list = await SF.api('/api/stock'); }   // liste complète, sans recherche
+            catch (e) { return SF.toast(e.message, 'error'); }
+            const pcs = list.filter(p => !p.is_accessory && !p.is_service);
+            const acc = list.filter(p => p.is_accessory);
+            if (!pcs.length && !acc.length) return SF.toast('Aucun produit à exporter', 'error');
+            try { await SFReport.loadXlsx(); } catch (e) { return SF.toast(e.message, 'error'); }
+            const company = (this.config && this.config.name) || 'STOCKFLOW';
+            const cond = { neuf: 'Neuf', occasion: 'Occasion', reconditionne: 'Reconditionné' };
+            const oui = v => v ? 'Oui' : '';
+            const n = v => Number(v) || 0;
+            const meta = SFReport.editedLine();
+            // Classeur : une feuille Ordinateurs (configuration complète) + une feuille Accessoires,
+            // montants et quantités en vraies valeurs numériques, totaux qui suivent les filtres.
+            const pcSheet = SFXlsx.table({
+                name: 'Ordinateurs', company, title: 'Stock — Ordinateurs', subtitle: `${pcs.length} produit(s)`, meta,
+                columns: [
+                    { header: 'Catégorie' }, { header: 'Sous-catégorie' }, { header: 'Marque' }, { header: 'Modèle' }, { header: 'Emplacement' },
+                    { header: 'État' }, { header: 'Processeur' }, { header: 'RAM' }, { header: 'Stockage' }, { header: 'Type stockage' },
+                    { header: 'Écran' }, { header: 'Carte graphique' }, { header: 'Tactile' }, { header: 'Webcam' }, { header: 'Wi-Fi' },
+                    { header: 'Bluetooth' }, { header: 'Pavé num.' }, { header: 'Description', width: 40 },
+                    { header: 'Prix de vente', type: 'money' }, { header: 'Disponible', type: 'num' }, { header: 'Quantité totale', type: 'num' },
+                    { header: 'Valeur disponible', type: 'money' }
+                ],
+                rows: pcs.map(p => [p.category, p.subcategory, p.brand, p.model, p.emplacement, cond[p.condition] || p.condition,
+                    p.cpu, p.ram, p.storage, p.storage_type, p.screen_size, p.gpu,
+                    oui(p.touchscreen), oui(p.webcam), oui(p.wifi), oui(p.bluetooth), oui(p.numpad), p.description,
+                    n(p.sale_price), n(p.available), n(p.total), n(p.sale_price) * n(p.available)]),
+                totals: ['Total', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', 'sum', 'sum', 'sum']
+            });
+            const accSheet = SFXlsx.table({
+                name: 'Accessoires', company, title: 'Stock — Accessoires', subtitle: `${acc.length} produit(s)`, meta,
+                columns: [
+                    { header: 'Catégorie' }, { header: 'Sous-catégorie' }, { header: 'Marque' }, { header: 'Modèle' }, { header: 'Nom' },
+                    { header: 'Emplacement' }, { header: 'Description', width: 40 },
+                    { header: 'Prix de vente', type: 'money' }, { header: 'Disponible', type: 'num' }, { header: 'Quantité totale', type: 'num' },
+                    { header: 'Valeur disponible', type: 'money' }
+                ],
+                rows: acc.map(p => [p.category, p.subcategory, p.brand, p.model, p.name, p.emplacement, p.description,
+                    n(p.sale_price), n(p.available), n(p.total), n(p.sale_price) * n(p.available)]),
+                totals: ['Total', '', '', '', '', '', '', '', 'sum', 'sum', 'sum']
+            });
+            SFXlsx.download(SFReport.stampName('Stock-produits', 'xlsx'), { title: 'Stock produits', author: company, footer: company + ' · Stock produits', sheets: [pcSheet, accSheet] });
+            SF.toast(`Export Excel : ${pcs.length} ordinateur(s) · ${acc.length} accessoire(s)`, 'success');
+        },
+        returns: [],
+        async loadReturns() {
+            if (!this.isManager) return;
+            try {
+                this.returns = await SF.api('/api/returns/pending');
+                const banner = document.getElementById('returnsBanner');
+                if (!this.returns.length) { banner.innerHTML = ''; return; }
+                banner.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;background:var(--bg-card);border:1px solid var(--border-color);border-left:3px solid var(--warning);box-shadow:var(--shadow-xs);border-radius:var(--border-radius);padding:12px 16px;margin-bottom:16px;">
+                    <div style="font-weight:600;color:var(--warning-dark);"><i class="fas fa-box-open"></i> ${this.returns.length} retour(s) de vente à réceptionner</div>
+                    <button class="btn btn-sm btn-primary" onclick="Stock.openReturns()">Réceptionner</button></div>`;
+            } catch (e) {}
+        },
+        openReturns() {
+            const typeLabel = { remboursement: 'Remboursement', retour_stock: 'Retour', garantie: 'Garantie', refacture: 'Annulé (nouvelle facture)' };
+            const destLabel = { stock: 'Stock', garantie_fournisseur: 'Garantie fournisseur', garantie_exceptionnel: 'Garantie exceptionnelle' };
+            document.getElementById('retAll').checked = false;
+            document.getElementById('returnsBody').innerHTML = this.returns.map(r => `<tr>
+                <td><input type="checkbox" class="ret-chk" value="${r.unit_id}"></td>
+                <td style="font-family:monospace;">${SF.esc(r.serial)}</td>
+                <td>${SF.esc([r.brand, r.model].filter(Boolean).join(' ') || r.product_name)}<div class="text-muted" style="font-size:11px;">Vente #${r.sale_number} · ${SF.esc(r.caisse_name || '')}</div></td>
+                <td>${typeLabel[r.type] || r.type}</td>
+                <td>${destLabel[r.destination] || r.destination}</td>
+                <td class="text-muted" style="font-size:12px;">${SF.esc(r.reason || '')}</td></tr>`).join('');
+            SF.Modal.open('returnsModal');
+        },
+        toggleAllReturns(on) { document.querySelectorAll('.ret-chk').forEach(c => c.checked = on); },
+        async receiveReturns() {
+            const unit_ids = [...document.querySelectorAll('.ret-chk:checked')].map(c => +c.value);
+            if (!unit_ids.length) return SF.toast('Sélectionnez au moins un article', 'error');
+            try {
+                const r = await SF.api('/api/returns/receive', { method: 'POST', body: { unit_ids } });
+                SF.toast(`${r.count} article(s) réceptionné(s)`, 'success');
+                SF.Modal.close('returnsModal'); this.loadReturns(); this.load();
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        consignReturns: [],
+        async loadConsignReturns() {
+            if (!this.isManager) return;
+            try {
+                this.consignReturns = await SF.api('/api/consignments/pending-return');
+                const banner = document.getElementById('consignBanner');
+                if (!this.consignReturns.length) { banner.innerHTML = ''; return; }
+                banner.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;background:var(--bg-card);border:1px solid var(--border-color);border-left:3px solid var(--warning);box-shadow:var(--shadow-xs);border-radius:var(--border-radius);padding:12px 16px;margin-bottom:16px;">
+                    <div style="font-weight:600;color:var(--warning-dark);"><i class="fas fa-eye-slash"></i> ${this.consignReturns.length} retour(s) de présentation à réceptionner</div>
+                    <button class="btn btn-sm btn-primary" onclick="Stock.openConsignReturns()">Réceptionner</button></div>`;
+            } catch (e) {}
+        },
+        openConsignReturns() {
+            document.getElementById('consignReturnList').innerHTML = this.consignReturns.map(c => `
+                <div style="border:1px solid var(--border-color);border-radius:10px;padding:12px;margin-bottom:10px;">
+                    <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+                        <div><b>Consignation #${c.id}</b> · ${SF.esc(c.commercial_name || '')}<div class="text-muted" style="font-size:12px;">${SF.esc(c.items_summary || '')}</div>${c.cancel_reason ? `<div class="text-muted" style="font-size:11.5px;">Motif : ${SF.esc(c.cancel_reason)}</div>` : ''}</div>
+                        <button class="btn btn-sm btn-success" onclick="Stock.validateConsignReturn(${c.id})"><i class="fas fa-check"></i> Valider le retour</button>
+                    </div></div>`).join('');
+            SF.Modal.open('consignModal');
+        },
+        async validateConsignReturn(id) {
+            try {
+                const r = await SF.api('/api/consignments/' + id + '/return-received', { method: 'POST' });
+                SF.toast(`${r.count} article(s) réintégré(s) au stock`, 'success');
+                this.loadConsignReturns(); this.load();
+                if (!this.consignReturns.filter(c => c.id !== id).length) SF.Modal.close('consignModal');
+                else this.openConsignReturns();
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        debouncedSearch() { clearTimeout(this._t); this._t = setTimeout(() => this.load(), 300); },
+        view: [],
+        async load() {
+            const q = document.getElementById('search').value.trim();
+            try {
+                this.list = await SF.api('/api/stock' + (q ? '?search=' + encodeURIComponent(q) : ''));
+                this.buildFilters();
+                this.renderStockStats();
+                this.applyFilters();
+                if (this.user.role === 'admin') { this.loadValue(); this.loadAutoImg(); }
+                if (this.isManager) this.loadUsage();
+            }
+            catch (e) { SF.toast(e.message, 'error'); }
+        },
+        buildFilters() {
+            const catSel = document.getElementById('filterCat');
+            const cats = [...new Set(this.list.map(p => p.category).filter(Boolean))].sort();
+            const curCat = catSel.value;
+            catSel.innerHTML = '<option value="">Toutes catégories</option>' + cats.map(c => `<option value="${SF.esc(c)}">${SF.esc(c)}</option>`).join('');
+            if (cats.includes(curCat)) catSel.value = curCat;
+            this.buildSubs();
+            this.buildBrands();
+            this.buildSups();
+        },
+        // ── Fournisseurs : couleur stable par fournisseur (id) + filtre (select + légende cliquable) ──
+        supColor(id) { return SF.supColor(id); },
+        supFilter: '',
+        buildSups() {
+            const m = new Map();
+            this.list.forEach(p => (p.suppliers || []).forEach(s => {
+                const o = m.get(s.id) || { id: s.id, name: s.name, products: 0, units: 0 };
+                o.products++; o.units += s.n || 0; m.set(s.id, o);
+            }));
+            const sups = [...m.values()].sort((a, b) => String(a.name).localeCompare(String(b.name)));
+            this.sups = sups;
+            if (this.supFilter && !m.has(parseInt(this.supFilter, 10))) this.supFilter = '';
+            const sel = document.getElementById('filterSup');
+            if (sel) {
+                sel.innerHTML = '<option value="">Tous fournisseurs</option>' + sups.map(s => `<option value="${s.id}">${SF.esc(s.name)} (${s.units})</option>`).join('');
+                sel.value = this.supFilter;
+            }
+            this.renderSupLegend();
+        },
+        renderSupLegend() {
+            const box = document.getElementById('supLegend'); if (!box) return;
+            const sups = this.sups || [];
+            box.innerHTML = !sups.length ? '' : sups.map(s => `<button type="button" class="sup-leg ${String(s.id) === String(this.supFilter) ? 'active' : ''}" style="--c:${this.supColor(s.id)}" title="${s.products} produit(s) · ${s.units} unité(s) en stock" onclick="Stock.setSup('${s.id}')"><i></i>${SF.esc(s.name)} <b>${s.units}</b></button>`).join('')
+                + (this.supFilter ? `<button type="button" class="sup-leg" style="--c:var(--text-muted)" onclick="Stock.setSup('', true)"><span class="fas fa-xmark"></span> Tous</button>` : '');
+        },
+        // Clic sur une puce / légende = bascule (re-clic retire le filtre) ; le select fixe la valeur.
+        setSup(id, exact) {
+            id = String(id || '');
+            this.supFilter = (!exact && id === String(this.supFilter)) ? '' : id;
+            const sel = document.getElementById('filterSup'); if (sel) sel.value = this.supFilter;
+            this.renderSupLegend();
+            this.applyFilters();
+        },
+        buildSubs() {
+            const subSel = document.getElementById('filterSub'); if (!subSel) return;
+            const cat = document.getElementById('filterCat').value;
+            const pool = cat ? this.list.filter(p => p.category === cat) : this.list;
+            const subs = [...new Set(pool.map(p => p.subcategory).filter(Boolean))].sort();
+            const cur = subSel.value;
+            subSel.innerHTML = '<option value="">Toutes sous-catég.</option>' + subs.map(s => `<option value="${SF.esc(s)}">${SF.esc(s)}</option>`).join('');
+            if (subs.includes(cur)) subSel.value = cur;
+        },
+        buildBrands() {
+            const brandSel = document.getElementById('filterBrand');
+            const cat = document.getElementById('filterCat').value;
+            const pool = cat ? this.list.filter(p => p.category === cat) : this.list;
+            const brands = [...new Set(pool.map(p => p.brand).filter(Boolean))].sort();
+            const cur = brandSel.value;
+            brandSel.innerHTML = '<option value="">Toutes marques</option>' + brands.map(b => `<option value="${SF.esc(b)}">${SF.esc(b)}</option>`).join('');
+            if (brands.includes(cur)) brandSel.value = cur;
+        },
+        onCatChange() { this.buildSubs(); this.buildBrands(); this.applyFilters(); },
+        applyFilters() {
+            const cat = document.getElementById('filterCat').value;
+            const sub = document.getElementById('filterSub') ? document.getElementById('filterSub').value : '';
+            const brand = document.getElementById('filterBrand').value;
+            const sort = document.getElementById('filterSort') ? document.getElementById('filterSort').value : '';
+            const g = this.groupFilter;   // 'pc' | 'acc' | null
+            const sf = this.statFilter;   // 'faible' | 'rupture' | null
+            const ef = this.empFilter;    // 'missing' | null
+            const th = this.threshold();
+            const sup = parseInt(this.supFilter, 10) || 0;
+            let view = this.list.filter(p =>
+                (!sup || (p.suppliers || []).some(s => s.id === sup)) && (!cat || p.category === cat) && (!sub || p.subcategory === sub) && (!brand || p.brand === brand)
+                && (!g || (g === 'acc' ? p.is_accessory : !p.is_accessory))
+                && (!sf || (sf === 'rupture' ? (p.available || 0) <= 0 : ((p.available || 0) > 0 && (p.available || 0) <= th)))
+                && (!ef || (!p.is_service && !p.emplacement)));
+            const price = p => Number(p.sale_price) || 0;
+            if (sort === 'price_asc') view.sort((a, b) => price(a) - price(b));
+            else if (sort === 'price_desc') view.sort((a, b) => price(b) - price(a));
+            else if (sort === 'name') view.sort((a, b) => String(a.name || '').localeCompare(b.name || ''));
+            else if (sort === 'stock_asc') view.sort((a, b) => (a.available || 0) - (b.available || 0));
+            this.view = view;
+            this.render();
+        },
+        statFilter: null,
+        threshold() { return Math.max(0, parseInt(this.settings && this.settings.low_stock_threshold, 10) || 2); },
+        renderStockStats() {
+            const box = document.getElementById('stockStats'); if (!box || !this.isManager) return;
+            const th = this.threshold();
+            const pcUnits = this.list.filter(p => !p.is_accessory).reduce((s, p) => s + (p.available || 0), 0);
+            const accUnits = this.list.filter(p => p.is_accessory).reduce((s, p) => s + (p.available || 0), 0);
+            const faible = this.list.filter(p => (p.available || 0) > 0 && (p.available || 0) <= th).length;
+            const rupture = this.list.filter(p => (p.available || 0) <= 0).length;
+            const noEmp = this.list.filter(p => !p.is_service && !p.emplacement).length;
+            const card = (label, icon, value, sub, tone, active, onclick) => SF.tile({ label, icon, value, sub, tone, active, onclick });
+            box.innerHTML = SF.tileGroup('Récap du stock', 'fa-chart-simple',
+                card('Ordinateurs', 'fa-laptop', pcUnits, 'unités disponibles', 'teal', this.groupFilter === 'pc', "Stock.setStat('grp','pc')")
+                + card('Accessoires', 'fa-plug', accUnits, 'unités disponibles', 'blue', this.groupFilter === 'acc', "Stock.setStat('grp','acc')")
+                + card('Stock faible', 'fa-triangle-exclamation', faible, '≤ ' + th + ' dispo.', 'yellow', this.statFilter === 'faible', "Stock.setStat('stat','faible')")
+                + card('Rupture', 'fa-ban', rupture, 'produits épuisés', 'coral', this.statFilter === 'rupture', "Stock.setStat('stat','rupture')")
+                + card('Sans emplacement', 'fa-location-dot', noEmp, 'à renseigner', 'violet', this.empFilter === 'missing', "Stock.setStat('emp','missing')")
+                + (this.usage ? card('Usage magasin', 'fa-shop', this.usage.length, new Set(this.usage.map(u => u.product_id)).size + ' produit(s) utilisé(s)', 'green', false, 'Stock.openUsage()') : ''),
+                '<span class="text-muted" style="font-size:12px;">Cliquer pour filtrer</span>');
+        },
+        empFilter: null,
+        setStat(kind, val) {
+            if (kind === 'grp') { this.groupFilter = (this.groupFilter === val ? null : val); this.statFilter = null; this.empFilter = null; }
+            else if (kind === 'emp') { this.empFilter = (this.empFilter === val ? null : val); this.groupFilter = null; this.statFilter = null; }
+            else { this.statFilter = (this.statFilter === val ? null : val); this.groupFilter = null; this.empFilter = null; }
+            this.renderStockStats();
+            this.applyFilters();
+        },
+        // Admin : avancement des photos Internet automatiques (rafraîchi toutes les 8 s tant que ça tourne).
+        async loadAutoImg() {
+            clearTimeout(this._aiT);
+            const box = document.getElementById('autoImgBox'); if (!box) return;
+            let s; try { s = await SF.api('/api/auto-images/status'); } catch (e) { box.innerHTML = ''; return; }
+            const pct = s.total ? Math.round(s.with_image * 100 / s.total) : 100;
+            const busy = s.pending > 0 || s.running;
+            const mins = Math.max(1, Math.ceil(s.pending * (s.per_item_ms + 600) / 60000));
+            const ago = t => { const x = Math.round((s.now - t) / 1000); return x < 60 ? `il y a ${x} s` : `il y a ${Math.round(x / 60)} min`; };
+            const state = s.paused_until
+                ? `<span style="color:var(--warning-dark);font-weight:700;"><i class="fas fa-pause"></i> En pause jusqu'à ${new Date(s.paused_until).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span> — plusieurs recherches ont échoué (connexion Internet ?)`
+                : busy ? `<span style="color:var(--accent);font-weight:700;"><i class="fas fa-spinner fa-spin"></i> En cours</span> — ${s.pending} fiche(s) en file · environ ${mins} min restante(s)`
+                : `<span style="color:var(--success-dark);font-weight:700;"><i class="fas fa-circle-check"></i> Terminé</span>`;
+            box.innerHTML = `<div class="card" style="margin-bottom:14px;"><div class="card-body" style="padding:14px 16px;">
+                <div style="display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap;">
+                    <div style="font-weight:800;"><i class="fas fa-images" style="color:var(--accent);"></i> Photos produits (Internet)</div>
+                    <div style="font-size:13px;"><b>${s.with_image}</b> / ${s.total} fiches avec photo · <b>${pct} %</b></div>
+                </div>
+                <div style="height:10px;border-radius:999px;background:var(--bg-input);overflow:hidden;margin:9px 0 8px;">
+                    <div style="height:100%;width:${pct}%;background:var(--accent);border-radius:999px;transition:width .4s;"></div></div>
+                <div style="font-size:12.5px;color:var(--text-secondary);line-height:1.6;">${state}
+                    ${s.last ? `<br><i class="fas fa-image"></i> Dernière photo : <b>${SF.esc(s.last.name)}</b> (${ago(s.last.at)})` : ''}
+                    ${s.to_redo ? `<br><i class="fas fa-rotate"></i> ${s.to_redo} photo(s) Internet en cours d'amélioration (recherche plus précise)` : ''}
+                    <br>${s.auto} photo(s) Internet · ${s.manual} importée(s) · ${s.missing} sans photo${s.missing_pc ? ` dont ${s.missing_pc} ordinateur(s)` : ''}${s.no_query ? ` · <span style="color:var(--warning-dark);">${s.no_query} sans modèle exploitable (complétez marque / modèle ou importez une photo)</span>` : ''}
+                </div></div></div>`;
+            if (busy || s.paused_until) this._aiT = setTimeout(() => this.loadAutoImg(), 8000);
+        },
+        async loadValue() {
+            try {
+                this.value = await SF.api('/api/admin/stock-value');
+                this.renderValue();
+            } catch (e) {}
+        },
+        renderValue() {
+            const box = document.getElementById('stockValue'); if (!box) return;
+            const v = this.value; if (!v) { box.innerHTML = ''; return; }
+            const card = (label, icon, value, sub, tone) => SF.tile({ label, icon, value, sub, tone, onclick: 'Stock.openValueDetail()' });
+            box.innerHTML = SF.tileGroup('Valeur du stock', 'fa-coins',
+                card('Valeur du stock (vente)', 'fa-tags', SF.fmt.ar(v.total_sale_value), v.total_units + ' unité(s)', 'yellow')
+                + card('Coût estimé', 'fa-file-invoice-dollar', SF.fmt.ar(v.total_cost_value), v.estimated_units + ' estimée(s) · ' + v.priced_units + ' avec prix', 'violet')
+                + card('Profit estimé si tout vendu', 'fa-arrow-trend-up', SF.fmt.ar(v.total_profit), '', 'green'),
+                '<button class="btn btn-sm btn-secondary" onclick="Stock.openValueDetail()">Détail</button>');
+        },
+        openValueDetail() {
+            const v = this.value; if (!v) return;
+            document.getElementById('vmTitle').textContent = 'Valeur du stock & profit estimé';
+            const rows = v.products.map(p => `<tr>
+                <td>${SF.esc(p.name)}</td>
+                <td class="text-center">${p.count}</td>
+                <td class="text-right">${SF.fmt.ar(p.sale_value)}</td>
+                <td class="text-right">${SF.fmt.ar(p.cost_value)}${p.cost_estimated ? ' <span class="badge badge-info" style="font-size:9px;">est.</span>' : ''}</td>
+                <td class="text-right" style="color:var(--success-dark);font-weight:700;">${SF.fmt.ar(p.profit)}</td></tr>`).join('');
+            document.getElementById('vmBody').innerHTML = `
+                <p class="text-muted" style="font-size:12.5px;margin-bottom:12px;">Sans prix d'achat, le profit est estimé : <strong>80 000 Ar/unité</strong> pour les ordinateurs, <strong>40 %</strong> du prix pour les accessoires (marqués « est. »).</p>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:14px;">
+                    <div><div class="text-muted" style="font-size:11px;">Valeur vente</div><div style="font-size:17px;font-weight:800;">${SF.fmt.ar(v.total_sale_value)}</div></div>
+                    <div><div class="text-muted" style="font-size:11px;">Coût</div><div style="font-size:17px;font-weight:800;">${SF.fmt.ar(v.total_cost_value)}</div></div>
+                    <div><div class="text-muted" style="font-size:11px;">Profit estimé</div><div style="font-size:17px;font-weight:800;color:var(--success-dark);">${SF.fmt.ar(v.total_profit)}</div></div>
+                </div>
+                <div class="table-container" style="max-height:360px;overflow:auto;">
+                    <table><thead><tr><th>Produit</th><th class="text-center">Qté</th><th class="text-right">Valeur vente</th><th class="text-right">Coût</th><th class="text-right">Profit</th></tr></thead>
+                    <tbody>${rows}</tbody></table>
+                </div>`;
+            SF.Modal.open('valueModal');
+        },
+        specLine(p) { return [p.cpu, p.ram, p.storage ? p.storage + (p.storage_type ? ' ' + p.storage_type : '') : '', p.screen_size].filter(Boolean).join(' · '); },
+        reSuppliers: [],
+        openReappro(id) {
+            const p = (this.list || []).find(x => x.id === id); if (!p) return;
+            this.reCurrent = p;
+            const title = [p.brand, p.model].filter(Boolean).join(' ') || p.name;
+            const cfg = p.is_accessory ? [p.category, p.subcategory].filter(Boolean).join(' · ') : (window.SFBarcode ? SFBarcode.fullSpec(p) : this.specLine(p));
+            document.getElementById('reTitle').textContent = 'Ré-appro — ' + title;
+            document.getElementById('reSpec').innerHTML = `<strong>${SF.esc(title)}</strong><br>${SF.esc(cfg || '—')}${p.description ? '<br><span class="text-muted">' + SF.esc(p.description) + '</span>' : ''}<br>Disponible : <strong>${p.available || 0}</strong>`;
+            // Fournisseur conservé depuis l'origine du produit (plus de saisie).
+            const supName = p.supplier_name || (this.reSuppliers.find(s => s.id === p.supplier_id) || {}).name || '— inconnu —';
+            document.getElementById('re_supplierName').value = supName;
+            document.getElementById('re_qty').value = 1;
+            SF.money.set(document.getElementById('re_price'), p.sale_price || 0);
+            document.getElementById('re_warranty').value = '';
+            document.getElementById('re_serials').value = '';
+            const sl = this.isStarlink(p);
+            document.getElementById('re_sl').style.display = sl ? '' : 'none';
+            document.getElementById('re_sn_grp').style.display = sl ? 'none' : '';
+            document.getElementById('re_qty').oninput = sl ? () => this.reSlRows() : null;
+            if (sl) this.reSlRows(true);
+            SF.Modal.open('reModal');
+        },
+        isStarlink(p) { return /^starlink$/i.test(String(p.category || '').trim()); },
+        // Une ligne (SN antenne, ID routeur) par kit ; les valeurs déjà saisies sont conservées.
+        reSlRows(reset) {
+            const box = document.getElementById('re_sl_rows');
+            const qty = Math.min(50, Math.max(1, parseInt(document.getElementById('re_qty').value, 10) || 1));
+            const old = reset ? [] : [...box.querySelectorAll('.re-sl-row')].map(r => [r.querySelector('.sn').value, r.querySelector('.rid').value]);
+            box.innerHTML = Array.from({ length: qty }, (_, k) => `<div class="re-sl-row" style="display:grid;grid-template-columns:22px minmax(0,1fr) minmax(0,1fr);gap:6px;align-items:center;">
+                <b style="font-size:12px;color:var(--text-muted);">${k + 1}</b>
+                <input type="text" class="form-control sn" placeholder="SN antenne *" autocomplete="off" value="${SF.esc((old[k] || [])[0] || '')}">
+                <input type="text" class="form-control rid" placeholder="ID routeur *" autocomplete="off" value="${SF.esc((old[k] || [])[1] || '')}"></div>`).join('');
+            const inputs = [...box.querySelectorAll('input')];
+            inputs.forEach((el, i) => { el.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); (inputs[i + 1] || document.getElementById('reBtn')).focus(); } }; });
+        },
+        async submitReappro() {
+            const p = this.reCurrent; if (!p) return;
+            const supplier_id = parseInt(p.supplier_id, 10);
+            if (!supplier_id) return SF.toast('Fournisseur d\'origine introuvable pour ce produit', 'error');
+            const qty = Math.max(1, parseInt(document.getElementById('re_qty').value, 10) || 1);
+            const price = SF.money.val(document.getElementById('re_price'));
+            const serials = document.getElementById('re_serials').value.split(/[\n,;]+/).map(s => s.trim()).filter(Boolean);
+            if (serials.length > qty) return SF.toast(`Trop de numéros de série (${serials.length}) pour ${qty} unité(s)`, 'error');
+            let sl = null;
+            if (this.isStarlink(p)) {
+                const rows = [...document.querySelectorAll('#re_sl_rows .re-sl-row')].map(r => ({ sn: r.querySelector('.sn').value.trim(), rid: r.querySelector('.rid').value.trim().toUpperCase() }));
+                if (rows.length !== qty || rows.some(r => !r.sn || !r.rid)) return SF.toast("Starlink : saisissez le n° de série de l'antenne ET l'ID du routeur pour chaque kit", 'error');
+                const ids = rows.map(r => r.rid), sns = rows.map(r => r.sn.toUpperCase());
+                const dup = ids.find((x, k) => ids.indexOf(x) !== k) || sns.find((x, k) => sns.indexOf(x) !== k);
+                if (dup) return SF.toast(`« ${dup} » saisi deux fois`, 'error');
+                sl = { starlink: true, router_ids: ids, serials: rows.map(r => r.sn) };
+            }
+            const line = {
+                is_accessory: !!p.is_accessory, category: p.category, subcategory: p.subcategory,
+                brand: p.brand, model: p.model,
+                cpu: p.cpu, ram: p.ram, storage: p.storage, storage_type: p.storage_type, gpu: p.gpu, screen_size: p.screen_size,
+                touchscreen: !!p.touchscreen, webcam: !!p.webcam, wifi: !!p.wifi, bluetooth: !!p.bluetooth, numpad: !!p.numpad,
+                unit_price: price, warranty_days: document.getElementById('re_warranty').value,
+                quantity: qty, description: p.description || '', serials, ...(sl || {})
+            };
+            const btn = document.getElementById('reBtn'); btn.disabled = true;
+            try {
+                const res = await SF.api('/api/receptions', { method: 'POST', body: { supplier_id, reference: 'Réappro', note: 'Réapprovisionnement', lines: [line] } });
+                const sup = this.reSuppliers.find(s => s.id === supplier_id);
+                const copies = Math.max(1, parseInt(sup && sup.label_count, 10) || 1);
+                const labels = [];
+                (res.units || []).forEach(u => { for (let k = 0; k < copies; k++) labels.push(u); });
+                SF.toast(`Réappro — ${res.total_units} unité(s) · ${labels.length} étiquette(s)`, 'success');
+                if (labels.length && window.SFBarcode) SFBarcode.downloadPDF(labels, SF.fmt.ar);
+                SF.Modal.close('reModal');
+                this.load();
+            } catch (e) { SF.toast(e.message, 'error'); }
+            btn.disabled = false;
+        },
+        estCost(p) { const sp = p.sale_price || 0; if (p.purchase_price > 0) return p.purchase_price; return p.is_accessory ? sp * 0.6 : Math.max(0, sp - 80000); },
+        render() {
+            const grid = document.getElementById('grid');
+            const rows = this.view && this.view.length !== undefined ? this.view : this.list;
+            if (!this.list.length) { grid.innerHTML = '<div class="empty-state"><i class="fas fa-box-open fa-2x"></i><p style="margin-top:12px;">Aucun produit en stock</p></div>'; return; }
+            if (!rows.length) { grid.className = ''; grid.innerHTML = '<div class="empty-state"><i class="fas fa-filter fa-2x"></i><p style="margin-top:12px;">Aucun produit pour ce filtre</p></div>'; return; }
+            grid.className = 'stock-grid';
+            const mgr = this.isManager;
+            SF.renderChunks(grid, rows, p => {
+                const isSvc = !!p.is_service;
+                const notes = [];
+                if (isSvc) notes.push('<span style="color:#0284c7;font-weight:700;">Illimité</span>');
+                if (p.available > 0) notes.push(`<span style="color:var(--success-dark);font-weight:700;">${p.available} disponibles</span>`);
+                if (p.in_prep > 0)   notes.push(`<span style="color:var(--danger);font-weight:700;">${p.in_prep} en préparation</span>`);
+                if (p.reserved > 0)  notes.push(`<span style="color:var(--warning-dark);font-weight:700;">${p.reserved} réservés</span>`);
+                if (p.in_presentation > 0) notes.push(`<span style="color:#0284c7;font-weight:700;">${p.in_presentation} en présentation</span>`);
+                if (p.in_acompte > 0) notes.push(`<span style="color:#7c3aed;font-weight:700;" title="Mis de côté pour un client (vente avec avance) — non disponible">${p.in_acompte} réservé(s) avance</span>`);
+                const inCartCount = this.cart.filter(c => c.product_id === p.id).length;
+                const canAdd = mgr && !isSvc && p.available > 0;
+                const rupture = !isSvc && (p.available || 0) <= 0;
+                const icon = isSvc ? 'screwdriver-wrench' : (p.is_accessory ? 'plug' : 'laptop');
+                const sups = isSvc ? [] : (p.suppliers || []);
+                const supBar = SF.supBar(sups);
+                return `<div class="stock-card ${sups.length ? 'has-sup' : ''} ${canAdd ? 'clickable' : (mgr ? '' : 'clickable')}" ${sups.length ? `style="--sup:${supBar}"` : ''} ${canAdd ? `onclick="Stock.addToCart(${p.id})"` : (!mgr ? `onclick="Stock.openProduct(${p.id})"` : '')}>
+                    <div class="sc-img" ${p.image ? `data-bg="${p.image}"` : ''}>
+                        ${p.image ? '' : '<i class="fas fa-' + icon + '"></i>'}
+                        ${isSvc ? '<span class="sc-presentoir" style="background:var(--info);">Service</span>' : (rupture ? '<span class="sc-rupture">Rupture</span>' : (inCartCount ? `<span class="sc-incart">${inCartCount} ✓</span>` : (p.presentoir > 0 ? '<span class="sc-presentoir"><i class="fas fa-store"></i> Présentoir</span>' : '')))}
+                        ${mgr && !isSvc ? `<button class="sc-reappro" title="Ré-approvisionner" onclick="event.stopPropagation();Stock.openReappro(${p.id})"><i class="fas fa-plus"></i></button>` : ''}
+                        ${this.user.role === 'admin' && !isSvc ? `<button class="sc-photo" title="Autre photo Internet" onclick="event.stopPropagation();Stock.autoImage(${p.id}, this)"><i class="fas fa-image"></i></button>` : ''}
+                        ${mgr ? `<button class="sc-gear" title="Gérer" onclick="event.stopPropagation();Stock.openProduct(${p.id})"><i class="fas fa-gear"></i></button>` : ''}
+                    </div>
+                    <div class="sc-body">
+                        <div class="sc-title" style="cursor:pointer;text-decoration:underline dotted;text-underline-offset:2px;" title="Voir les détails" onclick="event.stopPropagation();Stock.showDetail(${p.id})">${SF.esc([p.brand, p.model].filter(Boolean).join(' ') || p.name)}</div>
+                        ${(!isSvc && (p.emplacement || mgr)) ? `<div class="sc-emps">${SF.empList(p.emplacement).map(e => `<span class="sc-emp" title="Emplacement au dépôt"><i class="fas fa-location-dot"></i> ${SF.esc(e)}</span>`).join('')}${mgr ? `<button class="sc-emp sc-emp-add" title="${p.emplacement ? 'Ajouter / modifier les emplacements' : 'Ajouter un emplacement'}" onclick="event.stopPropagation();Stock.setEmplacement(${p.id})"><i class="fas fa-plus"></i>${p.emplacement ? '' : ' Emplacement'}</button>` : ''}</div>` : ''}
+                        ${sups.length ? `<div class="sc-sups">${sups.map(s => `<span class="sc-sup" style="--c:${this.supColor(s.id)}" title="Fournisseur${s.n ? ` — ${s.n} unité(s) en stock` : ''} · cliquer pour filtrer" onclick="event.stopPropagation();Stock.setSup('${s.id}')"><i></i><span>${SF.esc(s.name)}${sups.length > 1 && s.n ? ` · ${s.n}` : ''}</span></span>`).join('')}</div>` : ''}
+                        <div class="sc-spec">${SF.esc(isSvc ? (p.description || p.category || 'Service') : (p.is_accessory ? (p.category || 'Accessoire') : this.specLine(p)))}</div>
+                        <div class="sc-foot">
+                            <div><div class="sc-price">${SF.fmt.ar(p.sale_price)}</div></div>
+                            <div class="sc-qty"><span class="n">${isSvc ? '∞' : p.total}</span><div class="sc-notes">${notes.join(' · ')}</div></div>
+                        </div>
+                    </div>
+                </div>`;
+            });
+        },
+        // ---- Raccourci : saisir rapidement l'emplacement au dépôt (sans ouvrir la fiche) ----
+        async setEmplacement(id) {
+            const p = (this.list || []).find(x => x.id === id);
+            if (!p) return;
+            const name = [p.brand, p.model].filter(Boolean).join(' ') || p.name || 'ce produit';
+            const v = await SF.prompt(`Emplacement(s) au dépôt pour « ${name} » — séparez par des virgules si le produit est à plusieurs endroits (ex. E04, D03).`,
+                { title: 'Emplacement(s)', okLabel: 'Enregistrer', placeholder: 'ex. E04, D03', defaultValue: p.emplacement || '', multiline: true });
+            if (v === null) return;   // annulé
+            try {
+                const fd = new FormData(); fd.append('emplacement', v);
+                const res = await SF.api(`/api/products/${id}`, { method: 'PUT', body: fd });
+                if (res && res.merged_into) { SF.toast(`Fiche identique à une autre (mêmes détails et prix) : fusionnée dans « ${res.merged_into.name} »`, 'success'); return this.load(); }
+                p.emplacement = SF.empList(v).join(', ') || null;
+                SF.toast(p.emplacement ? `Emplacement(s) « ${p.emplacement} » enregistré(s)` : 'Emplacement retiré', 'success');
+                this.renderStockStats();
+                this.applyFilters();
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        // ---- Scan code-barres : ajoute directement le produit au panier ----
+        async scanAdd(serial) {
+            serial = String(serial || '').trim();
+            if (!serial) return;
+            try {
+                const rows = await SF.api('/api/units/search?q=' + encodeURIComponent(serial));
+                const u = rows.find(x => x.serial === serial || x.manufacturer_sn === serial) || (rows.length === 1 ? rows[0] : null);
+                if (!u) return SF.toast('N° série introuvable : ' + serial, 'error');
+                if (!this.isManager) { this.openProduct(u.product_id); return; }
+                if (u.status !== 'stock') return SF.toast(`« ${u.serial} » non disponible au dépôt (${SF.UNIT_STATUS[u.status] || u.status})`, 'error');
+                this.addUnitToCart(u);   // ← la série SCANNÉE est celle qui sortira exactement
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        // ---- Envoi d'unités PRÉCISES (une entrée = une unité physique / série) ----
+        addUnitToCart(u) {
+            if (this.cart.some(c => c.unit_id === u.id)) return SF.toast('Déjà dans l\'envoi', 'warn');
+            const p = this.list.find(x => x.id === u.product_id) || {};
+            this.cart.push({ unit_id: u.id, serial: u.serial, product_id: u.product_id,
+                name: [u.brand || p.brand, u.model || p.model].filter(Boolean).join(' ') || u.product_name || p.name || 'Produit' });
+            this.renderCart(); this.render();
+            SF.toast('Ajouté : ' + u.serial, 'success', 1200);
+        },
+        // Clic sur une carte : prend la PROCHAINE unité dépôt disponible (non déjà ajoutée).
+        async addToCart(productId) {
+            const p = this.list.find(x => x.id === productId); if (!p) return;
+            if ((p.available || 0) <= 0) return SF.toast('Aucune unité disponible', 'warn');
+            try {
+                const units = await SF.api('/api/products/' + productId + '/units');
+                const pick = units.find(u => u.status === 'stock' && !this.cart.some(c => c.unit_id === u.id));
+                if (!pick) return SF.toast('Toutes les unités disponibles sont déjà dans l\'envoi', 'warn');
+                this.addUnitToCart({ ...pick, brand: p.brand, model: p.model, product_name: p.name });
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        cartRemove(unitId) { this.cart = this.cart.filter(c => c.unit_id !== unitId); this.renderCart(); this.render(); },
+        clearCart() { this.cart = []; this.renderCart(); this.render(); },
+        renderCart() {
+            const box = document.getElementById('icartItems');
+            if (!this.cart.length) { box.innerHTML = '<div class="icart-empty">Panier vide</div>'; }
+            else box.innerHTML = this.cart.map(c => `<div class="ii">
+                <div class="ii-b"><div class="ii-t">${SF.esc(c.name)}</div><div class="ii-s" style="font-family:monospace;"><i class="fas fa-barcode"></i> ${SF.esc(c.serial)}</div></div>
+                <button class="btn btn-sm btn-danger" onclick="Stock.cartRemove(${c.unit_id})"><i class="fas fa-times"></i></button></div>`).join('');
+            document.getElementById('icartTotal').textContent = this.cart.length;
+            document.getElementById('sendBtn').disabled = !this.cart.length;
+        },
+        // Choix du type de sortie EN PREMIER (grands boutons sous le récap).
+        setSortieType(type) {
+            if (!this.sortieMeta[type]) return;
+            this.sortieType = type;
+            document.querySelectorAll('.stype, .ict').forEach(b => b.classList.toggle('active', b.dataset.t === type));
+            const m = this.sortieMeta[type];
+            const titleEl = document.getElementById('icartTitle');
+            if (titleEl) titleEl.innerHTML = `<i class="fas ${m.icon}"></i> ${m.label}`;
+            const radio = document.querySelector(`input[name="dest"][value="${type}"]`);
+            if (radio) radio.checked = true;
+        },
+        async openInstall() {
+            if (!this.cart.length) return SF.toast('Panier vide', 'error');
+            if (!this.technicians.length) { try { this.technicians = await SF.api('/api/users/role/technicien'); } catch (e) { this.technicians = []; } }
+            if (!this.commercials.length) { try { this.commercials = await SF.api('/api/users/role/commercial'); } catch (e) { this.commercials = []; } }
+            if (!this.commercialsLigne) { try { this.commercialsLigne = await SF.api('/api/users/role/commercial_ligne'); } catch (e) { this.commercialsLigne = []; } }
+            document.getElementById('installTech').innerHTML = this.technicians.length ? this.technicians.map(t => `<option value="${t.id}">${SF.esc(t.name)}</option>`).join('') : '<option value="">Aucun technicien</option>';
+            this.fillComOptions();
+            const models = new Set(this.cart.map(c => c.product_id)).size;
+            document.getElementById('installCount').textContent = `${this.cart.length} unité(s) scannée(s) · ${models} modèle(s).`;
+            const radio = document.querySelector(`input[name="dest"][value="${this.sortieType}"]`);
+            if (radio) radio.checked = true;
+            const m = this.sortieMeta[this.sortieType] || this.sortieMeta.installation;
+            document.getElementById('installModalTitle').textContent = 'Sortie — ' + m.label + ' · choisir le responsable';
+            this.destChange();
+            SF.Modal.open('installModal');
+        },
+        destChange() {
+            const dest = document.querySelector('input[name="dest"]:checked').value;
+            if (dest !== this.sortieType) this.setSortieType(dest);
+            const mm = this.sortieMeta[dest];
+            if (mm) document.getElementById('installModalTitle').textContent = 'Sortie — ' + mm.label;
+            document.querySelectorAll('.dest-opt').forEach(o => o.classList.toggle('active', o.dataset.d === dest));
+            const isInstall = dest === 'installation';
+            document.getElementById('techWrap').style.display = isInstall ? '' : 'none';
+            document.getElementById('comWrap').style.display = (dest === 'reserve' || dest === 'presentation') ? '' : 'none';
+            if (dest === 'reserve' || dest === 'presentation') this.fillComOptions();
+            document.getElementById('garWrap').style.display = dest === 'garantie' ? '' : 'none';
+            document.getElementById('installNoteLbl').textContent = dest === 'garantie' ? 'Raison / problème (optionnel)' : 'Note (optionnel)';
+            const garType = (document.querySelector('input[name="garType"]:checked') || {}).value || 'garantie_fournisseur';
+            const total = this.cart.length;
+            document.getElementById('installEta').textContent =
+                isInstall ? `Durée allouée estimée : ${(parseInt(this.settings.install_minutes_per_unit, 10) || 3) * total} minutes (démarrée à la validation du technicien).`
+              : dest === 'reserve' ? 'Les articles seront réservés et « en attente de paiement » à la caisse au nom du commercial.'
+              : dest === 'garantie' ? (garType === 'garantie_fournisseur'
+                    ? 'Garantie NORMALE : à renvoyer au fournisseur (le responsable des garanties validera l\'envoi réel).'
+                    : 'Garantie EXCEPTIONNELLE (geste commercial, réparée en interne) — les unités quittent le stock dépôt immédiatement.')
+              : 'Sortie boutique : tous les commerciaux boutique peuvent prendre. Le commercial RESPONSABLE (Configuration) TIENT les articles en boutique (stock partagé, vendable par la caisse à tout client). Pour un AUTRE commercial, les articles ne sont PAS tenus en boutique : à son nom, à vendre à la caisse ou à retourner au dépôt. Un commercial EN LIGNE prend au dépôt (suivi séparé).';
+        },
+        // Détermine si un commercial « tient » les articles en boutique (consignation) ou non
+        // (réservation : à vendre ou à retourner). Seuls le RESPONSABLE et les commerciaux EN LIGNE tiennent.
+        holdsInBoutique(id) {
+            const respId = parseInt(this.settings && this.settings.boutique_responsible_id, 10) || 0;
+            const isLigne = (this.commercialsLigne || []).some(t => t.id === id);
+            return isLigne || id === respId;
+        },
+        // Options du destinataire :
+        //  • Réservé à vendre : tous les commerciaux boutique.
+        //  • Sortie boutique : TOUS les commerciaux boutique (+ EN LIGNE). Le responsable tient en
+        //    boutique ; les autres sont en mode « à vendre / retour » (indiqué dans le libellé).
+        fillComOptions() {
+            const dest = (document.querySelector('input[name="dest"]:checked') || {}).value;
+            let opts;
+            if (dest === 'presentation') {
+                const respId = parseInt(this.settings && this.settings.boutique_responsible_id, 10) || 0;
+                opts = (this.commercials || []).map(t => ({ id: t.id, name: t.name,
+                    tag: t.id === respId ? ' — responsable (tenu en boutique)' : ' — à vendre / retour' }));
+                opts = opts.concat((this.commercialsLigne || []).map(t => ({ id: t.id, name: t.name, tag: ' — en ligne' })));
+            } else {
+                opts = (this.commercials || []).map(t => ({ id: t.id, name: t.name, tag: '' }));
+            }
+            const sel = document.getElementById('installCom');
+            const keep = sel.value;
+            sel.innerHTML = opts.length ? opts.map(o => `<option value="${o.id}">${SF.esc(o.name + o.tag)}</option>`).join('') : '<option value="">Aucun commercial</option>';
+            if (keep && opts.some(o => String(o.id) === keep)) sel.value = keep;
+        },
+        garTypeChange() {
+            document.querySelectorAll('#garWrap .dest-opt').forEach(o => o.classList.toggle('active', o.querySelector('input').checked));
+            this.destChange();
+        },
+        async sendInstall() {
+            const dest = document.querySelector('input[name="dest"]:checked').value;
+            // Les unités PRÉCISES scannées/ajoutées : ce sont EXACTEMENT elles qui sortent.
+            const unit_ids = this.cart.map(c => c.unit_id);
+            const note = document.getElementById('installNote').value.trim();
+            try {
+                if (dest === 'garantie') {
+                    if (!note) return SF.toast('Motif / raison obligatoire pour un envoi en garantie', 'error');
+                    const garType = (document.querySelector('input[name="garType"]:checked') || {}).value || 'garantie_fournisseur';
+                    await SF.api('/api/stock/send-warranty', { method: 'POST', body: { unit_ids, warranty_type: garType, reason: note } });
+                    SF.toast(garType === 'garantie_fournisseur' ? 'Envoyé en garantie fournisseur (à renvoyer)' : 'Envoyé en garantie exceptionnelle', 'success');
+                } else if (dest === 'reserve' || dest === 'presentation') {
+                    const commercial_id = parseInt(document.getElementById('installCom').value, 10);
+                    if (!commercial_id) return SF.toast('Aucun commercial — créez un utilisateur « Commercial ».', 'error');
+                    // Sortie boutique : le RESPONSABLE (ou un commercial EN LIGNE) tient les articles en
+                    // boutique (consignation) ; tout autre commercial ne peut PAS les tenir → réservation
+                    // (à vendre à la caisse ou à retourner au dépôt). « Réservé à vendre » = toujours réservation.
+                    const hold = dest === 'presentation' && this.holdsInBoutique(commercial_id);
+                    if (hold) {
+                        await SF.api('/api/consignments', { method: 'POST', body: { commercial_id, unit_ids, note } });
+                        SF.toast('Sortie boutique — articles tenus en boutique', 'success');
+                    } else {
+                        await SF.api('/api/reservations', { method: 'POST', body: { commercial_id, unit_ids, note } });
+                        SF.toast(dest === 'presentation'
+                            ? 'Sortie prise par le commercial — à vendre à la caisse ou à retourner au dépôt'
+                            : 'Réservé à vendre — paiement en attente à la caisse', 'success');
+                    }
+                } else {
+                    const technician_id = parseInt(document.getElementById('installTech').value, 10);
+                    if (!technician_id) return SF.toast('Aucun technicien — créez un utilisateur « Technicien ».', 'error');
+                    await SF.api('/api/installations', { method: 'POST', body: { technician_id, unit_ids, note } });
+                    SF.toast('Envoyé en installation', 'success');
+                }
+                SF.Modal.close('installModal'); this.clearCart(); this.load();
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        // Détail produit (lecture seule) — clic sur le titre de la carte.
+        showDetail(id) { const p = this.list.find(x => x.id === id); if (p) SF.productDetail(p); },
+        // ---- Détails / gestion produit ----
+        async openProduct(id, tab) {
+            this.current = this.list.find(p => p.id === id) || this.current;
+            try {
+                this.currentUnits = await SF.api(`/api/products/${id}/units`);
+                const p = this.current;
+                const mgr = this.isManager, admin = this.user.role === 'admin';
+                this.pmSel = new Set(); this.pmFilter = 'all';
+                document.getElementById('pmTitle').textContent = [p.brand, p.model].filter(Boolean).join(' ') || p.name;
+                const spec = p.is_accessory ? (p.category || 'Accessoire') : this.specLine(p);
+                const feats = [];
+                if (p.touchscreen) feats.push('Tactile'); if (p.webcam) feats.push('Webcam');
+                if (p.wifi) feats.push('Wi-Fi'); if (p.bluetooth) feats.push('Bluetooth'); if (p.numpad) feats.push('Pavé numérique');
+                const U = this.currentUnits;
+                const nStock = U.filter(u => u.status === 'stock').length;
+                const nBout = U.filter(u => ['consignation', 'presentoir'].includes(u.status)).length;
+                const nRes = U.filter(u => u.status === 'reserve').length;
+                const nPrep = U.filter(u => u.status === 'preparation').length;
+                const emps = SF.empList(p.emplacement || '');
+                const supName = p.supplier_name || (this.reSuppliers.find(s => s.id === p.supplier_id) || {}).name;
+                const row = (k, v) => v ? `<div class="pm-dt">${k}</div><div class="pm-dd">${v}</div>` : '';
+                const info = [
+                    row('Type', p.category ? SF.esc(p.category) + (p.subcategory ? ' · ' + SF.esc(p.subcategory) : '') : ''),
+                    row('Configuration', spec ? SF.esc(spec) : ''),
+                    row('Graphique', p.gpu ? SF.esc(p.gpu) : ''),
+                    row('Options', feats.join(', ')),
+                    row(emps.length > 1 ? 'Emplacements' : 'Emplacement', emps.length ? SF.esc(emps.join(' · ')) : ''),
+                    row('Prix de vente', `<strong>${SF.fmt.ar(p.sale_price)}</strong>`),
+                    admin ? row("Prix d'achat", p.purchase_price > 0 ? SF.fmt.ar(p.purchase_price) + (p.sale_price > 0 ? ` <span class="pm-sub">· marge ${SF.fmt.ar(p.sale_price - this.estCost(p))}</span>` : '') : '<span class="pm-sub">non renseigné</span>') : '',
+                    admin ? row('Fournisseur', SF.esc(supName || '—') + ((p.supplier_count || 1) > 1 ? ` <span class="badge badge-warning">${p.supplier_count} fournisseurs</span>` : '')) : '',
+                ].join('');
+                const chip = (k, label, n) => `<button type="button" class="pu-chip ${k === 'all' ? 'active' : ''}" data-f="${k}" onclick="Stock.puSetFilter('${k}')">${label} <span>${n}</span></button>`;
+                // Kit STARLINK : deux étiquettes (antenne / routeur), imprimables séparément.
+                const isKit = U.some(u => u.router_id);
+                const lblBtns = u => u.router_id
+                    ? `<button class="btn btn-sm btn-secondary" title="Étiquette ANTENNE (dish)" onclick="Stock.labelOne(${u.id}, 'dish')"><i class="fas fa-satellite-dish"></i></button><button class="btn btn-sm btn-secondary" title="Étiquette ROUTEUR" onclick="Stock.labelOne(${u.id}, 'router')"><i class="fas fa-wifi"></i></button>`
+                    : `<button class="btn btn-sm btn-secondary" title="Étiquette 60×40" onclick="Stock.labelOne(${u.id})"><i class="fas fa-tag"></i></button>`
+                      + (admin && !p.is_service && !['vendu', 'livraison', 'acompte'].includes(u.status)
+                        ? `<button class="btn btn-sm btn-secondary" title="Corriger la configuration de CETTE unité (ex. 8/256 → 8/500)" onclick="event.stopPropagation();Stock.reconfOpen(${u.id})"><i class="fas fa-sliders"></i></button>` : '');
+                const unitRow = u => `<div class="pu-row" data-id="${u.id}" data-st="${u.status}" data-q="${SF.esc(((u.serial || '') + ' ' + (u.manufacturer_sn || '') + ' ' + (u.router_id || '') + ' ' + (u.holder_name || '')).toLowerCase())}" ${mgr ? `onclick="Stock.puRowClick(event, ${u.id})"` : ''}>
+                        ${mgr ? `<input type="checkbox" class="pu-cb" aria-label="Sélectionner ${SF.esc(u.serial || '')}" onchange="Stock.puToggle(${u.id}, this.checked)">` : ''}
+                        <div class="pu-serial">${SF.esc(u.serial || '—')}${u.manufacturer_sn ? `<small>SN${u.router_id ? ' dish' : ''} ${SF.esc(u.manufacturer_sn)}</small>` : ''}${u.router_id ? `<small>Routeur ${SF.esc(u.router_id)}</small>` : ''}</div>
+                        <div class="pu-meta">${SF.statusBadge(u.status)}${u.holder_name ? `<span class="pm-sub">${SF.esc(u.holder_name)}</span>` : ''}${SF.warrantyBadge(u.warranty_end)}</div>
+                        ${mgr ? `<div class="pu-act" style="display:flex;gap:4px;">${lblBtns(u)}</div>` : ''}
+                    </div>`;
+                document.getElementById('pmBody').innerHTML = `
+                    <div class="pm-head">
+                        <div class="pm-img" ${p.image ? `data-bg="${p.image}"` : ''}>${p.image ? '' : '<i class="fas fa-' + (p.is_accessory ? 'plug' : 'laptop') + '"></i>'}</div>
+                        <div class="pm-info">${info}</div>
+                        <div class="pm-counts">
+                            <div><b>${nStock}</b><span>En stock</span></div>
+                            <div><b>${nBout}</b><span>En boutique</span></div>
+                            <div><b>${nRes}</b><span>Réservées</span></div>
+                        </div>
+                    </div>
+                    ${mgr ? `<div class="pm-tabs" role="tablist">
+                        <button type="button" class="pm-tab active" data-t="units" onclick="Stock.pmTab('units')"><i class="fas fa-list"></i> Unités <span>${U.length}</span></button>
+                        <button type="button" class="pm-tab" data-t="edit" onclick="Stock.pmTab('edit')"><i class="fas fa-pen"></i> Modifier la fiche</button>
+                        ${admin ? `<button type="button" class="pm-tab" data-t="hist" onclick="Stock.pmTab('hist')"><i class="fas fa-clock-rotate-left"></i> Historique</button>` : ''}
+                    </div>` : '<h4 class="pm-h4">Unités</h4>'}
+                    <div id="pmUnits">
+                        ${U.length ? `<div class="pu-toolbar">
+                            ${mgr ? `<label class="pu-all"><input type="checkbox" id="puAll" onchange="Stock.puToggleAll(this.checked)"> Tout</label>` : ''}
+                            <div class="pu-search"><i class="fas fa-magnifying-glass"></i><input type="search" id="puSearch" placeholder="N° série, SN${isKit ? ', ID routeur' : ''}…" oninput="Stock.puApply()"></div>
+                            <div class="pu-chips">${chip('all', 'Toutes', U.length)}${chip('stock', 'En stock', nStock)}${nBout ? chip('boutique', 'En boutique', nBout) : ''}${nRes ? chip('reserve', 'Réservées', nRes) : ''}${nPrep ? chip('preparation', 'Préparation', nPrep) : ''}</div>
+                            ${mgr ? `<div class="pu-tools">
+                                <span class="pu-lbl"><input type="number" id="labelQty" class="form-control" min="1" max="${U.length}" value="${nStock || U.length}" title="Nombre d'étiquettes">${isKit ? `<select id="kitWhich" class="form-control" style="width:auto;" title="Quelles étiquettes imprimer ?"><option value="both">Antenne + routeur</option><option value="dish">Antenne (dish) seule</option><option value="router">Routeur seul</option></select>` : ''}<button class="btn btn-sm btn-secondary" onclick="Stock.labelsPDF()"><i class="fas fa-tags"></i> Étiquettes</button></span>
+                            </div>` : ''}
+                        </div>
+                        <div class="pu-list" id="puList">${U.map(unitRow).join('')}</div>
+                        <div class="pu-empty" id="puEmpty" style="display:none;">Aucune unité</div>
+                        ${mgr ? `<div class="pu-bar" id="puBar">
+                            <span class="pu-count"><b id="puCount">0</b> sélectionnée(s)</span>
+                            <button class="btn btn-sm btn-secondary" id="puBtnLbl" onclick="Stock.bulkLabels()"><i class="fas fa-tags"></i> Étiquettes</button>
+                            <button class="btn btn-sm btn-secondary" id="puBtnGar" onclick="Stock.bulkWarranty()"><i class="fas fa-shield-alt"></i> Garantie</button>
+                            <button class="btn btn-sm btn-warning" id="puBtnDef" onclick="Stock.bulkDefectueux()"><i class="fas fa-triangle-exclamation"></i> Défectueux</button>
+                            ${mgr ? `<button class="btn btn-sm btn-secondary" id="puBtnMag" onclick="Stock.bulkUsageMagasin()" title="Utilisé par le magasin : sort du stock vendable"><i class="fas fa-shop"></i> Usage magasin</button>` : ''}
+                            ${admin ? `<button class="btn btn-sm btn-danger" id="puBtnRet" onclick="Stock.bulkRetire()"><i class="fas fa-trash"></i> Retirer</button>` : ''}
+                            <button class="btn btn-sm btn-secondary pu-x" title="Tout désélectionner" onclick="Stock.puToggleAll(false)"><i class="fas fa-xmark"></i></button>
+                        </div>` : ''}` : '<div class="pu-empty">Aucune unité disponible</div>'}
+                    </div>
+                    ${mgr ? `<div id="pmEdit" style="display:none;"></div>` : ''}
+                    ${admin ? `<div id="pmHist" style="display:none;"></div>` : ''}`;
+                if (mgr) this.puUpdate();
+                SF.Modal.open('prodModal');
+                if (tab === 'edit' && mgr) this.pmTab('edit');
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        pmTab(t) {
+            document.querySelectorAll('#pmBody .pm-tab').forEach(b => b.classList.toggle('active', b.dataset.t === t));
+            document.getElementById('pmUnits').style.display = t === 'units' ? '' : 'none';
+            const ed = document.getElementById('pmEdit');
+            ed.style.display = t === 'edit' ? '' : 'none';
+            if (t === 'edit' && !ed.innerHTML) this.editProduct();
+            const hi = document.getElementById('pmHist');
+            if (hi) { hi.style.display = t === 'hist' ? '' : 'none'; if (t === 'hist') this.loadHistory(); }
+        },
+        // ── Historique des modifications de la fiche (admin) : qui, quand, avant → après ──
+        async loadHistory() {
+            const box = document.getElementById('pmHist'), p = this.current; if (!box || !p) return;
+            box.innerHTML = '<div class="text-muted" style="padding:16px;"><i class="fas fa-spinner fa-spin"></i> Chargement…</div>';
+            let rows;
+            try { rows = await SF.api(`/api/products/${p.id}/history`); } catch (e) { box.innerHTML = `<div class="text-muted" style="padding:16px;">${SF.esc(e.message)}</div>`; return; }
+            const L = { sale_price: 'Prix de vente', purchase_price: "Prix d'achat", description: 'Description', emplacement: 'Emplacement',
+                        category: 'Catégorie', subcategory: 'Sous-catégorie', brand: 'Marque', model: 'Modèle', cpu: 'Processeur', ram: 'RAM',
+                        storage: 'Stockage', storage_type: 'Type stockage', screen_size: 'Écran', gpu: 'Carte graphique', condition: 'État',
+                        touchscreen: 'Tactile', webcam: 'Webcam', wifi: 'Wi-Fi', bluetooth: 'Bluetooth', numpad: 'Pavé numérique',
+                        service_atelier: 'Service atelier', image: 'Photo' };
+            const roleL = { admin: 'Admin', gestion_stock: 'Stock', commercial_ligne: 'Commercial en ligne', caisse: 'Caisse' };
+            const val = (f, v) => v == null || v === '' ? '<i class="text-muted">vide</i>'
+                : /price/.test(f) ? SF.fmt.ar(v)
+                : ['touchscreen', 'webcam', 'wifi', 'bluetooth', 'numpad', 'service_atelier'].includes(f) ? (v ? 'Oui' : 'Non')
+                : f === 'image' ? `<span data-zoom="${SF.esc(v)}" style="display:inline-block;width:46px;height:34px;vertical-align:middle;border-radius:6px;border:1px solid var(--border-color);background:#fff url('${SF.esc(v)}') center/contain no-repeat;cursor:zoom-in;"></span>`
+                : SF.esc(String(v).length > 120 ? String(v).slice(0, 120) + '…' : v);
+            const what = r => {
+                const d = r.details || {};
+                if (r.action === 'product_edit') return Object.entries(d).filter(([, x]) => Array.isArray(x))
+                    .map(([f, [a, b]]) => `<div class="ph-ch"><b>${L[f] || SF.esc(f)}</b> : ${val(f, a)} <i class="fas fa-arrow-right"></i> ${val(f, b)}</div>`).join('') || '<div class="ph-ch">Fiche modifiée</div>';
+                if (r.action === 'price_sync') return `<div class="ph-ch">Nouveau prix ${SF.fmt.ar(d.price)} appliqué à ${d.units || 0} unité(s)</div>`;
+                if (r.action === 'product_supplier_edit') return `<div class="ph-ch"><b>Fournisseur</b> → ${SF.esc(d.supplier || '')} (${d.units || 0} unité(s))</div>`;
+                if (r.action === 'product_auto_image') return `<div class="ph-ch"><b>Photo</b> : autre photo Internet choisie</div>`;
+                if (r.action === 'product_delete') return '<div class="ph-ch"><b>Retiré du stock</b></div>';
+                if (r.action === 'product_restore') return '<div class="ph-ch"><b>Remis au dépôt</b> (corbeille)</div>';
+                if (r.action === 'battery_compat_edit') return '<div class="ph-ch"><b>Compatibilités batterie</b> modifiées</div>';
+                return `<div class="ph-ch">${SF.esc(r.action)}</div>`;
+            };
+            box.innerHTML = !rows.length
+                ? '<div class="text-muted" style="padding:18px;text-align:center;"><i class="fas fa-clock-rotate-left"></i> Aucune modification enregistrée pour cette fiche.</div>'
+                : `<div class="ph-list">${rows.map(r => `<div class="ph-row">
+                        <div class="ph-who"><b>${SF.esc(r.user_name || 'système')}</b>${r.role ? ` <span class="badge badge-secondary">${SF.esc(roleL[r.role] || r.role)}</span>` : ''}
+                            <span class="ph-when">${SF.esc(SF.fmt.datetime ? SF.fmt.datetime(r.created_at) : r.created_at)}</span></div>
+                        ${what(r)}</div>`).join('')}</div>`;
+        },
+        // ---- Sélection multiple des unités ----
+        puSetFilter(f) {
+            this.pmFilter = f;
+            document.querySelectorAll('#pmBody .pu-chip').forEach(c => c.classList.toggle('active', c.dataset.f === f));
+            this.puApply();
+        },
+        puApply() {
+            const q = ((document.getElementById('puSearch') || {}).value || '').trim().toLowerCase();
+            const f = this.pmFilter || 'all';
+            let shown = 0;
+            document.querySelectorAll('#puList .pu-row').forEach(r => {
+                const st = r.dataset.st;
+                const okF = f === 'all' || (f === 'boutique' ? ['consignation', 'presentoir'].includes(st) : st === f);
+                const ok = okF && (!q || r.dataset.q.includes(q));
+                r.style.display = ok ? '' : 'none';
+                if (ok) shown++;
+            });
+            const em = document.getElementById('puEmpty'); if (em) em.style.display = shown ? 'none' : '';
+            this.puUpdate();
+        },
+        puRowClick(ev, id) {
+            if (ev.target.closest('button, input, a')) return;
+            const cb = ev.currentTarget.querySelector('.pu-cb');
+            if (!cb) return;
+            cb.checked = !cb.checked; this.puToggle(id, cb.checked);
+        },
+        puToggle(id, on) { if (on) this.pmSel.add(id); else this.pmSel.delete(id); this.puUpdate(); },
+        puToggleAll(on) {
+            document.querySelectorAll('#puList .pu-row').forEach(r => {
+                if (on && r.style.display === 'none') return;
+                const id = +r.dataset.id, cb = r.querySelector('.pu-cb');
+                if (cb) cb.checked = on;
+                if (on) this.pmSel.add(id); else this.pmSel.delete(id);
+            });
+            this.puUpdate();
+        },
+        // Statuts retirables par ajustement (absence physique constatée) — même liste que le serveur.
+        RETIRABLE: ['stock', 'presentoir', 'consignation', 'reserve'],
+        puSelected() { return (this.currentUnits || []).filter(u => this.pmSel.has(u.id)); },
+        puUpdate() {
+            const sel = this.puSelected();
+            document.querySelectorAll('#puList .pu-row').forEach(r => r.classList.toggle('sel', this.pmSel.has(+r.dataset.id)));
+            const bar = document.getElementById('puBar'); if (!bar) return;
+            bar.classList.toggle('show', sel.length > 0);
+            document.getElementById('puCount').textContent = sel.length;
+            const all = document.getElementById('puAll');
+            const vis = [...document.querySelectorAll('#puList .pu-row')].filter(r => r.style.display !== 'none');
+            if (all) { all.checked = vis.length > 0 && vis.every(r => this.pmSel.has(+r.dataset.id)); all.indeterminate = !all.checked && vis.some(r => this.pmSel.has(+r.dataset.id)); }
+            const set = (bid, n) => { const b = document.getElementById(bid); if (!b) return; b.disabled = !n; b.dataset.n = n; };
+            set('puBtnLbl', sel.filter(u => u.serial).length);
+            set('puBtnGar', sel.filter(u => u.status === 'stock' && u.location === 'depot').length);
+            set('puBtnDef', sel.filter(u => u.status === 'stock').length);
+            set('puBtnRet', sel.filter(u => this.RETIRABLE.includes(u.status)).length);
+            set('puBtnMag', sel.filter(u => u.status === 'stock').length);
+        },
+        // Avertit quand une partie de la sélection n'est pas concernée par l'action.
+        puSkipNote(total, ok, what) { return ok < total ? `\n\n${total - ok} unité(s) sélectionnée(s) ignorée(s) : ${what}.` : ''; },
+        bulkLabels() {
+            const us = this.puSelected().filter(u => u.serial);
+            if (!us.length) return;
+            SFBarcode.downloadPDF(us, SF.fmt.ar, { kit: this.kitWhich() });
+        },
+        bulkWarranty() {
+            const ids = this.puSelected().filter(u => u.status === 'stock' && u.location === 'depot').map(u => u.id);
+            if (!ids.length) return;
+            this.openWarrantyModal(this.current.id, ids);
+        },
+        async bulkDefectueux() {
+            const sel = this.puSelected(), us = sel.filter(u => u.status === 'stock');
+            if (!us.length) return;
+            const reason = await SF.prompt(
+                `Marquer ${us.length} unité(s) comme DÉFECTUEUSE(S) ? Elles sortent du stock réel (ni retour ni réparation) et restent consultables dans « Échanges & défectueux ».${this.puSkipNote(sel.length, us.length, 'seules les unités en stock sont concernées')}\n\nMotif :`,
+                { title: 'Stock défectueux', okLabel: `Marquer défectueux (${us.length})`, placeholder: 'Ex. : écran cassé, ne s\'allume plus, port HS…', required: true, multiline: true });
+            if (reason == null) return;
+            let ok = 0; const errs = [];
+            for (const u of us) {
+                try { await SF.api(`/api/units/${u.id}/defectueux`, { method: 'POST', body: { reason } }); ok++; }
+                catch (e) { errs.push(`${u.serial} : ${e.message}`); }
+            }
+            if (ok) SF.toast(`${ok} unité(s) placée(s) en stock défectueux`, 'success');
+            if (errs.length) SF.toast(errs.join('\n'), 'error', 6000);
+            await this.openProduct(this.current.id);
+            this.load();
+        },
+        // Admin + responsable stock : unités utilisées par le magasin (matériel interne) → sortent du stock vendable.
+        async bulkUsageMagasin() {
+            const sel = this.puSelected(), us = sel.filter(u => u.status === 'stock');
+            if (!us.length) return;
+            const note = await SF.prompt(
+                `Affecter ${us.length} unité(s) à l'USAGE DU MAGASIN ? Elles quittent le stock vendable et sont comptées dans « Usage magasin » (récap). Elles pourront être remises en stock.${this.puSkipNote(sel.length, us.length, 'seules les unités en stock sont concernées')}\n\nUtilisation (optionnel) :`,
+                { title: 'Usage magasin', okLabel: `Affecter (${us.length})`, placeholder: 'Ex. : poste de caisse, écran vitrine, PC bureau…' });
+            if (note == null) return;
+            try {
+                const r = await SF.api('/api/units/usage-magasin', { method: 'POST', body: { unit_ids: us.map(u => u.id), note } });
+                SF.toast(`${r.count} unité(s) affectée(s) à l'usage du magasin`, 'success');
+                await this.openProduct(this.current.id);
+                this.load();
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        // Liste des unités en usage magasin (récap) ; admin et responsable stock peuvent les remettre en stock.
+        async loadUsage() {
+            try { this.usage = await SF.api('/api/usage-magasin'); } catch (e) { this.usage = []; }
+            this.renderStockStats();
+            if (document.getElementById('usageModal').classList.contains('active')) this.renderUsage();
+        },
+        openUsage() { SF.Modal.open('usageModal'); this.renderUsage(); },
+        renderUsage() {
+            const U = this.usage || [], mgr = this.isManager;
+            const byProd = new Set(U.map(u => u.product_id)).size;
+            document.getElementById('usageSub').textContent = `${U.length} unité(s) · ${byProd} produit(s)`;
+            document.getElementById('usageBody').innerHTML = U.length ? U.map(u => `<div class="um-row">
+                    <span class="sf-ico t-violet"><i class="fas ${u.is_accessory ? 'fa-plug' : 'fa-laptop'}"></i></span>
+                    <div class="um-t"><b>${SF.esc(u.product_name || '—')}</b>
+                        <div class="text-muted" style="font-size:12px;">${u.serial ? `<span style="font-family:monospace;">${SF.esc(u.serial)}</span> · ` : ''}${u.note ? SF.esc(u.note) + ' · ' : ''}${SF.esc(u.marked_by || '')}${u.marked_at ? ' · ' + SF.esc(SF.fmt.date(u.marked_at.slice(0, 10))) : ''}</div></div>
+                    ${mgr ? `<button class="btn btn-sm btn-secondary" onclick="Stock.usageReturn(${u.id})" title="Remettre dans le stock vendable"><i class="fas fa-rotate-left"></i> En stock</button>` : ''}
+                </div>`).join('') : '<div class="text-muted" style="padding:16px;text-align:center;">Aucun produit utilisé par le magasin.</div>';
+        },
+        async usageReturn(id) {
+            if (!await SF.confirm('Remettre cette unité dans le stock vendable ?', { title: 'Usage magasin', okLabel: 'Remettre en stock' })) return;
+            try { await SF.api('/api/units/usage-magasin/return', { method: 'POST', body: { unit_ids: [id] } }); SF.toast('Unité remise en stock', 'success'); this.load(); }
+            catch (e) { SF.toast(e.message, 'error'); }
+        },
+        async bulkRetire() {
+            const sel = this.puSelected(), us = sel.filter(u => this.RETIRABLE.includes(u.status));
+            if (!us.length) return;
+            const reason = await SF.prompt(
+                `Retirer ${us.length} unité(s) du stock ? Elles sortent des disponibilités et de l'inventaire (l'historique est conservé).${this.puSkipNote(sel.length, us.length, 'les unités en préparation ne sont pas ajustables')}\n\nMotif :`,
+                { title: 'Ajustement — retirer du stock', okLabel: `Retirer (${us.length})`, placeholder: 'Ex. : vendue mais sortie non enregistrée, perte, casse…', required: true, multiline: true });
+            if (reason == null) return;
+            try {
+                const r = await SF.api('/api/units/retire', { method: 'POST', body: { unit_ids: us.map(u => u.id), reason } });
+                SF.toast(`${r.count} unité(s) retirée(s) du stock (ajustement)`, 'success');
+                await this.openProduct(this.current.id);
+                this.load();
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        labelUnits() {
+            // Priorité aux unités en stock, dans l'ordre, limitées à la quantité choisie.
+            const qtyEl = document.getElementById('labelQty');
+            const n = Math.max(1, Math.min(this.currentUnits.length, parseInt(qtyEl && qtyEl.value, 10) || this.currentUnits.length));
+            const ordered = [...this.currentUnits].sort((a, b) => (a.status === 'stock' ? 0 : 1) - (b.status === 'stock' ? 0 : 1));
+            return ordered.slice(0, n);
+        },
+        // Étiquette 60×40 d'UNE unité précise (par n° de série).
+        labelOne(unitId, kit) {
+            const u = (this.currentUnits || []).find(x => x.id === unitId);
+            if (!u) return SF.toast('Unité introuvable', 'error');
+            if (!u.serial) return SF.toast('Cette unité n\'a pas de n° de série', 'warn');
+            SFBarcode.downloadPDF([u], SF.fmt.ar, { kit: kit || 'both' });
+        },
+        // Kit Starlink : étiquettes choisies (antenne + routeur | antenne | routeur).
+        kitWhich() { const el = document.getElementById('kitWhich'); return el ? el.value : 'both'; },
+        // ---- Corbeille (admin) : produits supprimés, restaurables ----
+        async openTrash() {
+            SF.Modal.open('trashModal');
+            document.getElementById('trashBody').innerHTML = '<div class="text-muted" style="padding:10px;">Chargement…</div>';
+            try { this.trash = await SF.api('/api/products/trash'); this.renderTrash(); }
+            catch (e) { document.getElementById('trashBody').innerHTML = `<div class="text-muted" style="padding:10px;">${SF.esc(e.message)}</div>`; }
+        },
+        renderTrash() {
+            const box = document.getElementById('trashBody');
+            if (!this.trash || !this.trash.length) { box.innerHTML = '<div class="text-muted" style="padding:10px;">La corbeille est vide.</div>'; return; }
+            box.innerHTML = `<div class="table-container" style="max-height:420px;overflow:auto;">
+                <table><thead><tr><th>Produit</th><th>Unités</th><th>Supprimé par</th><th>Date</th><th></th></tr></thead><tbody>${
+                this.trash.map(t => `<tr>
+                    <td>${SF.esc(t.product_name || '—')}</td>
+                    <td>${t.unit_count}${t.sold_kept ? ` <span class="text-muted" style="font-size:11px;">(dont ${t.sold_kept} vendue(s))</span>` : ''}</td>
+                    <td>${SF.esc(t.deleted_by || '—')}</td>
+                    <td>${SF.fmt.datetime(t.deleted_at)}</td>
+                    <td style="text-align:right;white-space:nowrap;">
+                        <button class="btn btn-sm btn-primary" onclick="Stock.restoreTrash(${t.id})"><i class="fas fa-rotate-left"></i> Restaurer</button>
+                        <button class="btn btn-sm btn-danger" title="Purger définitivement" onclick="Stock.purgeTrash(${t.id})"><i class="fas fa-trash"></i></button>
+                    </td></tr>`).join('')}</tbody></table></div>`;
+        },
+        async restoreTrash(id) {
+            const t = (this.trash || []).find(x => x.id === id);
+            if (!await SF.confirm(`Restaurer « ${t ? t.product_name : 'ce produit'} » et ses unités au stock ?`, { okLabel: 'Restaurer' })) return;
+            try {
+                const r = await SF.api(`/api/products/trash/${id}/restore`, { method: 'POST', body: {} });
+                SF.toast(`Restauré : ${r.restored_units} unité(s)${r.skipped_units ? ` · ${r.skipped_units} ignorée(s) (série déjà présente)` : ''}`, 'success', 4000);
+                this.openTrash(); this.load();
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        async purgeTrash(id) {
+            if (!await SF.confirm('Purger définitivement cette entrée ? Le produit ne sera plus restaurable.', { danger: true, okLabel: 'Purger' })) return;
+            try { await SF.api(`/api/products/trash/${id}`, { method: 'DELETE' }); SF.toast('Entrée purgée', 'success'); this.openTrash(); }
+            catch (e) { SF.toast(e.message, 'error'); }
+        },
+        printLabels() { SFBarcode.printLabels(this.labelUnits(), SF.fmt.ar); },
+        labelsPDF() { SFBarcode.downloadPDF(this.labelUnits(), SF.fmt.ar, { kit: this.kitWhich() }); },
+        editProduct() {
+            const p = this.current, admin = this.user.role === 'admin', mgr = this.isManager;
+            const mixed = (p.supplier_count || 1) > 1;
+            document.getElementById('pmEdit').innerHTML = `
+                <div class="pm-form">
+                    ${mgr ? `<div class="pm-sec">Identification</div>
+                    <div class="pm-grid">
+                        <div class="form-group"><label>Catégorie</label><input type="text" id="e_category" class="form-control" value="${SF.esc(p.category || '')}"></div>
+                        <div class="form-group"><label>Sous-catégorie</label><input type="text" id="e_subcategory" class="form-control" value="${SF.esc(p.subcategory || '')}"></div>
+                        <div class="form-group"><label>Marque</label><input type="text" id="e_brand" class="form-control" value="${SF.esc(p.brand || '')}"></div>
+                        <div class="form-group"><label>Modèle</label><input type="text" id="e_model" class="form-control" value="${SF.esc(p.model || '')}"></div>
+                    </div>` : ''}
+                    ${mgr && !p.is_accessory && !p.is_service ? `<div class="pm-sec">Configuration</div>
+                    <div class="pm-grid">
+                        <div class="form-group pm-span"><label>Processeur</label><input type="text" id="e_cpu" class="form-control" value="${SF.esc(p.cpu || '')}" placeholder="Core i5-8250U"></div>
+                        <div class="form-group"><label>RAM</label><input list="e_dl_ram" id="e_ram" class="form-control" value="${SF.esc(p.ram || '')}" placeholder="8 Go"></div>
+                        <div class="form-group"><label>Stockage</label><input list="e_dl_storage" id="e_storage" class="form-control" value="${SF.esc(p.storage || '')}" placeholder="256 Go"></div>
+                        <div class="form-group"><label>Type stockage</label><input list="e_dl_stype" id="e_storage_type" class="form-control" value="${SF.esc(p.storage_type || '')}" placeholder="SSD NVMe"></div>
+                        <div class="form-group"><label>Taille écran</label><input list="e_dl_screen" id="e_screen_size" class="form-control" value="${SF.esc(p.screen_size || '')}" placeholder="15.6&quot;"></div>
+                        <div class="form-group"><label>2e carte graphique</label><input type="text" id="e_gpu" class="form-control" value="${SF.esc(p.gpu || '')}"></div>
+                        <div class="form-group"><label>État</label><select id="e_condition" class="form-control">
+                            ${[['', '—'], ['neuf', 'Neuf'], ['occasion', 'Occasion'], ['reconditionne', 'Reconditionné']].map(([v, l]) => `<option value="${v}" ${(p.condition || '') === v ? 'selected' : ''}>${l}</option>`).join('')}
+                        </select></div>
+                    </div>
+                    <div class="pm-checks">
+                        ${[['touchscreen', 'Tactile'], ['webcam', 'Webcam'], ['wifi', 'Wi-Fi'], ['bluetooth', 'Bluetooth'], ['numpad', 'Pavé numérique']].map(([f, l]) =>
+                            `<label><input type="checkbox" id="e_${f}" ${p[f] ? 'checked' : ''}> ${l}</label>`).join('')}
+                    </div>
+                    <datalist id="e_dl_ram"></datalist><datalist id="e_dl_storage"></datalist><datalist id="e_dl_stype"></datalist><datalist id="e_dl_screen"></datalist>` : ''}
+                    <div class="pm-sec">Prix${admin ? ' et fournisseur' : ''}</div>
+                    <div class="pm-grid">
+                        <div class="form-group"><label>Prix de vente (Ar)</label><input type="text" inputmode="numeric" id="e_price" class="form-control money-input" value="${SF.money.group(p.sale_price)}"></div>
+                        ${admin ? `<div class="form-group"><label>Prix d'achat (Ar)</label><input type="text" inputmode="numeric" id="e_purchase" class="form-control money-input" value="${SF.money.group(p.purchase_price || 0)}"></div>
+                        <div class="form-group pm-span"><label>Fournisseur${mixed ? ` <span class="badge badge-warning">${p.supplier_count} fournisseurs</span>` : ''}</label>
+                            <select id="e_supplier" class="form-control">
+                                <option value="" ${mixed ? 'selected' : ''}>${mixed ? '— Choisir pour unifier toutes les unités —' : '— non défini —'}</option>
+                                ${this.reSuppliers.map(s => `<option value="${s.id}" ${(!mixed && s.id === p.supplier_id) ? 'selected' : ''}>${SF.esc(s.name)}</option>`).join('')}
+                            </select></div>` : ''}
+                    </div>
+                    <div class="pm-sec">Dépôt</div>
+                    <div class="pm-grid">
+                        <div class="form-group"><label>Emplacement(s)</label><input type="text" id="e_emplacement" class="form-control" value="${SF.esc(p.emplacement || '')}" placeholder="E04, D03"></div>
+                        <div class="form-group"><label>Image${String(p.image_source || '').startsWith('auto') ? ' <span class="text-muted" style="font-weight:400;font-size:11px;">(photo Internet)</span>' : ''}</label>
+                            <div style="display:flex;gap:8px;align-items:center;">
+                                <div id="e_img_prev" data-zoom="" title="Agrandir la photo" style="cursor:zoom-in;width:64px;height:48px;flex-shrink:0;border-radius:8px;border:1px solid var(--border-color);background:#fff center/contain no-repeat;${p.image ? `background-image:url('${p.image}')` : ''}"></div>
+                                <input type="file" id="e_image" class="form-control" accept="image/*" style="min-width:0;">
+                                ${p.is_service ? '' : `<button type="button" class="btn btn-sm btn-secondary" style="flex-shrink:0;" onclick="Stock.autoImage()" title="Chercher une autre photo sur Internet"><i class="fas fa-rotate"></i> Autre</button>`}
+                            </div></div>
+                        <div class="form-group pm-span"><label>Description</label><textarea id="e_desc" class="form-control" rows="3">${SF.esc(p.description || '')}</textarea></div>
+                    </div>
+                    ${p.is_service ? `<div class="pm-checks"><label><input type="checkbox" id="e_service_atelier" ${p.service_atelier ? 'checked' : ''}> Service atelier — ordinateur du client (fiche + étiquette)</label></div>` : ''}
+                    ${admin ? `<div class="pm-danger"><button class="btn btn-danger" onclick="Stock.deleteProduct()"><i class="fas fa-trash"></i> Retirer le produit du stock</button></div>` : ''}
+                    <div class="pm-foot">
+                        <button class="btn btn-secondary" onclick="Stock.pmTab('units')">Annuler</button>
+                        <button class="btn btn-primary" onclick="Stock.saveProduct()"><i class="fas fa-check"></i> Enregistrer</button>
+                    </div>
+                </div>`;
+            if (SF.money && SF.money.refresh) document.querySelectorAll('#pmEdit .money-input').forEach(el => SF.money.refresh(el));
+            if (document.getElementById('e_dl_ram')) this.fillConfigLists();
+        },
+        // ── Correction de la configuration d'UNE unité (admin) : elle quitte sa fiche pour la fiche identique
+        //    existante (même config + état + prix) ou une nouvelle fiche ; aperçu de la destination en direct.
+        reconfOpen(unitId) {
+            const u = (this.currentUnits || []).find(x => x.id === unitId), p = this.current;
+            if (!u || !p) return;
+            this.rcUnit = u;
+            const acc = !!p.is_accessory;
+            const inp = (id, v, ph, list) => `<input ${list ? `list="${list}"` : 'type="text"'} id="rc_${id}" class="form-control" value="${SF.esc(v || '')}" placeholder="${ph || ''}" oninput="Stock.reconfPreview()">`;
+            document.getElementById('reconfBody').innerHTML = `
+                <div style="font-size:13px;margin-bottom:10px;">Unité <b style="font-family:monospace;">${SF.esc(u.serial || '')}</b>${u.manufacturer_sn ? ` · SN ${SF.esc(u.manufacturer_sn)}` : ''} —
+                    actuellement dans <b>${SF.esc([p.brand, p.model].filter(Boolean).join(' ') || p.name)}</b>. Seule cette unité change ; les autres restent sur leur fiche.</div>
+                <div class="pm-grid">
+                    <div class="form-group"><label>Catégorie</label>${inp('category', p.category)}</div>
+                    <div class="form-group"><label>Marque</label>${inp('brand', p.brand)}</div>
+                    <div class="form-group pm-span"><label>Modèle</label>${inp('model', p.model)}</div>
+                    ${acc ? `<div class="form-group pm-span"><label>Sous-catégorie</label>${inp('subcategory', p.subcategory)}</div>` : `
+                    <div class="form-group pm-span"><label>Processeur</label>${inp('cpu', p.cpu, 'Core i5-7200U')}</div>
+                    <div class="form-group"><label>RAM *</label>${inp('ram', p.ram, '8 Go', 'e_dl_ram')}</div>
+                    <div class="form-group"><label>Stockage *</label>${inp('storage', p.storage, '500 Go', 'e_dl_storage')}</div>
+                    <div class="form-group"><label>Type stockage</label>${inp('storage_type', p.storage_type, 'HDD', 'e_dl_stype')}</div>
+                    <div class="form-group"><label>Taille écran</label>${inp('screen_size', p.screen_size, '15.6', 'e_dl_screen')}</div>
+                    <div class="form-group"><label>2e carte graphique</label>${inp('gpu', p.gpu)}</div>
+                    <div class="form-group"><label>État</label><select id="rc_condition" class="form-control" onchange="Stock.reconfPreview()">
+                        ${[['', '—'], ['neuf', 'Neuf'], ['occasion', 'Occasion'], ['reconditionne', 'Reconditionné']].map(([v, l]) => `<option value="${v}" ${(p.condition || '') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>`}
+                    <div class="form-group"><label>Prix de vente (Ar)</label><input type="text" inputmode="numeric" id="rc_price" class="form-control money-input" value="${SF.money.group(u.sale_price || p.sale_price)}" oninput="Stock.reconfPreview()"></div>
+                </div>
+                ${acc ? '' : `<div class="pm-checks">${[['touchscreen', 'Tactile'], ['webcam', 'Webcam'], ['wifi', 'Wi-Fi'], ['bluetooth', 'Bluetooth'], ['numpad', 'Pavé numérique']].map(([f, l]) =>
+                    `<label><input type="checkbox" id="rc_${f}" ${p[f] ? 'checked' : ''} onchange="Stock.reconfPreview()"> ${l}</label>`).join('')}</div>`}
+                <datalist id="e_dl_ram"></datalist><datalist id="e_dl_storage"></datalist><datalist id="e_dl_stype"></datalist><datalist id="e_dl_screen"></datalist>
+                <div id="rcPreview" style="margin-top:12px;padding:10px 12px;border-radius:10px;background:var(--bg-input);font-size:13px;"></div>`;
+            if (SF.money && SF.money.refresh) document.querySelectorAll('#reconfBody .money-input').forEach(el => SF.money.refresh(el));
+            this.fillConfigLists();
+            SF.Modal.open('reconfModal');
+            this.reconfPreview();
+            const st = document.getElementById(acc ? 'rc_model' : 'rc_storage'); if (st) st.focus();
+        },
+        reconfBody(dry) {
+            const v = id => { const el = document.getElementById('rc_' + id); return el ? el.value.trim() : undefined; };
+            const b = { dry_run: dry ? 1 : 0, sale_price: SF.money.val(document.getElementById('rc_price')) };
+            ['category', 'subcategory', 'brand', 'model', 'cpu', 'ram', 'storage', 'storage_type', 'screen_size', 'gpu', 'condition'].forEach(f => { const x = v(f); if (x !== undefined) b[f] = x; });
+            ['touchscreen', 'webcam', 'wifi', 'bluetooth', 'numpad'].forEach(f => { const el = document.getElementById('rc_' + f); if (el) b[f] = el.checked ? 1 : 0; });
+            return b;
+        },
+        reconfPreview() {
+            clearTimeout(this._rcT);
+            this._rcT = setTimeout(async () => {
+                const box = document.getElementById('rcPreview'), btn = document.getElementById('rcSave');
+                if (!box || !this.rcUnit) return;
+                try {
+                    const r = await SF.api(`/api/units/${this.rcUnit.id}/reconfigure`, { method: 'POST', body: this.reconfBody(true) });
+                    const ch = Object.entries(r.changes || {}).map(([k, x]) => `<div>${SF.esc(k)} : <s class="text-muted">${SF.esc(x[0] == null ? '—' : String(x[0]))}</s> → <b>${SF.esc(x[1] == null ? '—' : String(x[1]))}</b></div>`).join('');
+                    box.innerHTML = (r.target
+                        ? `<i class="fas fa-object-group" style="color:var(--success);"></i> L'unité rejoindra la fiche existante <b>${SF.esc(r.target.name)}</b> (${r.target.units} unité(s), ${SF.fmt.ar(r.target.price)}).`
+                        : `<i class="fas fa-plus-circle" style="color:var(--accent);"></i> Une nouvelle fiche sera créée : <b>${SF.esc(r.name)}</b> à ${SF.fmt.ar(r.price)}.`) + (ch ? `<div style="margin-top:6px;font-size:12px;">${ch}</div>` : '');
+                    btn.disabled = false;
+                } catch (e) { box.innerHTML = `<span style="color:var(--danger);"><i class="fas fa-circle-exclamation"></i> ${SF.esc(e.message)}</span>`; btn.disabled = true; }
+            }, 300);
+        },
+        async reconfSave() {
+            const u = this.rcUnit; if (!u) return;
+            const btn = document.getElementById('rcSave'); btn.disabled = true;
+            try {
+                const r = await SF.api(`/api/units/${u.id}/reconfigure`, { method: 'POST', body: this.reconfBody(false) });
+                SF.Modal.close('reconfModal');
+                SF.toast(r.merged ? `${u.serial} déplacé dans la fiche existante « ${r.name} »` : `${u.serial} : nouvelle fiche « ${r.name} » créée`, 'success', 5000);
+                if (await SF.confirm(`Imprimer la nouvelle étiquette de ${u.serial} (configuration corrigée) ?`, { okLabel: 'Imprimer' }))
+                    SFBarcode.downloadPDF([r.unit], SF.fmt.ar);
+                await this.load();
+                if (this.current) this.openProduct(this.current.id);
+            } catch (e) { SF.toast(e.message, 'error'); btn.disabled = false; }
+        },
+        // Suggestions des champs de configuration (mêmes référentiels qu'en réception).
+        async fillConfigLists() {
+            try { this.refs = this.refs || await SF.api('/api/referentiels'); } catch (e) { return; }
+            [['e_dl_ram', 'ram'], ['e_dl_storage', 'storage_size'], ['e_dl_stype', 'storage_type'], ['e_dl_screen', 'screen_size']].forEach(([id, cat]) => {
+                const el = document.getElementById(id);
+                if (el) el.innerHTML = (this.refs[cat] || []).map(v => `<option value="${SF.esc(v)}">`).join('');
+            });
+        },
+        // Nouveau prix : unités mises à jour par emplacement, étiquettes à réimprimer (sauf retirées).
+        REPRICE_LBL: { stock: 'Dépôt', presentoir: 'Présentoir', consignation: 'Boutique', reserve: 'Réservé', preparation: 'Installation', retire: 'Retiré (corbeille)' },
+        repriceGroup(st) { return this.REPRICE_LBL[st] || (/^garantie/.test(st) ? 'Garantie' : /^retour/.test(st) ? 'Retour' : st); },
+        showRepriced(list, price) {
+            this.repriced = list;
+            const groups = new Map();
+            list.forEach(u => { const g = this.repriceGroup(u.status); groups.set(g, (groups.get(g) || 0) + 1); });
+            document.getElementById('repriceBody').innerHTML = `
+                <div style="font-size:14px;margin-bottom:12px;"><b>${list.length}</b> unité(s) passée(s) à <b>${SF.fmt.ar(price)}</b></div>
+                <div style="display:flex;flex-direction:column;gap:6px;">${[...groups.entries()].map(([g, n]) => `
+                    <label style="display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--border-color);border-radius:8px;cursor:pointer;">
+                        <input type="checkbox" class="rp-g" value="${SF.esc(g)}" ${g.startsWith('Retiré') ? '' : 'checked'} onchange="Stock.repriceCount()">
+                        <span style="flex:1;font-weight:600;">${SF.esc(g)}</span><b>${n}</b></label>`).join('')}</div>`;
+            this.repriceCount();
+            SF.Modal.open('repriceModal');
+        },
+        repriceSelected() {
+            const on = new Set([...document.querySelectorAll('#repriceBody .rp-g:checked')].map(c => c.value));
+            return (this.repriced || []).filter(u => on.has(this.repriceGroup(u.status)));
+        },
+        repriceCount() {
+            const n = this.repriceSelected().length, b = document.getElementById('repricePrintBtn');
+            b.disabled = !n; b.innerHTML = `<i class="fas fa-print"></i> Imprimer les étiquettes${n ? ` (${n})` : ''}`;
+        },
+        async printRepriced() {
+            const ids = this.repriceSelected().map(u => u.id);
+            if (!ids.length) return;
+            try {
+                const units = await SF.api('/api/stock-units?ids=' + ids.join(','));
+                await SFBarcode.downloadPDF(units, SF.fmt.ar);
+                SF.Modal.close('repriceModal');
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        // Admin : suppression complète d'un produit erroné/doublon du stock.
+        async deleteProduct() {
+            const p = this.current;
+            if (!p) return;
+            const name = SF.esc([p.brand, p.model].filter(Boolean).join(' ') || p.name || 'ce produit');
+            const blockLine = p.is_accessory
+                ? `• Bloqué si une unité est en livraison / acompte en cours.\n`
+                : `• Bloqué si une unité est en livraison / réservation / acompte en cours.\n`;
+            const accLine = p.is_accessory ? `• Accessoire : retrait possible même en boutique ou en réservation.\n` : '';
+            const ok = await SF.confirm(
+                `Retirer « ${name} » et toutes ses unités du STOCK ?\n\n` +
+                `• L'HISTORIQUE est conservé : ventes, mouvements et garanties restent intacts. Seul le stock est retiré.\n` +
+                accLine + blockLine +
+                `• Récupérable depuis la Corbeille.`,
+                { danger: true, okLabel: 'Retirer du stock', title: 'Retirer du stock' });
+            if (!ok) return;
+            try {
+                const r = await SF.api(`/api/products/${p.id}`, { method: 'DELETE' });
+                SF.toast(`Retiré du stock — ${r.deleted_units} unité(s)${r.sold_kept ? `, ${r.sold_kept} vente(s) conservée(s)` : ''}. Historique conservé.`, 'success');
+                SF.Modal.close('prodModal');
+                this.load();
+                if (this.user.role === 'admin') this.loadValue();
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        // « Autre photo » : nouvelle recherche Internet (variante suivante) — remplace la photo tout de suite.
+        // Aussi depuis la carte (raccourci admin) : autoImage(id, bouton).
+        async autoImage(id, btn) {
+            const p = id ? (this.list || []).find(x => x.id === id) : this.current; if (!p) return;
+            if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'; }
+            this._imgV = this._imgV || {};
+            this._imgV[p.id] = (this._imgV[p.id] || 0) + 1;
+            try {
+                SF.toast("Recherche d'une autre photo…", 'info', 1500);
+                const r = await SF.api(`/api/products/${p.id}/auto-image`, { method: 'POST', body: { variant: this._imgV[p.id] } });
+                p.image = r.image; p.image_source = 'auto';
+                const prev = document.getElementById('e_img_prev'); if (prev) prev.style.backgroundImage = `url('${r.image}')`;
+                const lp = (this.list || []).find(x => x.id === p.id); if (lp) { lp.image = r.image; lp.image_source = 'auto'; }
+                this.render();
+            } catch (e) {
+                SF.toast(e.message, 'error');
+                if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-image"></i>'; }
+            }
+        },
+        async saveProduct() {
+            const fd = new FormData();
+            const newPrice = SF.money.val(document.getElementById('e_price'));
+            fd.append('sale_price', newPrice);
+            fd.append('description', document.getElementById('e_desc').value);
+            const empEl = document.getElementById('e_emplacement');
+            if (empEl) fd.append('emplacement', empEl.value);
+            const pp = document.getElementById('e_purchase');
+            if (pp) fd.append('purchase_price', SF.money.val(pp));
+            // Catégorie / sous-catégorie / marque / modèle (admin).
+            ['category', 'subcategory', 'brand', 'model', 'cpu', 'ram', 'storage', 'storage_type', 'screen_size', 'gpu', 'condition'].forEach(f => {
+                const el = document.getElementById('e_' + f);
+                if (el) fd.append(f, el.value);
+            });
+            ['touchscreen', 'webcam', 'wifi', 'bluetooth', 'numpad', 'service_atelier'].forEach(f => {
+                const el = document.getElementById('e_' + f);
+                if (el) fd.append(f, el.checked ? '1' : '0');
+            });
+            const img = document.getElementById('e_image').files[0];
+            if (img) fd.append('image', img);
+            try {
+                const res = await SF.api(`/api/products/${this.current.id}`, { method: 'PUT', body: fd });
+                // Fiche devenue identique à une autre (mêmes détails + même prix) → fusionnée automatiquement
+                // dans la plus ancienne : on continue sur la fiche conservée.
+                if (res && res.merged_into) {
+                    SF.toast(`Produit identique à une autre fiche (mêmes détails et prix) : fusionné dans « ${res.merged_into.name} »`, 'success');
+                    this.current = Object.assign({}, this.current, { id: res.merged_into.id });
+                }
+                // Fournisseur (admin) : corrigé sur toutes les unités si modifié.
+                const supEl = document.getElementById('e_supplier');
+                const selSup = supEl ? parseInt(supEl.value, 10) : 0;
+                const mixedSup = (this.current.supplier_count || 1) > 1;
+                // On applique si : produit multi-fournisseurs (unification demandée) OU fournisseur réellement changé.
+                if (selSup && (mixedSup || selSup !== (this.current.supplier_id || 0))) {
+                    const r = await SF.api(`/api/products/${this.current.id}/supplier`, { method: 'PATCH', body: { supplier_id: selSup } });
+                    SF.toast(`Fournisseur corrigé : ${r.supplier_name} (${r.count} unité(s))`, 'success');
+                }
+                SF.toast(res && res.photo_refresh ? 'Produit mis à jour — nouvelle photo Internet en cours (quelques secondes)' : 'Produit mis à jour', 'success', res && res.photo_refresh ? 4500 : undefined);
+                await this.load(); this.openProduct(this.current.id);
+                if (res && res.repriced && res.repriced.length) this.showRepriced(res.repriced, newPrice);
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        
+        // === GARANTIE ===
+        warrantyProduct: null,
+        warrantySelectedUnits: [],
+        warrantyType: null,
+        
+        async openWarrantyModal(productId, preselect) {
+            try {
+                const product = this.list.find(p => p.id === productId);
+                if (!product) return SF.toast('Produit introuvable', 'error');
+                
+                this.warrantyProduct = product;
+                this.warrantySelectedUnits = [];
+                const pre = new Set(preselect || []);
+                this.warrantyType = null;
+                
+                document.getElementById('warrantyProductName').textContent = 
+                    [product.brand, product.model].filter(Boolean).join(' ') || product.name;
+                
+                const units = await SF.api(`/api/products/${productId}/units`);
+                const availableUnits = units.filter(u => u.status === 'stock' && u.location === 'depot');
+                
+                if (!availableUnits.length) {
+                    document.getElementById('warrantyUnitsList').innerHTML = 
+                        '<div style="text-align:center;padding:20px;color:var(--text-muted);">Aucune unité disponible au dépôt</div>';
+                } else {
+                    document.getElementById('warrantyUnitsList').innerHTML = availableUnits.map(u => `
+                        <label style="display:flex;align-items:center;gap:8px;padding:8px;border-radius:6px;cursor:pointer;border:1px solid transparent;" 
+                               onmouseover="this.style.background='var(--bg-input)'" 
+                               onmouseout="this.style.background='transparent'">
+                            <input type="checkbox" value="${u.id}" ${pre.has(u.id) ? 'checked' : ''} onchange="Stock.toggleWarrantyUnit(${u.id}, this.checked)">
+                            <div style="flex:1;">
+                                <div style="font-weight:600;font-size:12px;">${SF.esc(u.serial)}</div>
+                                ${u.manufacturer_sn ? `<div style="font-size:10px;color:var(--text-muted);">SN: ${SF.esc(u.manufacturer_sn)}</div>` : ''}
+                            </div>
+                        </label>
+                    `).join('');
+                }
+                
+                document.querySelectorAll('input[name="warranty_type"]').forEach(r => r.checked = false);
+                document.querySelectorAll('.dest-opt').forEach(o => o.classList.remove('active'));
+                document.getElementById('warrantyReason').value = '';
+                this.warrantySelectedUnits = availableUnits.filter(u => pre.has(u.id)).map(u => u.id);
+                document.getElementById('warrantyConfirmBtn').disabled = true;
+                
+                SF.Modal.open('warrantyModal');
+            } catch (e) {
+                SF.toast(e.message, 'error');
+            }
+        },
+        
+        toggleWarrantyUnit(unitId, checked) {
+            if (checked) {
+                if (!this.warrantySelectedUnits.includes(unitId)) {
+                    this.warrantySelectedUnits.push(unitId);
+                }
+            } else {
+                this.warrantySelectedUnits = this.warrantySelectedUnits.filter(id => id !== unitId);
+            }
+            this.updateWarrantyBtn();
+        },
+        
+        selectWarrantyType(type, event) {
+            event.stopPropagation();
+            this.warrantyType = type;
+            document.querySelectorAll('.dest-opt').forEach(o => o.classList.remove('active'));
+            event.currentTarget.classList.add('active');
+            document.querySelector(`input[value="${type}"]`).checked = true;
+            this.updateWarrantyBtn();
+        },
+        
+        updateWarrantyBtn() {
+            const btn = document.getElementById('warrantyConfirmBtn');
+            const hasReason = !!document.getElementById('warrantyReason').value.trim();
+            btn.disabled = !(this.warrantySelectedUnits.length > 0 && this.warrantyType && hasReason);
+        },
+        
+        async confirmWarranty() {
+            if (!this.warrantySelectedUnits.length || !this.warrantyType) return;
+            
+            const reason = document.getElementById('warrantyReason').value.trim();
+            if (!reason) return SF.toast('Motif / raison obligatoire', 'error');
+            const count = this.warrantySelectedUnits.length;
+            const typeLabel = this.warrantyType === 'garantie_fournisseur' ? 'garantie fournisseur' : 'garantie exceptionnelle';
+            
+            if (!await SF.confirm(`Envoyer ${count} unité(s) en ${typeLabel} ? Ces unités quitteront le stock dépôt.`, { title: 'Envoi en garantie', okLabel: 'Envoyer' })) return;
+            
+            try {
+                await SF.api('/api/stock/send-warranty', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        unit_ids: this.warrantySelectedUnits,
+                        warranty_type: this.warrantyType,
+                        reason
+                    })
+                });
+                
+                SF.toast(`${count} unité(s) envoyée(s) en garantie`, 'success');
+                SF.Modal.close('warrantyModal');
+                if (document.getElementById('prodModal').classList.contains('active') && this.current) await this.openProduct(this.current.id);
+                this.load();
+            } catch (e) {
+                SF.toast(e.message, 'error');
+            }
+        }
+    };
+    Stock.init();
+    </script>
+
+    <!-- Modal Envoi Garantie -->
+    <div class="modal-overlay" id="warrantyModal">
+        <div class="modal" style="max-width:560px;">
+            <div class="modal-header">
+                <h3><i class="fas fa-shield-alt"></i> Envoyer en garantie</h3>
+                <button class="modal-close" onclick="SF.Modal.close('warrantyModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Produit</label>
+                    <div id="warrantyProductName" style="font-weight:600;"></div>
+                </div>
+                
+                <div class="form-group">
+                    <label>Unités disponibles au dépôt</label>
+                    <div id="warrantyUnitsList" style="max-height:200px;overflow-y:auto;border:1px solid var(--border-color);border-radius:8px;padding:8px;">
+                        <div style="text-align:center;padding:20px;color:var(--text-muted);">Chargement...</div>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label>Type de garantie *</label>
+                    <div style="display:flex;flex-direction:column;gap:8px;">
+                        <label class="dest-opt" onclick="Stock.selectWarrantyType('garantie_fournisseur', event)">
+                            <input type="radio" name="warranty_type" value="garantie_fournisseur" style="margin:0;">
+                            <div style="flex:1;">
+                                <div style="font-weight:600;">Garantie fournisseur</div>
+                                <div style="font-size:11px;color:var(--text-muted);">Produit défectueux → retour fournisseur</div>
+                            </div>
+                        </label>
+                        <label class="dest-opt" onclick="Stock.selectWarrantyType('garantie_exceptionnel', event)">
+                            <input type="radio" name="warranty_type" value="garantie_exceptionnel" style="margin:0;">
+                            <div style="flex:1;">
+                                <div style="font-weight:600;">Garantie exceptionnelle</div>
+                                <div style="font-size:11px;color:var(--text-muted);">Geste commercial (hors garantie normale)</div>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label>Raison / Motif *</label>
+                    <textarea id="warrantyReason" class="form-control" rows="3" placeholder="Décrivez le problème (obligatoire)..." oninput="Stock.updateWarrantyBtn()"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="SF.Modal.close('warrantyModal')">Annuler</button>
+                <button class="btn btn-primary" id="warrantyConfirmBtn" disabled onclick="Stock.confirmWarranty()">
+                    <i class="fas fa-paper-plane"></i> Envoyer en garantie
+                </button>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>

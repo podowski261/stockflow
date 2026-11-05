@@ -1,0 +1,1098 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <title>Livraisons — STOCKFLOW</title>
+    <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css">
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/sf.css">
+    <script>document.documentElement.setAttribute('data-theme', localStorage.getItem('stockflow-theme') === 'dark' ? 'dark' : 'light'); try { var sfu = JSON.parse(localStorage.getItem('stockflow-ui') || '{}'); for (var k in sfu) document.documentElement.setAttribute('data-' + k, sfu[k]); } catch (e) {}</script>
+    <style>
+        /* Onglets En cours | Historique */
+        .dl-tabs { display:flex; gap:6px; border-bottom:1px solid var(--border-color); margin-bottom:18px; }
+        .dl-tab { padding:12px 18px; border:none; background:none; color:var(--text-secondary); font-family:var(--font-body); font-size:14px; font-weight:600; cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-1px; display:flex; align-items:center; gap:8px; }
+        .dl-tab:hover { color:var(--text-primary); }
+        .dl-tab.active { color:var(--accent); border-bottom-color:var(--accent); }
+        .filters { display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; margin-bottom:16px; }
+        .filters .form-group { margin-bottom:0; } .filters .form-control { min-width:120px; }
+        .chips { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:16px; }
+        .chip { padding:7px 14px; border-radius:999px; border:1px solid var(--border-color); background:var(--bg-card); color:var(--text-secondary); font-size:12.5px; font-weight:600; cursor:pointer; }
+        .chip.active { background:var(--accent); color:var(--accent-contrast); border-color:var(--accent); }
+        .grp-title { margin:18px 0 10px; display:flex; align-items:center; gap:8px; font-size:15px; }
+        #panel-historique .dcard { cursor:pointer; transition:border-color .1s, transform .1s; }
+        #panel-historique .dcard:hover { border-color:var(--accent); transform:translateY(-2px); }
+        .dgrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(310px,1fr)); gap:14px; }
+        /* ---- Refonte 2026-10 : fiche livraison ---- */
+        .enc-controls { background:var(--bg-card); border:1px solid var(--border-color); border-radius:16px; padding:12px; }
+        .dsum { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; margin-bottom:16px; }
+        @media (min-width:1500px){ .dsum { grid-template-columns:repeat(7,minmax(0,1fr)); } }
+        .dsum .kpi { background:var(--bg-card); border:1px solid var(--border-color); border-radius:14px; padding:12px 14px; }
+        .dsum .kpi h4 { font-size:12px; font-weight:700; margin:0 0 4px; display:flex; align-items:center; gap:6px; }
+        .dsum .kpi { cursor:pointer; }
+        .dsum .kpi .v { font-size:22px; font-weight:800; }
+        .dsec { display:flex; align-items:center; gap:10px; margin:22px 0 12px; font-size:16px; }
+        .dsec .ic { width:34px; height:34px; border-radius:10px; display:inline-flex; align-items:center; justify-content:center; font-size:14px; }
+        .dsec .n { margin-left:2px; min-width:26px; height:24px; padding:0 8px; border-radius:999px; font-size:12px; font-weight:800; display:inline-flex; align-items:center; justify-content:center; }
+        .dsec.st-acceptee .ic, .dsec.st-acceptee .n { background:#fdf0e1; color:#9a4a00; }
+        .dsec.st-facturee .ic, .dsec.st-facturee .n { background:#f1edfb; color:#5b3fa3; }
+        .dsec.st-en_livraison .ic, .dsec.st-en_livraison .n { background:#e6f0fb; color:#1d4f91; }
+        .dsec.st-annulee .ic, .dsec.st-annulee .n { background:#fbeeed; color:#a12a22; }
+        :root[data-theme="dark"] .dsec .ic, :root[data-theme="dark"] .dsec .n { background:rgba(255,255,255,.08) !important; }
+        .dday { margin-bottom:16px; }
+        .dday > .card-header { flex-wrap:wrap; gap:10px; }
+        .dday-t { display:flex; align-items:center; gap:12px; }
+        .dday-t h3 { font-size:16px; margin:0; }
+        .dday-ic { width:40px; height:40px; border-radius:12px; display:inline-flex; align-items:center; justify-content:center; background:var(--tint-teal,#e0f0ec); color:var(--ink-teal,#0f6b5f); font-size:16px; flex-shrink:0; }
+        .dcanc .dday-ic { background:var(--tint-coral,#fde9e4); color:var(--ink-coral,#c4503a); }
+        .dday-sub { font-size:12px; color:var(--text-muted); margin-top:2px; }
+        .dlegend { display:flex; gap:8px; flex-wrap:wrap; }
+        .dlegend .lg { display:inline-flex; align-items:center; gap:6px; padding:5px 10px; border-radius:999px; font-size:12px; font-weight:600; background:var(--bg-input); color:var(--text-secondary); }
+        .dlegend .lg i { width:10px; height:10px; border-radius:3px; display:inline-block; }
+        .dlegend .lg b { color:var(--text-primary); }
+        .dlegend .attente i { background:#f0a81c; } .dlegend .livraison i { background:#2f7fe0; } .dlegend .livree i { background:#1f9d55; }
+        /* Couleur de la fiche selon l'étape (fond teinté + liseré) — pour tous les rôles */
+        .dcard[data-grp] { border-left-width:4px !important; }
+        .dcard[data-grp="attente"]   { background:#fffaf0 !important; border-color:#f6e2b8 !important; border-left-color:#f0a81c !important; }
+        .dcard[data-grp="livraison"] { background:#f3f8fe !important; border-color:#d3e3f8 !important; border-left-color:#2f7fe0 !important; }
+        .dcard[data-grp="livree"]    { background:#f2faf5 !important; border-color:#cfeadb !important; border-left-color:#1f9d55 !important; }
+        .dcard[data-grp="annulee"]   { background:#fef6f5 !important; border-color:#f5d6d2 !important; border-left-color:#e5484d !important; }
+        :root[data-theme="dark"] .dcard[data-grp="attente"]   { background:rgba(240,168,28,.07) !important; border-color:rgba(240,168,28,.25) !important; border-left-color:#f0a81c !important; }
+        :root[data-theme="dark"] .dcard[data-grp="livraison"] { background:rgba(47,127,224,.08) !important; border-color:rgba(47,127,224,.25) !important; border-left-color:#4c93f0 !important; }
+        :root[data-theme="dark"] .dcard[data-grp="livree"]    { background:rgba(31,157,85,.08) !important; border-color:rgba(31,157,85,.25) !important; border-left-color:#2fa57a !important; }
+        :root[data-theme="dark"] .dcard[data-grp="annulee"]   { background:rgba(229,72,77,.07) !important; border-color:rgba(229,72,77,.25) !important; border-left-color:#e5484d !important; }
+        .dcard[data-grp] .dc-items { background:rgba(255,255,255,.7); }
+        :root[data-theme="dark"] .dcard[data-grp] .dc-items { background:rgba(255,255,255,.05); }
+        .dc-head { display:flex; justify-content:space-between; align-items:flex-start; gap:10px; }
+        .dc-head .dnum { font-size:16px; }
+        .dc-sub { font-size:11.5px; color:var(--text-muted); margin-top:3px; display:flex; flex-wrap:wrap; gap:4px 6px; align-items:center; }
+        .dc-amt { text-align:right; flex-shrink:0; }
+        .dc-amt b { display:block; font-size:17px; font-weight:800; color:var(--text-primary); font-variant-numeric:tabular-nums; white-space:nowrap; }
+        .dc-amt small { font-size:11px; color:var(--text-muted); white-space:nowrap; }
+        .dc-items { display:flex; gap:8px; align-items:flex-start; margin:12px 0 10px; padding:9px 11px; border-radius:10px; background:var(--bg-input); font-size:12.5px; font-weight:600; color:var(--text-primary); line-height:1.45; }
+        .dc-items i { color:var(--accent); margin-top:2px; }
+        .dc-note { font-size:12px; font-weight:700; margin:-2px 0 8px; display:flex; gap:6px; align-items:flex-start; }
+        .dc-note.up { color:var(--warning-dark); } .dc-note.emp { color:var(--accent); } .dc-note.cancel { color:var(--danger); }
+        .dc-info { display:grid; grid-template-columns:auto 1fr; gap:6px 9px; font-size:12.5px; color:var(--text-secondary); align-items:start; }
+        .dc-info > i { width:16px; text-align:center; color:var(--text-muted); margin-top:3px; font-size:12px; }
+        .dc-info a { color:var(--accent-dark); font-weight:700; text-decoration:none; }
+        .dc-info b { color:var(--text-primary); }
+        .dc-foot { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-top:10px; padding-top:10px; border-top:1px dashed var(--border-color); font-size:12px; }
+        .dc-pay { display:inline-flex; align-items:center; gap:5px; padding:3px 9px; border-radius:7px; font-weight:700; font-size:11.5px; }
+        .dc-pay.paid { background:var(--tint-green,#e3f5e9); color:var(--ink-green,#1b8a49); }
+        .dc-pay.cod { background:var(--tint-yellow,#fff2cc); color:var(--ink-yellow,#a46f00); }
+        .dcard .actions { margin-top:12px; display:grid; grid-template-columns:repeat(auto-fill,minmax(118px,1fr)); gap:6px; }
+        .dcard .actions .btn { justify-content:center; width:100%; }
+        @media (max-width:768px){ .dsum .kpi .v { font-size:19px; } .dc-amt b { font-size:16px; } }
+        /* Actions : l'étape suivante en grand, le reste en boutons compacts (icône + libellé court). */
+        .dcard .actions.sec .btn.btn-danger { background:transparent; color:var(--danger); border:1px solid rgba(229,72,77,.35); }
+        .dc-map { margin-left:6px; font-size:11.5px; font-weight:700; white-space:nowrap; }
+        @media (max-width:768px){
+            /* Récap : bandeau défilant d'une ligne (au lieu de 7 grandes tuiles empilées). */
+            #encRecap { background:transparent; border:none; box-shadow:none; margin-bottom:10px; }
+            #encRecap > .card-header { display:none; }
+            #encRecap > .card-body { padding:0; }
+            #encSummary { display:flex !important; gap:8px !important; overflow-x:auto; scroll-snap-type:x proximity; scrollbar-width:none; contain:inline-size; padding-bottom:2px; }
+            #encSummary::-webkit-scrollbar { display:none; }
+            #encSummary > .scard { flex:0 0 auto; min-width:112px; padding:10px 12px !important; scroll-snap-align:start; }
+            #encSummary > .scard .val { font-size:19px !important; }
+            #encSummary > .scard .sf-ico { width:24px; height:24px; font-size:11px; }
+            #encSummary > .scard .sub { display:none; }
+            .dgrid { grid-template-columns:minmax(0,1fr); gap:12px; }
+            .dgrid > .dcard { min-width:0; }
+            .dday > .card-body { padding:10px; }
+            .dcard { padding:13px; }
+            .dc-info { font-size:13px; }
+            .dstock-row { padding:6px 9px; gap:10px; }
+            .dstock-num { min-width:46px; font-size:22px; }
+            .dcard .actions { grid-template-columns:1fr; gap:6px; }
+            .dcard .actions .btn { min-height:44px; font-size:14px; }
+            .dcard .actions.sec { grid-template-columns:repeat(auto-fit,minmax(56px,1fr)); gap:5px; margin-top:6px; }
+            .dcard .actions.sec .btn { min-height:52px; flex-direction:column; gap:3px; padding:6px 2px; font-size:10.5px; line-height:1.15; white-space:normal; }
+            .dcard .actions.sec .btn i { font-size:14px; margin:0; }
+        }
+        .dcard { background:var(--bg-card); border:1px solid var(--border-color); border-radius:var(--border-radius-lg); padding:16px; }
+        .dnum { font-size:15px; font-weight:800; color:var(--text-primary); }
+        .dmeta { font-size:12.5px; color:var(--text-secondary); line-height:1.6; margin-top:6px; }
+        .section-title { margin:6px 0 12px; display:flex; align-items:center; gap:8px; }
+        .empty { text-align:center; color:var(--text-muted); padding:24px; }
+        .actions { display:flex; gap:6px; flex-wrap:wrap; margin-top:10px; }
+        .dstock { display:flex; flex-direction:column; gap:6px; margin:0 0 10px; }
+        .dstock-row { display:flex; align-items:center; gap:12px; padding:8px 10px; border-radius:10px; border:1px solid var(--border-color); background:var(--bg-input); }
+        .dstock-num { min-width:58px; text-align:center; font-size:28px; line-height:1; font-weight:800; font-variant-numeric:tabular-nums; }
+        .dstock-num small { display:block; font-size:10px; font-weight:700; letter-spacing:.02em; text-transform:uppercase; margin-top:3px; }
+        .dstock-info { flex:1; min-width:0; font-size:12px; color:var(--text-secondary); line-height:1.45; }
+        .dstock-info b { display:block; color:var(--text-primary); font-size:12.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .dstock-row.ok .dstock-num { color:var(--success); }
+        .dstock-row.low { border-color:var(--warning); } .dstock-row.low .dstock-num { color:var(--warning); }
+        .dstock-row.out { border-color:var(--danger); } .dstock-row.out .dstock-num { color:var(--danger); }
+        .unit-pick { border:1px solid var(--border-color); border-radius:10px; padding:8px 10px; margin-bottom:10px; }
+        .unit-pick label { display:flex; align-items:center; gap:8px; font-size:12.5px; padding:3px 0; }
+        .pay-methods { display:grid; grid-template-columns:repeat(2,1fr); gap:8px; margin:8px 0; }
+        .pay-opt { display:flex; align-items:center; gap:6px; padding:8px; border:1px solid var(--border-color); border-radius:8px; cursor:pointer; font-size:12.5px; }
+        .pay-opt.active { border-color:var(--accent); background:var(--accent-glow); font-weight:700; }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar" id="sfSidebar"></aside>
+        <main class="main-content">
+            <header class="page-header">
+                <div class="page-title"><h1>Livraisons</h1><p id="sub"></p></div>
+                <div class="page-actions">
+                    <button class="btn btn-secondary" id="pdfBtn" style="display:none;" onclick="Hist.exportPDF()"><i class="fas fa-file-pdf"></i> Rapport PDF</button>
+                    <button class="btn btn-secondary" id="xlsBtn" style="display:none;" onclick="SFReport.as('xlsx', () => Hist.exportPDF())"><i class="fas fa-file-excel"></i> Excel</button>
+                    <div id="sfTools"></div>
+                </div>
+            </header>
+            <div class="page-body">
+                <div class="dl-tabs">
+                    <button class="dl-tab active" data-t="encours" id="tab-encours"><i class="fas fa-truck-fast"></i> En cours</button>
+                    <button class="dl-tab" data-t="historique" id="tab-historique"><i class="fas fa-clock-rotate-left"></i> Historique</button>
+                </div>
+
+                <!-- Onglet EN COURS : traitement caisse / stock -->
+                <div id="panel-encours">
+                    <div class="enc-controls" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px;">
+                        <div style="position:relative;flex:1;min-width:220px;">
+                            <i class="fas fa-magnifying-glass" style="position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--text-muted);"></i>
+                            <input type="text" id="enc_search" class="form-control" style="padding-left:36px;" placeholder="Rechercher : produit, config, n° série, client, tél, livreur, créateur…" oninput="Del.onSearch()">
+                        </div>
+                        <div class="m-fullrow" style="display:flex;align-items:center;gap:6px;">
+                            <button class="btn btn-sm btn-secondary" onclick="Del.shiftDate(-1)" title="Jour précédent"><i class="fas fa-chevron-left"></i></button>
+                            <input type="date" id="enc_date" class="form-control m-grow" style="min-width:150px;" onchange="Del.load()" title="Date de livraison à afficher">
+                            <button class="btn btn-sm btn-secondary" onclick="Del.shiftDate(1)" title="Jour suivant"><i class="fas fa-chevron-right"></i></button>
+                            <button class="btn btn-sm btn-secondary" onclick="Del.setToday()" title="Aujourd'hui"><i class="fas fa-calendar-day"></i><span class="m-hide"> Aujourd'hui</span></button>
+                        </div>
+                        <div id="enc_price" class="m-fullrow"></div>
+                    </div>
+                    <div class="card dash-card" id="encRecap"><div class="card-header"><h3><i class="fas fa-chart-simple"></i> Récap des livraisons</h3><span class="text-muted" style="font-size:12px;">Cliquer pour aller à l'étape</span></div><div class="card-body"><div class="stats-grid" id="encSummary"></div></div></div>
+                    <div id="upcomingStrip"></div>
+                    <div id="sections"><div class="sf-skel sf-skel-card"></div><div class="sf-skel sf-skel-card"></div><div class="sf-skel sf-skel-card"></div></div>
+                </div>
+
+                <!-- Onglet HISTORIQUE : toutes les livraisons (filtres, recherche, PDF) -->
+                <div id="panel-historique" style="display:none;">
+                    <div class="card dash-card"><div class="card-header"><h3><i class="fas fa-clock-rotate-left"></i> Récap de l'historique</h3></div><div class="card-body"><div class="stats-grid" id="histSummary"></div></div></div>
+                    <div class="card"><div class="card-body">
+                        <div class="filters">
+                            <div class="form-group"><label>Du</label><input type="date" id="f_from" class="form-control" onchange="Hist.load()"></div>
+                            <div class="form-group"><label>Au</label><input type="date" id="f_to" class="form-control" onchange="Hist.load()"></div>
+                            <div class="form-group" id="livreurFilterWrap" style="display:none;"><label>Livreur</label><select id="f_livreur" class="form-control" onchange="Hist.load()"><option value="">Tous</option></select></div>
+                            <div class="form-group" id="commercialFilterWrap" style="display:none;"><label>Créateur (commande)</label><select id="f_commercial" class="form-control" onchange="Hist.load()"><option value="">Tous</option></select></div>
+                            <div class="form-group"><label>Montant</label><div id="f_price"></div></div>
+                            <div class="form-group" style="flex:1;min-width:180px;"><label>Recherche</label><input type="text" id="f_q" class="form-control" placeholder="Client, n°, adresse, produit, n° de série…" onkeydown="if(event.key==='Enter')Hist.load()"></div>
+                        </div>
+                        <div class="chips" id="statusChips">
+                            <div class="chip active" data-s="">Toutes</div>
+                            <div class="chip" data-s="en_cours">En cours</div>
+                            <div class="chip" data-s="livree">Livrées</div>
+                            <div class="chip" data-s="annulee">Annulées / retours</div>
+                        </div>
+                        <div id="histBody"><div class="sf-skel sf-skel-card"></div><div class="sf-skel sf-skel-card"></div><div class="sf-skel sf-skel-card"></div></div>
+                    </div></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modale facturation (caisse) -->
+    <div class="modal-overlay" id="invModal">
+        <div class="modal" style="max-width:560px;">
+            <div class="modal-header"><h3 id="invTitle">Facturer la livraison</h3><button class="modal-close" onclick="SF.Modal.close('invModal')">&times;</button></div>
+            <div class="modal-body" id="invBody"></div>
+            <div class="modal-footer"><button class="btn btn-secondary" onclick="SF.Modal.close('invModal')">Annuler</button><button class="btn btn-primary" onclick="Del.submitInvoice()"><i class="fas fa-file-invoice"></i> Facturer</button></div>
+        </div>
+    </div>
+
+    <!-- Modale détails de la livraison -->
+    <div class="modal-overlay" id="detModal">
+        <div class="modal" style="max-width:560px;">
+            <div class="modal-header"><h3 id="detTitle">Détails de la livraison</h3><button class="modal-close" onclick="SF.Modal.close('detModal')">&times;</button></div>
+            <div class="modal-body" id="detBody"></div>
+            <div class="modal-footer"><button class="btn btn-secondary" onclick="SF.Modal.close('detModal')">Fermer</button></div>
+        </div>
+    </div>
+
+    <!-- Modale UPGRADE à la livraison (caisse) : réalise l'upgrade demandé sur commande en ligne -->
+    <div class="modal-overlay" id="delUpgModal">
+        <div class="modal" style="max-width:540px;">
+            <div class="modal-header"><h3><i class="fas fa-screwdriver-wrench"></i> Upgrade demandé</h3><button class="modal-close" onclick="SF.Modal.close('delUpgModal')">&times;</button></div>
+            <div class="modal-body">
+                <div id="delUpgNote" class="text-muted" style="font-size:12.5px;margin-bottom:10px;"></div>
+                <div class="form-group" id="delUpgPcWrap" style="display:none;"><label>Ordinateur à upgrader</label><select id="delUpgPc" class="form-control"></select></div>
+                <div class="form-group"><label>Composant à changer</label>
+                    <select id="delUpgField" class="form-control">
+                        <option value="storage">Stockage</option><option value="ram">RAM</option><option value="cpu">Processeur</option><option value="gpu">Carte graphique</option><option value="screen_size">Écran</option>
+                    </select>
+                </div>
+                <div class="form-group"><label>Ancien composant (à retirer)</label><input type="text" id="delUpgOld" class="form-control" placeholder="Ex : 8 Go"></div>
+                <div class="form-group"><label>Composant NEUF (scan n° de série de l'accessoire en stock)</label>
+                    <input type="text" id="delUpgScan" class="form-control" placeholder="Scanner / saisir puis Entrée…" onkeydown="if(event.key==='Enter'){event.preventDefault();Del.delUpgScanNew(this.value);}">
+                    <div id="delUpgNewInfo" style="font-size:12.5px;margin-top:4px;"></div>
+                </div>
+                <div class="form-group"><label>Nouvelle valeur affichée</label><input type="text" id="delUpgNewVal" class="form-control" placeholder="Ex : SSD 256 Go"></div>
+                <label style="display:flex;gap:8px;align-items:center;font-size:13px;cursor:pointer;margin-bottom:8px;"><input type="checkbox" id="delUpgKeep" onchange="Del.delUpgRecalc()"> Reprendre l'ancien composant (le stock le réceptionnera)</label>
+                <div class="form-group" id="delUpgOldPriceWrap" style="display:none;"><label>Valeur de reprise (Ar)</label><input type="number" id="delUpgOldPrice" data-keypad class="form-control" min="0" value="0" oninput="Del.delUpgRecalc()"></div>
+                <div class="cart-total" style="font-size:17px;"><span>Écart à payer par le client</span><span id="delUpgEcart">0 Ar</span></div>
+            </div>
+            <div class="modal-footer"><button class="btn btn-secondary" onclick="SF.Modal.close('delUpgModal')">Annuler</button><button class="btn btn-primary" onclick="Del.delUpgConfirm()"><i class="fas fa-check"></i> Valider l'upgrade &amp; encaisser</button></div>
+        </div>
+    </div>
+
+    <!-- Modale encaissement (livraison payée à la livraison) -->
+    <div class="modal-overlay" id="payModal">
+        <div class="modal" style="max-width:460px;">
+            <div class="modal-header"><h3>Encaissement de la livraison</h3><button class="modal-close" onclick="SF.Modal.close('payModal')">&times;</button></div>
+            <div class="modal-body" id="payBody"></div>
+            <div class="modal-footer"><button class="btn btn-secondary" onclick="SF.Modal.close('payModal')">Annuler</button><button class="btn btn-primary" onclick="Del.submitComplete()"><i class="fas fa-check"></i> Confirmer livrée & payée</button></div>
+        </div>
+    </div>
+
+    <!-- Modale sortie du stock : le gestionnaire scanne les vraies unités -->
+    <div class="modal-overlay" id="relModal">
+        <div class="modal" style="max-width:520px;">
+            <div class="modal-header"><h3 id="relTitle">Sortie du stock</h3><button class="modal-close" onclick="SF.Modal.close('relModal')">&times;</button></div>
+            <div class="modal-body">
+                <p class="text-muted" id="relScanHint" style="font-size:12px;margin-bottom:10px;"><i class="fas fa-barcode"></i> Scannez (ou saisissez) le n° de série de chaque article qui sort physiquement du stock.</p>
+                <div class="form-group" id="relScanBox"><input type="text" id="relSerial" class="form-control" placeholder="N° de série — scan ou saisie puis Entrée" onkeydown="if(event.key==='Enter'){event.preventDefault();Del.relScan();}" autocomplete="off"></div>
+                <div id="relBody"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="SF.Modal.close('relModal')">Annuler</button>
+                <button class="btn btn-primary" id="relSubmit" disabled onclick="Del.submitRelease()"><i class="fas fa-box-open"></i> Valider la sortie</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modale détail (onglet Historique) -->
+    <div class="modal-overlay" id="histDetModal">
+        <div class="modal" style="max-width:560px;">
+            <div class="modal-header"><h3 id="histDetTitle">Livraison</h3><button class="modal-close" onclick="SF.Modal.close('histDetModal')">&times;</button></div>
+            <div class="modal-body" id="histDetBody"></div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" id="histCopyBtn" onclick="Hist.copySummary()" style="display:none;"><i class="fas fa-copy"></i> Copier résumé</button>
+                <button class="btn btn-secondary" id="histLabelBtn" onclick="Hist.printLabel()" style="display:none;"><i class="fas fa-tag"></i> Étiquette 60×40</button>
+                <button class="btn btn-danger" id="histCancelBtn" onclick="Hist.cancelOrder()" style="display:none;"><i class="fas fa-ban"></i> Annuler la commande</button>
+                <button class="btn btn-danger" id="histDelBtn" onclick="Hist.deleteDelivery()" style="display:none;"><i class="fas fa-trash"></i> Supprimer</button>
+                <button class="btn btn-secondary" onclick="SF.Modal.close('histDetModal')">Fermer</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/sf-core.js"></script>
+    <script src="/js/sf-layout.js"></script>
+    <script src="/js/sf-invoice.js"></script>
+    <script src="/js/sf-pay.js"></script>
+    <script src="/js/sf-barcode.js"></script>
+    <script src="/js/sf-report.js"></script>
+    <script>
+    const Del = {
+        user: null, deliveries: [], current: null, completeId: null, config: {}, searchQ: '',
+        start() {
+            // Vue par date de livraison : par défaut le jour même.
+            const di = document.getElementById('enc_date');
+            if (di && !di.value) di.value = this.todayStr();
+            SF.on('delivery:update', () => this.load());
+            SF.on('notification', () => this.load());
+            // Responsable stock : le stock restant affiché sur les cartes suit en direct ventes, réceptions et mouvements.
+            if (this.isGestion) ['stock:update', 'sale:new', 'reception:new'].forEach(ev => SF.on(ev, () => {
+                clearTimeout(this._stockT); this._stockT = setTimeout(() => this.load(), 600);
+            }));
+            this.load();
+        },
+        // ---- Vue par date + recherche libre (onglet En cours) ----
+        todayStr() { const t = new Date(), p = n => String(n).padStart(2, '0'); return `${t.getFullYear()}-${p(t.getMonth() + 1)}-${p(t.getDate())}`; },
+        selDate() { const di = document.getElementById('enc_date'); return (di && di.value) || this.todayStr(); },
+        plannedOf(d) { return d.planned_date || d.delivery_date || String(d.created_at || '').slice(0, 10); },
+        onSearch() { clearTimeout(this._st); this._st = setTimeout(() => this.render(), 150); },
+        setToday() { const di = document.getElementById('enc_date'); if (di) di.value = this.todayStr(); this.load(); },
+        shiftDate(n) { const di = document.getElementById('enc_date'); if (!di) return; const t = new Date((di.value || this.todayStr()) + 'T00:00:00'); t.setDate(t.getDate() + n); const p = x => String(x).padStart(2, '0'); di.value = `${t.getFullYear()}-${p(t.getMonth() + 1)}-${p(t.getDate())}`; this.load(); },
+        matchSearch(d) {
+            const q = (document.getElementById('enc_search').value || '').trim().toLowerCase();
+            if (!q) return true;
+            return `${d.delivery_number} ${d.client_name || ''} ${d.client_phone || ''} ${d.client_address || ''} ${d.commercial_name || ''} ${d.livreur_name || ''} ${d.items_summary || ''} ${d.serials_concat || ''} ${d.config_concat || ''}`.toLowerCase().includes(q);
+        },
+        get isCaisse() { return this.user.role === 'admin' || this.user.role === 'caisse'; },
+        get isGestion() { return this.user.role === 'admin' || this.user.role === 'gestion_stock'; },
+        async load() {
+            try { const r = await SF.api('/api/deliveries?day=' + this.selDate()); this.deliveries = r.deliveries; this.lowStock = r.low_stock_threshold || 2; this.render(); }
+            catch (e) { SF.toast(e.message, 'error'); }
+        },
+        card(d) {
+            const acts = [];
+            if (this.isCaisse) {
+                if (d.status === 'acceptee') acts.push(`<button class="btn btn-sm btn-primary" onclick="Del.openInvoice(${d.id})"><i class="fas fa-file-invoice"></i> Facturer</button>`);
+                // Annulation PARTIELLE tant que rien n'est sorti du stock (quantité par article).
+                if (['acceptee', 'facturee'].includes(d.status)) acts.push(`<button class="btn btn-sm btn-secondary" onclick="SF.partialCancelDelivery(${d.id}).then(r => r && Del.load())" title="Retirer une partie des articles (ex. 4 pièces sur 10)"><i class="fas fa-scissors"></i> Annulation partielle</button>`);
+                if (d.status === 'en_livraison') {
+                    acts.push(`<button class="btn btn-sm btn-success" onclick="Del.complete(${d.id})"><i class="fas fa-check"></i> Livrée & payée</button>`);
+                    acts.push(`<button class="btn btn-sm btn-danger" onclick="Del.cancel(${d.id})"><i class="fas fa-ban"></i> Annuler</button>`);
+                    acts.push(`<button class="btn btn-sm btn-secondary" onclick="Del.defer(${d.id})"><i class="fas fa-clock"></i> Reporter</button>`);
+                }
+            }
+            if (this.isGestion) {
+                if (d.status === 'facturee') acts.push(`<button class="btn btn-sm btn-primary" onclick="Del.release(${d.id})"><i class="fas fa-box-open"></i> Valider la sortie</button>`);
+                // Retour à valider UNIQUEMENT si des unités sont réellement sorties du stock (released_at).
+                // Une commande annulée avant sortie n'a rien à réceptionner.
+                if (d.status === 'annulee' && d.released_at) acts.push(`<button class="btn btn-sm btn-success" onclick="Del.returnConfirm(${d.id})"><i class="fas fa-rotate-left"></i> Valider le retour</button>`);
+            }
+            // Facture (bon de sortie) dès que la livraison est facturée : le livreur l'emporte au stock.
+            if (d.sale_id && ['facturee', 'en_livraison', 'livree'].includes(d.status))
+                acts.push(`<button class="btn btn-sm btn-secondary" onclick="Del.printFacture(${d.sale_id})"><i class="fas fa-print"></i> Facture</button>`);
+            // Admin : supprimer la commande à tout moment (même en attente de sortie de stock).
+            if (this.user.role === 'admin')
+                acts.push(`<button class="btn btn-sm btn-danger" onclick="Del.deleteDelivery(${d.id}, ${d.delivery_number})"><i class="fas fa-trash"></i> Supprimer</button>`);
+            acts.unshift(`<button class="btn btn-sm btn-secondary" onclick="Del.showDetails(${d.id})"><i class="fas fa-eye"></i> Détails</button>`);
+            // Étape suivante (bouton plein) d'abord, puis les actions secondaires compactes.
+            const isMain = a => /btn-(primary|success)/.test(a);
+            const mainActs = acts.filter(isMain), secActs = acts.filter(a => !isMain(a));
+            return `<div class="dcard" data-st="${SF.esc(d.status)}" data-grp="${d.status === 'annulee' ? 'annulee' : this.grpOf(d)}">
+                <div class="dc-head">
+                    <div><div class="dnum">Livraison #${d.delivery_number}</div>
+                        <div class="dc-sub">${SF.deliveryBadge(d.status)}<span><i class="fas fa-calendar-day"></i> ${SF.fmt.date(this.plannedOf(d))}${d.delivery_time ? ' · ' + SF.esc(d.delivery_time) : ''}</span>${this.retardBadge(d)}</div></div>
+                    <div class="dc-amt"><b>${SF.fmt.ar(d.total)}</b><small>frais ${SF.fmt.ar(d.delivery_fee)}</small></div>
+                </div>
+                <div class="dc-items"><i class="fas fa-box"></i><span>${SF.esc(d.items_summary || '—')}</span></div>
+                ${this.stockLeftHtml(d)}
+                ${d.upgrade_notes ? `<div class="dc-note up"><i class="fas fa-screwdriver-wrench"></i><span>Upgrade demandé — ${SF.esc(d.upgrade_notes)} <span style="font-weight:400;">(à réaliser par la caisse)</span></span></div>` : ''}
+                ${d.emplacement_concat ? `<div class="dc-note emp"><i class="fas fa-location-dot"></i><span>Emplacement : ${SF.esc(d.emplacement_concat)}</span></div>` : ''}
+                ${d.cancel_reason ? `<div class="dc-note cancel"><i class="fas fa-ban"></i><span>Annulée : ${SF.esc(d.cancel_reason)}</span></div>` : ''}
+                <div class="dc-info">
+                    <i class="fas fa-user"></i><span><b>${SF.esc(d.client_name)}</b>${d.client_phone ? ` · <a href="tel:${SF.esc(d.client_phone)}" onclick="event.stopPropagation()">${SF.esc(d.client_phone)}</a>` : ''}</span>
+                    <i class="fas fa-location-dot"></i><span>${SF.esc(d.client_address || '—')}${d.client_address ? `<a class="dc-map" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(d.client_address)}" target="_blank" rel="noopener" onclick="event.stopPropagation()"><i class="fas fa-map-location-dot"></i> Carte</a>` : ''}</span>
+                    <i class="fas fa-motorcycle"></i><span>${d.livreur_name ? SF.esc(d.livreur_name) : '<span style="color:var(--danger);">livreur non assigné</span>'} <span class="text-muted">· par ${SF.esc(d.commercial_name || '—')}</span></span>
+                </div>
+                ${d.payment_status ? `<div class="dc-foot"><span class="text-muted">Paiement</span><span class="dc-pay ${d.payment_status === 'paye' ? 'paid' : 'cod'}"><i class="fas ${d.payment_status === 'paye' ? 'fa-circle-check' : 'fa-hand-holding-dollar'}"></i> ${d.payment_status === 'paye' ? 'Payé' : 'À la livraison'}</span></div>` : ''}
+                ${mainActs.length ? `<div class="actions">${mainActs.join('')}</div>` : ''}
+                ${secActs.length ? `<div class="actions sec">${secActs.join('')}</div>` : ''}</div>`;
+        },
+        // Responsable stock : reste au dépôt par produit, en grand, pour anticiper le réassort.
+        stockLeftHtml(d) {
+            if (!this.isGestion || !(d.stock_left || []).length) return '';
+            return `<div class="dstock">${d.stock_left.map(x => {
+                const n = x.remaining, lvl = n === 0 ? 'out' : n <= this.lowStock ? 'low' : 'ok';
+                const label = n === 0 ? 'Rupture' : n <= this.lowStock ? 'Faible' : 'Restant';
+                const detail = `Dépôt : ${x.depot}${x.pending ? ` · à sortir : ${x.pending}` : ''}${x.ailleurs ? ` · présentoir / boutique : ${x.ailleurs}` : ''}`;
+                return `<div class="dstock-row ${lvl}"><div class="dstock-num">${n}<small>${label}</small></div>
+                    <div class="dstock-info"><b title="${SF.esc(x.name)}">${SF.esc(x.name)}</b>${detail}</div></div>`;
+            }).join('')}</div>`;
+        },
+        // Pastille « En retard » si la date de livraison prévue est dépassée (commande active).
+        retardBadge(d) {
+            if (['livree', 'annulee', 'retournee'].includes(d.status)) return '';
+            const pd = this.plannedOf(d); if (!pd) return '';
+            const days = Math.floor((new Date(this.todayStr() + 'T00:00:00') - new Date(pd + 'T00:00:00')) / 86400000);
+            if (days <= 0) return '';
+            return ` <span style="background:rgba(239,68,68,.15);color:var(--danger);font-weight:700;font-size:11px;padding:1px 7px;border-radius:6px;">En retard ${days}j</span>`;
+        },
+        // Bandeau « À venir » : livraisons actives des jours FUTURS, groupées par date (cliquable).
+        renderUpcoming() {
+            const strip = document.getElementById('upcomingStrip');
+            const searching = !!(document.getElementById('enc_search').value || '').trim();
+            const today = this.todayStr();
+            const fut = this.deliveries.filter(d => ['nouvelle', 'assignee', 'acceptee', 'facturee', 'en_livraison'].includes(d.status) && this.plannedOf(d) > today);
+            if (searching || !fut.length) { strip.innerHTML = ''; return; }
+            const m = new Map();
+            fut.forEach(d => { const k = this.plannedOf(d); m.set(k, (m.get(k) || 0) + 1); });
+            const chips = [...m.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([date, n]) =>
+                `<button class="btn btn-sm btn-secondary" onclick="Del.gotoDate('${date}')"><i class="fas fa-calendar-day"></i> ${SF.fmt.date(date)} <span style="background:var(--accent);color:var(--accent-contrast);border-radius:999px;padding:0 7px;font-weight:800;margin-left:4px;">${n}</span></button>`).join('');
+            strip.innerHTML = `<div style="background:var(--bg-input);border-radius:10px;padding:10px 12px;margin-bottom:14px;">
+                <div style="font-size:12.5px;font-weight:700;color:var(--text-secondary);margin-bottom:8px;"><i class="fas fa-clock"></i> À venir</div>
+                <div style="display:flex;flex-wrap:wrap;gap:8px;">${chips}</div></div>`;
+        },
+        gotoDate(date) { const di = document.getElementById('enc_date'); if (di) di.value = date; this.load(); },
+        // Récap des livraisons en cours (toutes dates), une tuile par étape ; clic → section.
+        renderSummary() {
+            const box = document.getElementById('encSummary'); if (!box) return;
+            const all = this.deliveries || [], today = this.todayStr();
+            const by = st => all.filter(d => d.status === st);
+            const late = all.filter(d => ['acceptee', 'facturee', 'en_livraison'].includes(d.status) && this.plannedOf(d) < today).length;
+            const amount = all.filter(d => ['acceptee', 'facturee', 'en_livraison'].includes(d.status)).reduce((t, d) => t + (d.total || 0), 0);
+            const tile = (label, icon, value, sec, tone) => SF.tile({ label, icon, value, tone, onclick: sec ? `Del.goSec('${sec}')` : '' });
+            box.innerHTML =
+                (this.isCaisse ? tile('À facturer', 'fa-file-invoice', by('acceptee').length, 'acceptee', 'yellow') : '') +
+                tile('Sortie à valider', 'fa-box-open', by('facturee').length, 'facturee', 'violet') +
+                tile('En livraison', 'fa-truck-fast', by('en_livraison').length, 'en_livraison', 'blue') +
+                tile('En retard', 'fa-clock', late, '', 'coral') +
+                tile('Livrées', 'fa-circle-check', by('livree').length, 'livree', 'green') +
+                tile('Annulées', 'fa-ban', by('annulee').length, 'annulee', 'coral') +
+                tile('Montant en cours', 'fa-coins', SF.fmt.ar(amount), '', 'teal');
+        },
+        goSec(st) {
+            const el = st && (document.querySelector(`#sections [id^="sec-${st}"]`) || document.querySelector(`#sections .dcard[data-st="${st}"]`));
+            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            else if (st) SF.toast('Rien à afficher pour cette date — changez de date ou cherchez.', 'info');
+        },
+        // Étape affichée (couleur de la fiche) : en attente (à facturer / sortie à valider), en livraison, livrée.
+        grpOf(d) { return d.status === 'livree' ? 'livree' : d.status === 'en_livraison' ? 'livraison' : 'attente'; },
+        render() {
+            this.renderSummary();
+            this.renderUpcoming();
+            const q = (document.getElementById('enc_search').value || '').trim();
+            const searching = !!q;
+            const selDate = this.selDate(), today = this.todayStr();
+            // Vue par date : la commande appartient à la date sélectionnée ; en vue « aujourd'hui »,
+            // on inclut aussi le retard (prévue ≤ aujourd'hui) pour ne pas cacher le backlog.
+            // Les livrées viennent déjà filtrées par jour du serveur (?day=).
+            const dateMatch = d => { if (d.status === 'livree') return true; const pd = this.plannedOf(d); return selDate === today ? pd <= today : pd === selDate; };
+            // En recherche : on ignore la date et on cherche dans TOUTES les livraisons chargées.
+            const pr = document.getElementById('enc_price');
+            const base = this.deliveries.filter(d => (!searching || this.matchSearch(d)) && SF.PriceRange.test(pr, d.total));
+            // Une seule carte pour la journée : en attente → en livraison → livrée (couleur de fiche par étape).
+            // « Sortie à valider » (facturee) : la tuile du récap est visible par tous, donc la carte doit
+            // l'être aussi — la caisse qui a facturé suit la sortie (annulation partielle / facture).
+            const inDay = d => (d.status === 'acceptee' && this.isCaisse) || (d.status === 'facturee' && (this.isGestion || this.isCaisse))
+                || d.status === 'en_livraison' || d.status === 'livree';
+            const ORDER = { attente: 0, livraison: 1, livree: 2 };
+            const day = base.filter(d => inDay(d) && (searching || dateMatch(d)))
+                .sort((a, b) => ORDER[this.grpOf(a)] - ORDER[this.grpOf(b)]);
+            const cnt = g => day.filter(d => this.grpOf(d) === g).length;
+            const dl = new Date(selDate + 'T12:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+            const dayLabel = dl.charAt(0).toUpperCase() + dl.slice(1);
+            const title = searching ? `Résultats pour « ${SF.esc(q)} »` : (selDate === today ? "Livraisons du jour" : 'Livraisons du ' + SF.fmt.date(selDate));
+            const sub = searching ? 'toutes dates' : (selDate === today ? `${dayLabel} · retards compris` : dayLabel);
+            let html = `<div class="card dday"><div class="card-header">
+                    <div class="dday-t"><span class="dday-ic"><i class="fas ${searching ? 'fa-magnifying-glass' : 'fa-calendar-check'}"></i></span>
+                        <div><h3>${title}</h3><div class="dday-sub">${sub}</div></div></div>
+                    <div class="dlegend">
+                        <span class="lg attente"><i></i> En attente <b>${cnt('attente')}</b></span>
+                        <span class="lg livraison"><i></i> En livraison <b>${cnt('livraison')}</b></span>
+                        <span class="lg livree"><i></i> Livrée <b>${cnt('livree')}</b></span>
+                    </div></div>
+                <div class="card-body">${day.length ? `<div class="dgrid">${day.map(d => this.card(d)).join('')}</div>`
+                    : `<div class="empty">${searching ? 'Aucun résultat.' : 'Aucune livraison pour cette date. Changez de date ou consultez « À venir ».'}</div>`}</div></div>`;
+            // Annulées : exceptions à traiter, toujours visibles, dans leur propre carte.
+            const canc = [
+                ['Annulées — retour à valider', d => d.status === 'annulee' && d.released_at],
+                ['Annulées — avant sortie', d => d.status === 'annulee' && !d.released_at],
+            ];
+            canc.forEach(([t, f], i) => {
+                const items = base.filter(f); if (!items.length) return;
+                html += `<div class="card dday dcanc" id="sec-annulee${i ? '-av' : ''}"><div class="card-header"><div class="dday-t"><span class="dday-ic"><i class="fas fa-ban"></i></span><div><h3>${t}</h3></div></div><span class="badge badge-danger">${items.length}</span></div>
+                    <div class="card-body"><div class="dgrid">${items.map(d => this.card(d)).join('')}</div></div></div>`;
+            });
+            document.getElementById('sections').innerHTML = html;
+        },
+        // ---- Facturation : valider la commande existante (les produits sont déjà choisis) ----
+        orderDetailsHtml(d) {
+            const rows = (d.items || []).map(it => { const cfg = it.is_accessory ? (it.category || '') : (window.SFBarcode ? SFBarcode.fullSpec(it) : '');
+                return `<tr>
+                <td>${SF.esc(it.product_name || [it.brand, it.model].filter(Boolean).join(' '))}${cfg ? `<div class="text-muted" style="font-size:11px;line-height:1.4;">${SF.esc(cfg)}</div>` : ''}${it.emplacement ? `<div style="font-size:11px;font-weight:700;color:var(--accent);margin-top:2px;"><i class="fas fa-location-dot"></i> Emplacement : ${SF.esc(it.emplacement)}</div>` : ''}</td>
+                <td style="text-align:center;">${it.quantity}</td>
+                <td style="text-align:right;">${SF.fmt.ar(it.unit_price)}</td>
+                <td style="text-align:right;font-weight:600;">${SF.fmt.ar(it.unit_price * it.quantity)}</td></tr>`; }).join('');
+            const grandTotal = (d.items || []).reduce((s, it) => s + it.unit_price * it.quantity, 0);
+            return `<div style="background:var(--bg-input);border-radius:12px;padding:14px;margin-bottom:16px;font-size:13px;line-height:1.7;">
+                    <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+                        <div><strong>Commande #${d.delivery_number}</strong> · ${SF.fmt.datetime(d.created_at)}</div>
+                        <div>${SF.deliveryBadge(d.status)}</div>
+                    </div>
+                    <div style="margin-top:8px;"><strong><i class="fas fa-user"></i> Client :</strong> ${SF.esc(d.client_name)}${d.client_phone ? ' · ' + SF.esc(d.client_phone) : ''}</div>
+                    <div><strong><i class="fas fa-location-dot"></i> Livrer à :</strong> ${SF.esc(d.client_address)}${d.delivery_time ? ' · <strong>Heure :</strong> ' + SF.esc(d.delivery_time) : ''}</div>
+                    <div><strong><i class="fas fa-headset"></i> Commande créée par :</strong> ${SF.esc(d.commercial_name || '—')}${d.livreur_name ? ' · <strong><i class="fas fa-motorcycle"></i> Livreur :</strong> ' + SF.esc(d.livreur_name) : ''}</div>
+                    ${d.note ? `<div><strong>Note :</strong> ${SF.esc(d.note)}</div>` : ''}
+                </div>
+                <h4 style="margin:6px 0 8px;">Articles commandés</h4>
+                <div class="table-container"><table><thead><tr><th>Produit</th><th style="text-align:center;">Qté</th><th style="text-align:right;">Prix unitaire</th><th style="text-align:right;">Total</th></tr></thead><tbody>${rows}</tbody></table></div>
+                <div style="display:flex;justify-content:space-between;margin-top:10px;font-size:14px;">
+                    <span>Frais de livraison</span><strong>${SF.fmt.ar(d.delivery_fee)}</strong></div>
+                <div style="display:flex;justify-content:space-between;font-size:16px;font-weight:800;margin-top:4px;border-top:1px solid var(--border-color);padding-top:8px;">
+                    <span>Total articles</span><span>${SF.fmt.ar(grandTotal)}</span></div>`;
+        },
+        async openInvoice(id) {
+            this.current = await SF.api('/api/deliveries/' + id);
+            const declared = this.current.payment_declared === 'paye' ? 'paye' : 'a_livraison';
+            // Paiement déclaré par le commercial (espèces ou mobile money) : pré-remplit l'éditeur de paiement
+            // pour que la caisse n'ait qu'à confirmer. Pour le mobile money, n° expéditeur + réf. sont rattachés.
+            const PAYLBL = { especes: 'Espèces', mvola: 'MVola', orange_money: 'Orange Money', airtel_money: 'Airtel Money', virement: 'Virement bancaire' };
+            const pm = this.current.paid_method, isMM = ['mvola', 'orange_money', 'airtel_money'].includes(pm);
+            this._payPreset = (declared === 'paye' && PAYLBL[pm])
+                ? { method: pm, phone: this.current.paid_phone || '', ref: this.current.paid_ref || '' } : null;
+            const declaredBox = this._payPreset ? `
+                <div style="margin-top:10px;padding:9px 11px;background:var(--accent-glow);border:1px solid var(--accent);border-radius:8px;font-size:12.5px;line-height:1.6;">
+                    <i class="fas ${isMM ? 'fa-mobile-screen-button' : pm === 'virement' ? 'fa-building-columns' : 'fa-money-bill-wave'}"></i> Paiement déclaré :
+                    <strong>${PAYLBL[pm]}</strong>${isMM ? ' · N° ' + SF.esc(this.current.paid_phone || '—') + (this.current.paid_ref ? ' · Réf : ' + SF.esc(this.current.paid_ref) : '') : (pm === 'virement' && this.current.paid_ref ? ' · Réf : ' + SF.esc(this.current.paid_ref) : '')}
+                    <div class="text-muted" style="font-size:11px;margin-top:2px;">Confirmez ci-dessous que le paiement a bien été reçu.</div>
+                </div>` : '';
+            // Avance : pré-remplie avec l'acompte déclaré par le commercial ; date promise = date de livraison prévue.
+            const hasAcompte = declared === 'a_livraison' && (this.current.acompte || 0) > 0;
+            const avDue = new Date(Date.parse(SF.fmt.today() + 'T00:00:00Z') + (this.layMaxDays || 30) * 86400000).toISOString().slice(0, 10);
+            const pd = this.current.planned_date && this.current.planned_date >= SF.fmt.today() ? this.current.planned_date : SF.fmt.today();
+            const avNext = pd > avDue ? avDue : pd;
+            document.getElementById('invTitle').textContent = `Valider la livraison #${this.current.delivery_number}`;
+            document.getElementById('invBody').innerHTML = `
+                ${this.orderDetailsHtml(this.current)}
+                <p class="text-muted" style="font-size:12px;margin-top:10px;"><i class="fas fa-comment-dots"></i> Le commercial a déclaré : <strong>${declared === 'paye' ? 'déjà payé' : 'paiement à la livraison'}</strong> — à confirmer ci-dessous.</p>
+                ${declaredBox}
+                ${hasAcompte ? `<div style="margin-top:10px;padding:10px 12px;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.45);border-radius:8px;font-size:12.5px;line-height:1.6;">
+                    <i class="fas fa-hand-holding-dollar" style="color:#b45309;"></i> Acompte déclaré par ${SF.esc(this.current.commercial_name || 'le commercial')} le ${SF.fmt.date(this.current.created_at)} :
+                    <strong>${SF.fmt.ar(this.current.acompte)}</strong>${this.current.acompte_method ? ' · ' + SF.esc(PAYLBL[this.current.acompte_method] || this.current.acompte_method) : ''}
+                    <div style="font-weight:700;color:#b45309;margin-top:2px;">Vérifiez qu'il a bien été reçu (relevé Mobile Money / caisse) avant de valider.</div></div>` : ''}
+                <label style="font-size:12.5px;font-weight:600;margin-top:6px;display:block;">Paiement</label>
+                <div class="pay-methods" style="grid-template-columns:1fr 1fr 1fr;">
+                    <label class="pay-opt${declared === 'a_livraison' && !hasAcompte ? ' active' : ''}" data-ps="a_livraison"><input type="radio" name="ps" value="a_livraison" ${declared === 'a_livraison' && !hasAcompte ? 'checked' : ''} onchange="Del.psChange()"> ${hasAcompte ? 'Acompte non reçu' : 'À la livraison'}</label>
+                    <label class="pay-opt${hasAcompte ? ' active' : ''}" data-ps="avance"><input type="radio" name="ps" value="avance" ${hasAcompte ? 'checked' : ''} onchange="Del.psChange()"> ${hasAcompte ? 'Acompte reçu ✓' : 'Avance'}</label>
+                    <label class="pay-opt${declared === 'paye' ? ' active' : ''}" data-ps="paye"><input type="radio" name="ps" value="paye" ${declared === 'paye' ? 'checked' : ''} onchange="Del.psChange()"> Déjà payé</label>
+                </div>
+                <div id="invAvance" style="display:${hasAcompte ? 'block' : 'none'};margin-top:8px;">
+                    <div class="form-group"><label>Montant de l'avance reçue (Ar)</label><input type="number" id="inv_av_amount" data-keypad class="form-control" min="0" value="${hasAcompte ? Math.round(this.current.acompte) : ''}" oninput="Del.avAmt()"></div>
+                    <div style="font-size:12.5px;margin:-4px 0 8px;">Reste à payer à la livraison : <b id="inv_av_rest">—</b></div>
+                    <div class="form-group"><label>Date du prochain paiement (annoncée par le client) <span style="color:var(--danger);">*</span></label>
+                        <input type="date" id="inv_av_next" class="form-control" min="${SF.fmt.today()}" max="${avDue}" value="${avNext}">
+                        <div class="text-muted" style="font-size:11.5px;margin-top:4px;">Date limite pour solder : <b>${SF.fmt.date(avDue)}</b> — une facture d'avance est imprimée pour le client.</div></div>
+                    <div id="inv_av_paybox"></div>
+                </div>
+                <div id="invPay" style="display:${declared === 'paye' ? 'block' : 'none'};"><div id="inv_paybox"></div></div>
+                <p class="text-muted" style="font-size:11.5px;margin-top:8px;"><i class="fas fa-circle-info"></i> Les numéros de série seront scannés par le stock à la sortie (pas attribués ici).</p>`;
+            SF.Modal.open('invModal');
+            if (declared === 'paye') SFPay.mount(document.getElementById('inv_paybox'), this.current.total || 0, this._payPreset);
+            if (hasAcompte) this.avAmt();
+        },
+        avAmt() {
+            const amt = Math.max(0, parseFloat(document.getElementById('inv_av_amount').value) || 0);
+            document.getElementById('inv_av_rest').textContent = SF.fmt.ar(Math.max(0, (this.current.total || 0) - amt));
+            const box = document.getElementById('inv_av_paybox');
+            const preset = this.current.acompte_method ? { method: this.current.acompte_method } : null;
+            if (!box.children.length) SFPay.mount(box, amt, preset); else SFPay.setTotal(box, amt);
+        },
+        psChange() {
+            const ps = document.querySelector('input[name="ps"]:checked').value;
+            document.querySelectorAll('#invModal .pay-opt').forEach(o => o.classList.toggle('active', o.dataset.ps === ps));
+            document.getElementById('invPay').style.display = ps === 'paye' ? 'block' : 'none';
+            document.getElementById('invAvance').style.display = ps === 'avance' ? 'block' : 'none';
+            if (ps === 'avance') this.avAmt();
+            const box = document.getElementById('inv_paybox');
+            if (ps === 'paye' && box && !box.children.length) SFPay.mount(box, this.current.total || 0, this._payPreset);
+        },
+        async showDetails(id) {
+            try {
+                const d = await SF.api('/api/deliveries/' + id);
+                document.getElementById('detTitle').textContent = `Livraison #${d.delivery_number}`;
+                const serials = (d.items || []).filter(it => it.serial).map(it => `<div style="font-family:monospace;font-size:12px;">${SF.esc(it.product_name)} : ${SF.esc(it.serial)}</div>`).join('');
+                document.getElementById('detBody').innerHTML = this.orderDetailsHtml(d)
+                    + (serials ? `<h4 style="margin:14px 0 6px;">Numéros de série attribués</h4>${serials}` : '')
+                    + (d.payment_status ? `<div style="margin-top:12px;font-size:13px;"><strong>Paiement :</strong> ${d.payment_status === 'paye' ? 'Déjà payé' : (d.acompte_paid ? `Avance ${SF.fmt.ar(d.acompte)} encaissée — reste ${SF.fmt.ar(Math.max(0, d.total - d.acompte))} à la livraison` : 'À la livraison')}</div>` : '');
+                SF.Modal.open('detModal');
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        async submitInvoice() {
+            const payment_status = document.querySelector('input[name="ps"]:checked').value;
+            let payment = {}, next_payment_date = null;
+            if (payment_status === 'paye') {
+                const pr = await SFPay.confirm(document.getElementById('inv_paybox')); if (pr.cancelled) return;
+                if (pr.error) return SF.toast(pr.error, 'error');
+                payment = { payments: pr.payments };
+            }
+            if (payment_status === 'avance') {
+                const amt = Math.max(0, parseFloat(document.getElementById('inv_av_amount').value) || 0);
+                if (amt <= 0) return SF.toast('Montant de l\'avance requis', 'error');
+                if (amt >= (this.current.total || 0)) return SF.toast('L\'avance doit être inférieure au total (sinon « Déjà payé »)', 'error');
+                next_payment_date = document.getElementById('inv_av_next').value;
+                if (!next_payment_date) return SF.toast('Date du prochain paiement obligatoire', 'warn');
+                const pr = await SFPay.confirm(document.getElementById('inv_av_paybox')); if (pr.cancelled) return;
+                if (pr.error) return SF.toast(pr.error, 'error');
+                payment = { payments: pr.payments };
+            }
+            // Acompte déclaré mais NON reçu : confirmation explicite (le client paiera tout à la livraison).
+            const hasAcompte = this.current.payment_declared !== 'paye' && (this.current.acompte || 0) > 0 && !this.current.acompte_paid;
+            let acompte_refused = false;
+            if (hasAcompte && payment_status !== 'avance') {
+                if (payment_status === 'a_livraison' && !confirm(`Acompte de ${SF.fmt.ar(this.current.acompte)} NON reçu ?\nIl sera retiré : le client paiera la totalité (${SF.fmt.ar(this.current.total)}) à la livraison.`)) return;
+                acompte_refused = true;
+            }
+            try {
+                const r = await SF.api(`/api/deliveries/${this.current.id}/invoice`, { method: 'POST', body: { payment_status, payment, next_payment_date, acompte_refused } });
+                SF.toast('Livraison facturée — facture prête pour le livreur', 'success'); SF.Modal.close('invModal'); this.load();
+                if (r.sale) SFInvoice.print(r.sale, this.config);   // facture emportée au stock
+                if (r.avance_doc) SFInvoice.avance(r.avance_doc, this.config, this.layConditions);   // facture d'avance pour le client
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        async printFacture(saleId) {
+            try { const sale = await SF.api('/api/sales/' + saleId); SFInvoice.print(sale, this.config); }
+            catch (e) { SF.toast(e.message, 'error'); }
+        },
+        // ---- Sortie du stock : le gestionnaire SCANNE les vraies unités ----
+        relUnits: [],   // { serial, name, product_id }
+        // Admin : suppression de la commande à n'importe quel stade (les articles reviennent au stock).
+        async deleteDelivery(id, number) {
+            if (!await SF.confirm(`Supprimer la commande #${number} ? Les articles reviennent au stock.`, { danger: true, okLabel: 'Supprimer' })) return;
+            try {
+                const r = await SF.api('/api/deliveries/' + id, { method: 'DELETE' });
+                SF.toast('Commande supprimée' + (r.restored ? ` — ${r.restored} article(s) remis en stock` : ''), 'success');
+                this.load();
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        async release(id) {
+            this.current = await SF.api('/api/deliveries/' + id);
+            this.relUnits = [];
+            // Besoins par produit (quantités commandées). Les SERVICES (is_service, sans stock)
+            // sont exclus : rien ne sort physiquement, aucune série à scanner — sinon la sortie
+            // resterait bloquée (« 0/1 » impossible à compléter) sur une commande de service.
+            this.relNeeds = (this.current.items || []).filter(it => !it.is_service).map(it => ({
+                product_id: it.product_id,
+                name: it.product_name || [it.brand, it.model].filter(Boolean).join(' '),
+                emplacement: it.emplacement || '',
+                need: it.quantity
+            }));
+            document.getElementById('relTitle').textContent = `Sortie stock — Livraison #${this.current.delivery_number}`;
+            document.getElementById('relSerial').value = '';
+            this.renderRelease();
+            SF.Modal.open('relModal');
+            setTimeout(() => document.getElementById('relSerial').focus(), 100);
+        },
+        async relScan() {
+            const serial = document.getElementById('relSerial').value.trim();
+            if (!serial) return;
+            document.getElementById('relSerial').value = '';
+            try {
+                const rows = await SF.api('/api/units/search?q=' + encodeURIComponent(serial));
+                const u = rows.find(x => x.serial === serial || x.manufacturer_sn === serial) || (rows.length === 1 ? rows[0] : null);
+                if (!u) return SF.toast('N° série introuvable : ' + serial, 'error');
+                if (!['stock', 'presentoir', 'consignation'].includes(u.status)) return SF.toast(`Non disponible (${SF.UNIT_STATUS[u.status] || u.status})`, 'error');
+                const need = this.relNeeds.find(n => n.product_id === u.product_id);
+                if (!need) return SF.toast(`« ${[u.brand, u.model].filter(Boolean).join(' ') || u.product_name} » ne fait pas partie de cette commande`, 'error');
+                // N° de série UNIQUE (ordinateurs et accessoires, tous étiquetés à l'unité) : un même n°
+                // ne peut être scanné qu'une seule fois — chaque article physique a le sien.
+                if (this.relUnits.some(x => x.serial === u.serial || x.serial === serial))
+                    return SF.toast(`« ${u.serial} » déjà scanné : scannez l'étiquette d'un AUTRE article`, 'warn', 4000);
+                const already = this.relUnits.filter(x => x.product_id === u.product_id).length;
+                if (already >= need.need) return SF.toast(`Quantité déjà atteinte pour ${need.name}`, 'warn');
+                this.relUnits.push({ _k: (this._relSeq = (this._relSeq || 0) + 1), serial: u.serial, name: [u.brand, u.model].filter(Boolean).join(' ') || u.product_name, product_id: u.product_id });
+                this.renderRelease();
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        // Retire UNE occurrence précise (clé unique) — deux accessoires identiques partagent le même n°.
+        relRemove(k) { this.relUnits = this.relUnits.filter(u => u._k !== k); this.renderRelease(); },
+        renderRelease() {
+            const lines = this.relNeeds.map(n => {
+                const got = this.relUnits.filter(u => u.product_id === n.product_id);
+                return `<div style="margin-bottom:8px;">
+                    <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:600;"><span>${SF.esc(n.name)}${n.emplacement ? ` <span style="font-weight:700;color:var(--accent);"><i class="fas fa-location-dot"></i> ${SF.esc(n.emplacement)}</span>` : ''}</span><span class="${got.length === n.need ? '' : 'text-muted'}" style="${got.length === n.need ? 'color:var(--success-dark);' : ''}">${got.length}/${n.need}</span></div>
+                    ${got.map(u => `<div style="display:flex;align-items:center;gap:8px;font-size:12px;padding:3px 0;"><i class="fas fa-barcode text-muted"></i><span style="font-family:monospace;flex:1;">${SF.esc(u.serial)}</span><button class="btn btn-sm btn-danger" onclick="Del.relRemove(${u._k})"><i class="fas fa-times"></i></button></div>`).join('')}
+                </div>`;
+            }).join('');
+            // Commande 100 % service : aucun article physique → pas de scan, validation directe.
+            const noPhysical = !this.relNeeds.length;
+            document.getElementById('relBody').innerHTML = noPhysical
+                ? '<div class="text-muted" style="text-align:center;padding:14px;font-size:13px;"><i class="fas fa-screwdriver-wrench"></i> Aucun article physique à sortir (commande de service).<br>Cliquez sur « Valider la sortie ».</div>'
+                : lines;
+            document.getElementById('relScanHint').style.display = noPhysical ? 'none' : '';
+            document.getElementById('relScanBox').style.display = noPhysical ? 'none' : '';
+            const done = this.relNeeds.every(n => this.relUnits.filter(u => u.product_id === n.product_id).length === n.need);
+            document.getElementById('relSubmit').disabled = !done;
+        },
+        async submitRelease() {
+            try {
+                await SF.api(`/api/deliveries/${this.current.id}/release`, { method: 'POST', body: { serials: this.relUnits.map(u => u.serial) } });
+                SF.toast('Sortie validée', 'success'); SF.Modal.close('relModal'); this.load();
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        async returnConfirm(id) {
+            if (!await SF.confirm('Valider le retour au stock des articles ?', { okLabel: 'Valider' })) return;
+            try { await SF.api(`/api/deliveries/${id}/return-confirm`, { method: 'POST' }); SF.toast('Retour validé', 'success'); this.load(); }
+            catch (e) { SF.toast(e.message, 'error'); }
+        },
+        // ---- Complétion / annulation / report (caisse) ----
+        async complete(id) {
+            const d = this.deliveries.find(x => x.id === id);
+            if (this.completeId !== id) { this.pendingUpgrades = []; this.upgEcart = 0; this.upgNewUnit = null; }
+            this.completeId = id;
+            this.cpAcompte = Math.max(0, Math.min(d.total || 0, d.acompte || 0));
+            // Upgrade demandé sur la commande en ligne : la caisse le réalise AVANT d'encaisser.
+            if (d.upgrade_notes && !(this.pendingUpgrades && this.pendingUpgrades.length)) return this.openDelUpg(d);
+            const ecart = this.upgEcart || 0;
+            if (d.payment_status !== 'a_livraison') {
+                // Déjà payée → on n'encaisse que l'écart d'upgrade éventuel ; sinon confirmation directe.
+                if (ecart > 0) return this.openPayCollect(d, ecart);
+                try { await SF.api(`/api/deliveries/${id}/complete`, { method: 'POST', body: { upgrades: this.pendingUpgrades || [] } }); SF.toast('Livraison confirmée', 'success'); this.pendingUpgrades = []; this.load(); }
+                catch (e) { SF.toast(e.message, 'error'); }
+                return;
+            }
+            // Articles livrés (par unité) : cocher ceux réellement pris par le client.
+            this.cpItems = [];
+            this.cpServices = 0;
+            if (d.sale_id) { try {
+                const sale = await SF.api('/api/sales/' + d.sale_id);
+                this.cpItems = (sale.items || []).filter(it => it.unit_id && !it.returned);
+                // Services (sans unité) : toujours facturés, jamais « non pris ».
+                this.cpServices = (sale.items || []).filter(it => it.is_service).reduce((s, it) => s + (it.unit_price || 0), 0);
+            } catch (e) {} }
+            const multi = this.cpItems.length > 1;
+            const full = (this.cpItems.reduce((s, it) => s + (it.unit_price || 0), 0) + this.cpServices) || (d.total || 0);
+            const reste = Math.max(0, full - this.cpAcompte) + ecart;
+            const itemsHtml = this.cpItems.map((it, i) => `
+                <label style="display:flex;align-items:center;gap:8px;padding:7px 9px;border:1px solid var(--border-color);border-radius:8px;margin:4px 0;cursor:pointer;font-size:12.5px;">
+                    <input type="checkbox" checked data-i="${i}" onchange="Del.cpRecalc()">
+                    <span style="flex:1;">${SF.esc([it.brand, it.model].filter(Boolean).join(' ') || it.product_name)} <span class="text-muted" style="font-family:monospace;">${SF.esc(it.serial || '')}</span></span>
+                    <b>${SF.fmt.ar(it.unit_price)}</b>
+                </label>`).join('');
+            const acLine = this.cpAcompte > 0 ? `<div style="font-size:12.5px;color:var(--text-muted);margin-bottom:4px;">Acompte déjà versé : ${SF.fmt.ar(this.cpAcompte)}</div>` : '';
+            const upLine = ecart > 0 ? `<div style="font-size:12.5px;color:var(--warning-dark);margin-bottom:4px;"><i class="fas fa-screwdriver-wrench"></i> Écart upgrade : ${SF.fmt.ar(ecart)}</div>` : '';
+            document.getElementById('payBody').innerHTML =
+                `${multi ? `<div style="font-size:12px;color:var(--text-secondary);margin-bottom:4px;"><i class="fas fa-hand-pointer"></i> Cochez les articles RÉELLEMENT pris (décochez ceux non pris → retour au stock) :</div><div id="cpItems">${itemsHtml}</div>` : `<div id="cpItems"></div>`}
+                 ${acLine}${upLine}<div style="font-size:14px;margin-bottom:10px;">À encaisser : <b id="cpReste">${SF.fmt.ar(reste)}</b></div><div id="cp_paybox"></div>`;
+            SF.Modal.open('payModal');
+            SFPay.mount(document.getElementById('cp_paybox'), reste);
+        },
+        // ---- Upgrade à la livraison (caisse) ----
+        async openDelUpg(d) {
+            try {
+                const sale = await SF.api('/api/sales/' + d.sale_id);
+                this.upgPcs = (sale.items || []).filter(it => !it.is_accessory && it.unit_id && !it.returned)
+                    .map(it => ({ id: it.unit_id, serial: it.serial, name: [it.brand, it.model].filter(Boolean).join(' ') || it.product_name }));
+            } catch (e) { this.upgPcs = []; }
+            if (!this.upgPcs.length) return SF.toast('Ordinateur non identifié (sortie du stock requise avant l\'upgrade).', 'error');
+            document.getElementById('delUpgNote').innerHTML = `<i class="fas fa-info-circle"></i> Demande : <b>${SF.esc(d.upgrade_notes)}</b>`;
+            const pcWrap = document.getElementById('delUpgPcWrap');
+            document.getElementById('delUpgPc').innerHTML = this.upgPcs.map(p => `<option value="${p.id}">${SF.esc(p.name)} · ${SF.esc(p.serial)}</option>`).join('');
+            pcWrap.style.display = this.upgPcs.length > 1 ? '' : 'none';
+            document.getElementById('delUpgField').value = 'storage';
+            document.getElementById('delUpgOld').value = '';
+            document.getElementById('delUpgScan').value = '';
+            document.getElementById('delUpgNewInfo').innerHTML = '';
+            document.getElementById('delUpgNewVal').value = '';
+            document.getElementById('delUpgKeep').checked = false;
+            document.getElementById('delUpgOldPrice').value = 0;
+            this.upgNewUnit = null;
+            this.delUpgRecalc();
+            SF.Modal.open('delUpgModal');
+        },
+        async delUpgScanNew(serial) {
+            serial = (serial || '').trim(); if (!serial) return;
+            try {
+                const rows = await SF.api('/api/units/search?q=' + encodeURIComponent(serial));
+                const u = rows.find(x => x.is_accessory && x.sellable) || rows.find(x => x.is_accessory);
+                if (!u) return SF.toast('Aucun accessoire trouvé pour ce n° de série', 'error');
+                if (!u.sellable) return SF.toast(`Non disponible (${SF.UNIT_STATUS[u.status] || u.status})`, 'error');
+                this.upgNewUnit = { id: u.id, serial: u.serial, price: u.sale_price || 0, label: [u.brand, u.model].filter(Boolean).join(' ') || u.product_name };
+                document.getElementById('delUpgNewInfo').innerHTML = `<i class="fas fa-check-circle" style="color:var(--success);"></i> <b>${SF.esc(this.upgNewUnit.label)}</b> · ${SF.esc(this.upgNewUnit.serial)} · ${SF.fmt.ar(this.upgNewUnit.price)}`;
+                document.getElementById('delUpgScan').value = '';
+                if (!document.getElementById('delUpgNewVal').value) document.getElementById('delUpgNewVal').value = this.upgNewUnit.label;
+                this.delUpgRecalc();
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        delUpgRecalc() {
+            const keep = document.getElementById('delUpgKeep').checked;
+            document.getElementById('delUpgOldPriceWrap').style.display = keep ? '' : 'none';
+            const newP = this.upgNewUnit ? this.upgNewUnit.price : 0;
+            const oldP = keep ? Math.max(0, parseFloat(document.getElementById('delUpgOldPrice').value) || 0) : 0;
+            this.upgEcart = Math.max(0, newP - oldP);
+            document.getElementById('delUpgEcart').textContent = SF.fmt.ar(this.upgEcart);
+        },
+        delUpgConfirm() {
+            if (!this.upgNewUnit) return SF.toast('Scannez le composant neuf', 'error');
+            const newVal = document.getElementById('delUpgNewVal').value.trim();
+            if (!newVal) return SF.toast('Indiquez la nouvelle valeur', 'error');
+            const keep = document.getElementById('delUpgKeep').checked;
+            const pcId = this.upgPcs.length > 1 ? parseInt(document.getElementById('delUpgPc').value, 10) : this.upgPcs[0].id;
+            this.pendingUpgrades = [{
+                pc_unit_id: pcId, field: document.getElementById('delUpgField').value,
+                old_value: document.getElementById('delUpgOld').value.trim(), new_value: newVal,
+                new_unit_id: this.upgNewUnit.id, keep, old_price: keep ? (parseFloat(document.getElementById('delUpgOldPrice').value) || 0) : 0
+            }];
+            SF.Modal.close('delUpgModal');
+            this.complete(this.completeId);   // reprend le flux avec l'écart désormais connu
+        },
+        openPayCollect(d, ecart) {
+            const base = d.payment_status === 'a_livraison' ? Math.max(0, (d.total || 0) - this.cpAcompte) : 0;
+            const toCollect = base + (ecart || 0);
+            this.cpItems = [];
+            const upLine = ecart > 0 ? `<div style="font-size:12.5px;color:var(--warning-dark);margin-bottom:4px;"><i class="fas fa-screwdriver-wrench"></i> Écart upgrade : ${SF.fmt.ar(ecart)}</div>` : '';
+            document.getElementById('payBody').innerHTML = `<div id="cpItems"></div>${upLine}<div style="font-size:14px;margin-bottom:10px;">À encaisser : <b id="cpReste">${SF.fmt.ar(toCollect)}</b></div><div id="cp_paybox"></div>`;
+            SF.Modal.open('payModal');
+            SFPay.mount(document.getElementById('cp_paybox'), toCollect);
+        },
+        cpRecalc() {
+            const boxes = document.querySelectorAll('#cpItems input[type="checkbox"]');
+            if (!boxes.length) return;
+            let kept = this.cpServices || 0;
+            boxes.forEach(b => { if (b.checked) kept += (this.cpItems[+b.dataset.i].unit_price || 0); });
+            const reste = Math.max(0, kept - (this.cpAcompte || 0)) + (this.upgEcart || 0);
+            document.getElementById('cpReste').textContent = SF.fmt.ar(reste);
+            SFPay.setTotal(document.getElementById('cp_paybox'), reste);
+        },
+        async submitComplete() {
+            const returned = [];
+            document.querySelectorAll('#cpItems input[type="checkbox"]').forEach(b => { if (!b.checked) returned.push(this.cpItems[+b.dataset.i].unit_id); });
+            if (this.cpItems.length && returned.length >= this.cpItems.length) return SF.toast('Au moins un article doit être pris (sinon annulez la livraison).', 'error');
+            const box = document.getElementById('cp_paybox');
+            let payments = [];
+            if (box._sfpay && box._sfpay.total > 0) { const pr = await SFPay.confirm(box); if (pr.cancelled) return; if (pr.error) return SF.toast(pr.error, 'error'); payments = pr.payments; }
+            try {
+                await SF.api(`/api/deliveries/${this.completeId}/complete`, { method: 'POST', body: { payment: { payments }, returned_unit_ids: returned, upgrades: this.pendingUpgrades || [] } });
+                SF.toast(returned.length ? `Livraison partielle — ${returned.length} article(s) au retour stock` : 'Livraison confirmée & payée', 'success');
+                SF.Modal.close('payModal'); this.pendingUpgrades = []; this.load();
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        async cancel(id) {
+            const reason = await SF.prompt('Motif de l\'annulation :', { title: 'Annuler la livraison', okLabel: 'Annuler la livraison', required: true, multiline: true }); if (reason == null || !reason.trim()) return;
+            try { await SF.api(`/api/deliveries/${id}/cancel`, { method: 'POST', body: { reason } }); SF.toast('Livraison annulée', 'success'); this.load(); }
+            catch (e) { SF.toast(e.message, 'error'); }
+        },
+        async defer(id) {
+            const reason = await SF.prompt('Motif du report (ex : relance demain) :', { title: 'Reporter la livraison', okLabel: 'Reporter', required: true }); if (reason == null || !reason.trim()) return;
+            try { await SF.api(`/api/deliveries/${id}/defer`, { method: 'POST', body: { reason } }); SF.toast('Livraison reportée', 'success'); this.load(); }
+            catch (e) { SF.toast(e.message, 'error'); }
+        }
+    };
+
+    /* ============ Onglet HISTORIQUE (toutes les livraisons) ============ */
+    const Hist = {
+        user: null, list: [], livreurs: [], status: '', config: {}, currentDelivery: null,
+        start() {
+            if (this.canFilterLivreur) {
+                document.getElementById('livreurFilterWrap').style.display = '';
+                document.getElementById('commercialFilterWrap').style.display = '';
+                SF.api('/api/livreurs').then(lv => { this.livreurs = lv; document.getElementById('f_livreur').innerHTML = '<option value="">Tous</option>' + lv.map(l => `<option value="${SF.esc(l.name)}">${SF.esc(l.name)}</option>`).join(''); }).catch(() => {});
+            }
+            document.querySelectorAll('#statusChips .chip').forEach(c => c.onclick = () => { this.status = c.dataset.s; document.querySelectorAll('#statusChips .chip').forEach(x => x.classList.toggle('active', x === c)); this.load(); });
+            SF.on('delivery:update', () => { if (Page.active === 'historique') this.load(); });
+        },
+        get isCaisse() { return ['admin', 'caisse'].includes(this.user.role); },
+        get grouped() { return ['admin', 'caisse', 'coordinateur', 'gestion_stock'].includes(this.user.role); },
+        get canFilterLivreur() { return ['admin', 'caisse', 'coordinateur', 'gestion_stock'].includes(this.user.role); },
+        statusFilter(s) {
+            if (s === 'en_cours') return d => ['nouvelle', 'assignee', 'acceptee', 'facturee', 'en_livraison'].includes(d.status);
+            if (s === 'livree') return d => d.status === 'livree';
+            if (s === 'annulee') return d => ['annulee', 'retournee'].includes(d.status);
+            return () => true;
+        },
+        async load() {
+            const q = new URLSearchParams();
+            ['from', 'to'].forEach(k => { const v = document.getElementById('f_' + k).value; if (v) q.set(k, v); });
+            const lv = document.getElementById('f_livreur').value; if (lv) q.set('livreur_name', lv);
+            const cm = (document.getElementById('f_commercial') || {}).value; if (cm) q.set('commercial_id', cm);
+            const s = document.getElementById('f_q').value.trim(); if (s) q.set('q', s);
+            try {
+                let rows = await SF.api('/api/deliveries/history?' + q.toString());
+                const csel = document.getElementById('f_commercial');
+                if (csel && csel.options.length <= 1) {
+                    const map = new Map();
+                    rows.forEach(d => { if (d.commercial_id) map.set(d.commercial_id, d.commercial_name); });
+                    csel.innerHTML = '<option value="">Tous</option>' + [...map].map(([id, nm]) => `<option value="${id}">${SF.esc(nm)}</option>`).join('');
+                }
+                this.rowsAll = rows;   // récap : toutes les livraisons de la période, avant le filtre de statut
+                this.all = rows.filter(this.statusFilter(this.status));
+                this.applyPrice();
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        applyPrice() {
+            const pr = document.getElementById('f_price');
+            this.list = (this.all || []).filter(d => SF.PriceRange.test(pr, d.total));
+            this.render();
+        },
+        livreurLine(d) {
+            const name = d.livreur_name ? SF.esc(d.livreur_name) : '<span style="color:var(--danger);">non assigné</span>';
+            if (d.status === 'livree')   return `<i class="fas fa-motorcycle"></i> Livré par <b>${name}</b>`;
+            if (d.status === 'retournee' || d.status === 'annulee') return `<i class="fas fa-motorcycle"></i> Livreur : <b>${name}</b> (annulée)`;
+            if (['assignee','acceptee','facturee','en_livraison'].includes(d.status)) return `<i class="fas fa-motorcycle"></i> En cours avec <b>${name}</b>`;
+            return `<i class="fas fa-motorcycle"></i> Livreur : <b>${name}</b>`;
+        },
+        card(d) {
+            const grp = d.status === 'livree' ? 'livree' : d.status === 'en_livraison' ? 'livraison' : ['annulee', 'retournee'].includes(d.status) ? 'annulee' : 'attente';
+            return `<div class="dcard" data-st="${SF.esc(d.status)}" data-grp="${grp}" onclick="Hist.showDetails(${d.id})">
+                <div class="dc-head">
+                    <div><div class="dnum">#${d.delivery_number}</div>
+                        <div class="dc-sub">${SF.deliveryBadge(d.status)}<span><i class="fas fa-calendar-day"></i> ${SF.fmt.date(d.created_at)}</span></div></div>
+                    <div class="dc-amt"><b>${SF.fmt.ar(d.total)}</b><small>frais ${SF.fmt.ar(d.delivery_fee)}</small></div>
+                </div>
+                <div class="dc-items"><i class="fas fa-box"></i><span>${SF.esc(d.items_summary || '—')}</span></div>
+                <div class="dc-info">
+                    <i class="fas fa-user"></i><span><b>${SF.esc(d.client_name)}</b>${d.client_phone ? ' · ' + SF.esc(d.client_phone) : ''}</span>
+                    <i class="fas fa-location-dot"></i><span>${SF.esc(d.client_address || '—')}${d.client_address ? `<a class="dc-map" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(d.client_address)}" target="_blank" rel="noopener" onclick="event.stopPropagation()"><i class="fas fa-map-location-dot"></i> Carte</a>` : ''}</span>
+                    <i class="fas fa-motorcycle"></i><span>${this.livreurLine(d).replace(/^<i class="fas fa-motorcycle"><\/i>\s*/, '')}</span>
+                </div>
+                ${d.payment_status ? `<div class="dc-foot"><span class="text-muted">Paiement</span><span class="dc-pay ${d.payment_status === 'paye' ? 'paid' : 'cod'}">${d.payment_status === 'paye' ? 'Payé' : 'À la livraison'}</span></div>` : ''}
+            </div>`;
+        },
+        renderSummary() {
+            const box = document.getElementById('histSummary'); if (!box) return;
+            const L = this.rowsAll || [];
+            const n = f => L.filter(f).length;
+            const done = L.filter(d => d.status === 'livree');
+            const tile = (label, icon, value, sub, tone) => SF.tile({ label, icon, value, sub, tone });
+            const capped = L.length >= 500;   // le serveur renvoie au plus 500 livraisons (les plus récentes)
+            box.innerHTML = tile('Livraisons', 'fa-boxes-packing', capped ? '500+' : L.length, capped ? 'les plus récentes — filtrez par date' : '', 'teal')
+                + tile('En cours', 'fa-truck-fast', n(d => ['nouvelle', 'assignee', 'acceptee', 'facturee', 'en_livraison'].includes(d.status)), '', 'blue')
+                + tile('Livrées', 'fa-circle-check', done.length, '', 'green')
+                + tile('Annulées / retours', 'fa-ban', n(d => ['annulee', 'retournee'].includes(d.status)), '', 'coral')
+                + tile('Montant livré', 'fa-coins', SF.fmt.ar(done.reduce((t, d) => t + (d.total || 0), 0)), '', 'yellow');
+        },
+        render() {
+            this.renderSummary();
+            const box = document.getElementById('histBody');
+            if (!this.list.length) { box.innerHTML = '<div class="empty">Aucune livraison</div>'; return; }
+            if (this.grouped) {
+                const groups = {};
+                this.list.forEach(d => { const k = d.livreur_name || 'Non assigné'; (groups[k] = groups[k] || []).push(d); });
+                box.innerHTML = Object.entries(groups).map(([liv, items]) =>
+                    `<h3 class="grp-title"><i class="fas fa-motorcycle"></i> ${SF.esc(liv)} <span class="text-muted" style="font-size:13px;font-weight:400;">(${items.length})</span></h3>
+                     <div class="dgrid">${items.map(d => this.card(d)).join('')}</div>`).join('');
+            } else {
+                box.innerHTML = `<div class="dgrid">${this.list.map(d => this.card(d)).join('')}</div>`;
+            }
+        },
+        // Échange d'une pièce déjà sortie : réservé au commercial en ligne propriétaire (ou admin),
+        // livraison en cours (pièce chez le livreur) ou déjà livrée (problème constaté chez le client).
+        exchangeBlock(d) {
+            const canAsk = ['en_livraison', 'livree'].includes(d.status)
+                && (this.user.role === 'admin' || (this.user.role === 'commercial_ligne' && d.commercial_id === this.user.id));
+            if (!canAsk || !(d.released_units || []).length) return '';
+            const rows = d.released_units.map(u => {
+                const name = SF.esc(u.product_name || '');
+                if (u.exchange_pending) return `<div class="urow" style="display:flex;justify-content:space-between;gap:8px;align-items:center;padding:8px 0;font-size:13px;">
+                    <span style="font-family:monospace;">${SF.esc(u.serial || '—')}</span><span style="flex:1;">${name}</span>
+                    <span class="text-muted" style="font-size:12px;"><i class="fas fa-hourglass-half"></i> Demande en attente</span></div>`;
+                return `<div class="urow" style="display:flex;justify-content:space-between;gap:8px;align-items:center;padding:8px 0;font-size:13px;">
+                    <span style="font-family:monospace;">${SF.esc(u.serial || '—')}</span><span style="flex:1;">${name}</span>
+                    <button class="btn btn-sm btn-secondary" onclick="Hist.openExchange(${u.unit_id}, ${d.id}, ${u.is_accessory ? 1 : 0}, '${SF.esc(u.serial || '')}')"><i class="fas fa-right-left"></i> Échanger</button></div>`;
+            }).join('');
+            return `<h4 style="margin:16px 0 4px;"><i class="fas fa-right-left"></i> Échange d'une pièce</h4>
+                <p class="text-muted" style="font-size:11.5px;margin:0 0 6px;">Un problème sur une pièce ? Demandez son remplacement (même modèle). Le stock scanne la pièce de remplacement et vous la remet au dépôt ; rapportez ensuite l'ancienne pièce au stock.</p>
+                <div style="border:1px solid var(--border-color);border-radius:10px;padding:4px 12px;">${rows}</div>`;
+        },
+        async openExchange(unitId, deliveryId, isAcc, serial) {
+            const r = await SF.exchangeDialog({ is_accessory: !!isAcc, serial });
+            if (!r) return;
+            try {
+                await SF.api('/api/exchanges', { method: 'POST', body: { kind: 'delivery', ref_id: deliveryId, old_unit_id: unitId, reason: r.reason, disposition: r.disposition } });
+                SF.toast('Demande envoyée au stock : vous serez notifié quand la pièce de remplacement sera prête au dépôt', 'success', 5000);
+                SF.Modal.close('histDetModal');
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        async showDetails(id) {
+            try {
+                const d = await SF.api('/api/deliveries/' + id);
+                document.getElementById('histDetTitle').textContent = `Livraison #${d.delivery_number}`;
+                const rows = (d.items || []).map(it => `<tr><td>${SF.esc(it.product_name || '')}</td><td style="text-align:center;">${it.quantity}</td><td style="text-align:right;">${SF.fmt.ar(it.unit_price)}</td><td style="font-family:monospace;font-size:11px;">${SF.esc(it.serial || '—')}</td></tr>`).join('');
+                document.getElementById('histDetBody').innerHTML = `
+                    <div style="background:var(--bg-input);border-radius:12px;padding:14px;margin-bottom:14px;font-size:13px;line-height:1.8;">
+                        <div style="display:flex;justify-content:space-between;"><strong>Commande #${d.delivery_number}</strong>${SF.deliveryBadge(d.status)}</div>
+                        <div>${SF.fmt.datetime(d.created_at)}</div>
+                        <div><strong><i class="fas fa-user"></i> Client :</strong> ${SF.esc(d.client_name)}${d.client_phone ? ' · ' + SF.esc(d.client_phone) : ''}</div>
+                        <div><strong><i class="fas fa-location-dot"></i> Adresse :</strong> ${SF.esc(d.client_address)}${d.delivery_time ? ' · ' + SF.esc(d.delivery_time) : ''}</div>
+                        <div><strong><i class="fas fa-headset"></i> Créée par :</strong> ${SF.esc(d.commercial_name || '—')} · <strong><i class="fas fa-motorcycle"></i> Livreur :</strong> ${SF.esc(d.livreur_name || '—')}</div>
+                        ${d.coordinator_name ? `<div><strong>Coordinateur :</strong> ${SF.esc(d.coordinator_name)}</div>` : ''}
+                        ${d.cancel_reason ? `<div style="color:var(--danger);"><strong>Annulée :</strong> ${SF.esc(d.cancel_reason)}</div>` : ''}
+                        <div><strong>Frais de livraison :</strong> ${SF.fmt.ar(d.delivery_fee)}${d.payment_status ? ' · <strong>Paiement :</strong> ' + (d.payment_status === 'paye' ? 'Déjà payé' : 'À la livraison') : ''}</div>
+                    </div>
+                    <div class="table-container"><table><thead><tr><th>Produit</th><th style="text-align:center;">Qté</th><th style="text-align:right;">Prix</th><th>N° série</th></tr></thead><tbody>${rows}</tbody></table></div>
+                    <div style="text-align:right;font-size:15px;font-weight:800;margin-top:10px;">Total : ${SF.fmt.ar(d.total)}</div>
+                    ${this.exchangeBlock(d)}`;
+                this.currentDelivery = d;
+                document.getElementById('histCopyBtn').style.display = '';
+                document.getElementById('histLabelBtn').style.display =
+                    (d.livreur_name && ['admin', 'caisse', 'coordinateur', 'gestion_stock', 'commercial_ligne'].includes(this.user.role)) ? '' : 'none';
+                document.getElementById('histDelBtn').style.display = this.user.role === 'admin' ? '' : 'none';
+                const cancellable = ['nouvelle', 'assignee', 'acceptee', 'facturee'].includes(d.status)
+                    && ['commercial_ligne', 'coordinateur', 'caisse', 'admin'].includes(this.user.role);
+                document.getElementById('histCancelBtn').style.display = cancellable ? '' : 'none';
+                SF.Modal.open('histDetModal');
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        printLabel() {
+            if (!this.currentDelivery) return;
+            window.open('/api/deliveries/' + this.currentDelivery.id + '/label', '_blank');
+        },
+        async cancelOrder() {
+            const d = this.currentDelivery; if (!d) return;
+            const reason = await SF.prompt('Motif de l\'annulation :', { title: 'Annuler la commande', okLabel: 'Annuler la commande', required: true, multiline: true });
+            if (reason == null) return;
+            if (!reason.trim()) return SF.toast('Le motif est obligatoire', 'error');
+            try {
+                await SF.api('/api/deliveries/' + d.id + '/cancel-order', { method: 'POST', body: { reason: reason.trim() } });
+                SF.toast('Commande annulée', 'success');
+                SF.Modal.close('histDetModal'); this.load();
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        async deleteDelivery() {
+            const d = this.currentDelivery; if (!d) return;
+            if (!await SF.confirm(`Supprimer la commande #${d.delivery_number} ? Les articles reviennent au stock.`, { danger: true, okLabel: 'Supprimer' })) return;
+            try {
+                const r = await SF.api('/api/deliveries/' + d.id, { method: 'DELETE' });
+                SF.toast('Commande supprimée' + (r.restored ? ` — ${r.restored} article(s) remis en stock` : ''), 'success');
+                SF.Modal.close('histDetModal'); this.load();
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        async copySummary() {
+            if (!this.currentDelivery) return;
+            try {
+                const res = await SF.api('/api/deliveries/' + this.currentDelivery.id + '/summary');
+                await navigator.clipboard.writeText(res.summary);
+                SF.toast('Résumé copié dans le presse-papier', 'success');
+            } catch (e) { SF.toast('Erreur: ' + e.message, 'error'); }
+        },
+        exportPDF() {
+            if (!this.list.length) return SF.toast('Aucune livraison à exporter', 'error');
+            const statusLabel = { nouvelle: 'Nouvelle', assignee: 'Assignée', acceptee: 'Assignée — à facturer', facturee: 'Facturée', en_livraison: 'En livraison', livree: 'Livrée', annulee: 'Annulée', retournee: 'Retournée' };
+            const from = document.getElementById('f_from').value, to = document.getElementById('f_to').value;
+            const total = this.list.reduce((s, d) => s + (d.status === 'livree' ? d.total : 0), 0);
+            SFReport.build({
+                company: this.config,
+                title: 'Historique des livraisons',
+                period: (from || to) ? `Période : ${from ? SF.fmt.date(from) : '…'} — ${to ? SF.fmt.date(to) : '…'}` : 'Toutes les livraisons',
+                filename: 'Historique-livraisons.pdf',
+                summary: [
+                    { label: 'Livraisons', value: this.list.length },
+                    { label: 'Livrées', value: this.list.filter(d => d.status === 'livree').length },
+                    { label: 'Total livré', value: SFReport.ar(total) }
+                ],
+                sections: [{
+                    heading: 'Détail des livraisons',
+                    columns: [
+                        { header: 'Date & heure', key: 'created_at', width: 22, format: v => SF.fmt.datetime(v) },
+                        { header: 'N°', key: 'delivery_number', width: 8, format: v => '#' + v },
+                        { header: 'Client', key: 'client_name', width: 22, format: v => v || '—' },
+                        { header: 'Adresse', key: 'client_address', width: 28, format: v => v || '—' },
+                        { header: 'Produits', key: 'items_summary', width: 34, format: v => v || '—' },
+                        { header: 'Livreur', key: 'livreur_name', width: 20, format: v => v || '—' },
+                        { header: 'Statut', key: 'status', width: 16, format: v => statusLabel[v] || v },
+                        { header: 'Total', key: 'total', width: 16, align: 'right', format: v => SFReport.fmtNum(v) }
+                    ],
+                    rows: this.list
+                }]
+            });
+        }
+    };
+
+    /* ============ Contrôleur d'onglets ============ */
+    const Page = {
+        user: null, config: {}, active: 'encours', canWorkflow: false,
+        async init() {
+            this.user = await SF.Auth.require(['caisse', 'gestion_stock', 'commercial_ligne', 'coordinateur']);
+            if (!this.user) return;
+            SF.layout({ active: '/deliveries.html' });
+            SF.PriceRange.mount(document.getElementById('enc_price'), () => Del.render(), { label: 'Montant' });
+            SF.PriceRange.mount(document.getElementById('f_price'), () => Hist.applyPrice(), { label: 'Montant' });
+            try { this.config = await SF.api('/api/config'); } catch (e) {}
+            try { const s = await SF.api('/api/settings'); this.layMaxDays = Math.max(1, parseInt(s.layaway_max_days, 10) || 30); this.layConditions = s.layaway_conditions || ''; } catch (e) {}
+            Del.user = Hist.user = this.user;
+            Del.config = Hist.config = this.config;
+            this.canWorkflow = ['admin', 'caisse', 'gestion_stock'].includes(this.user.role);
+            document.getElementById('tab-encours').style.display = this.canWorkflow ? '' : 'none';
+            document.querySelectorAll('.dl-tab').forEach(t => t.onclick = () => this.tab(t.dataset.t));
+            if (this.canWorkflow) Del.start();
+            Hist.start();
+            const wantHist = location.hash === '#historique' || !this.canWorkflow;
+            this.tab(wantHist ? 'historique' : 'encours');
+        },
+        tab(name) {
+            if (name === 'encours' && !this.canWorkflow) name = 'historique';
+            this.active = name;
+            document.querySelectorAll('.dl-tab').forEach(t => t.classList.toggle('active', t.dataset.t === name));
+            document.getElementById('panel-encours').style.display = name === 'encours' ? '' : 'none';
+            document.getElementById('panel-historique').style.display = name === 'historique' ? '' : 'none';
+            ['pdfBtn', 'xlsBtn'].forEach(id => document.getElementById(id).style.display = (name === 'historique' && Hist.isCaisse) ? '' : 'none');
+            document.getElementById('sub').textContent = name === 'encours' ? 'Livraisons à traiter' : 'Toutes les livraisons';
+            if (name === 'historique') Hist.load();
+        },
+        refresh() { if (this.active === 'encours') Del.load(); else Hist.load(); }
+    };
+
+    Page.init();
+    </script>
+</body>
+</html>

@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <title>Réception — STOCKFLOW</title>
+    <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css">
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/sf.css">
+    <script>document.documentElement.setAttribute('data-theme', localStorage.getItem('stockflow-theme') === 'dark' ? 'dark' : 'light'); try { var sfu = JSON.parse(localStorage.getItem('stockflow-ui') || '{}'); for (var k in sfu) document.documentElement.setAttribute('data-' + k, sfu[k]); } catch (e) {}</script>
+    <style>
+        .tabs { display:flex; gap:6px; margin-bottom:20px; flex-wrap:wrap; }
+        .tab-btn { padding:9px 18px; border-radius:999px; border:1px solid var(--border-color); background:var(--bg-card); color:var(--text-secondary); font-family:var(--font-body); font-size:13.5px; font-weight:600; cursor:pointer; }
+        .tab-btn.active { background:var(--accent); color:var(--accent-contrast); border-color:var(--accent); }
+        .tab-pane { display:none; } .tab-pane.active { display:block; }
+        .line-title { font-weight:600; color:var(--text-primary); }
+        .line-spec { font-size:12px; color:var(--text-muted); }
+        .chk-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:10px; margin-top:6px; }
+        .chk { display:flex; align-items:center; gap:8px; font-size:13px; cursor:pointer; padding:8px 10px; border:1px solid var(--border-color); border-radius:10px; }
+        .success-panel { border:1px solid var(--success); background:rgba(34,197,94,.08); border-radius:var(--border-radius-lg); padding:20px; margin-bottom:20px; }
+        .filters { display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end; margin-bottom:16px; }
+        .filters .form-group { margin-bottom:0; }
+        .cond-pill { font-size:10.5px; font-weight:700; text-transform:uppercase; padding:2px 7px; border-radius:6px; background:var(--bg-input); color:var(--text-secondary); }
+        .recep-cols { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px; align-items:start; }
+        @media (max-width:900px){ .recep-cols { grid-template-columns:1fr; } }
+        /* ===== Téléphone : formulaire de ligne en grille 2 colonnes (champs courts côte à côte),
+           barre « Valider » collée en bas, au-dessus de la navigation. ===== */
+        @media (max-width:768px) {
+            .recep-cols { gap:12px; margin-bottom:12px; }
+            .recep-cols .card-header .btn { min-height:40px; padding:0 16px; }
+            .recep-validate { position:sticky; bottom:calc(68px + env(safe-area-inset-bottom,0px)); z-index:40; box-shadow:0 -6px 22px rgba(16,24,40,.14); border-radius:16px; }
+            .recep-validate .card-body { padding:10px 12px; }
+            .recep-validate .card-body > div { flex-wrap:nowrap !important; }
+            .recep-validate #linesSummary { font-size:12.5px; line-height:1.25; min-width:0; flex:1; }
+            .recep-validate .btn { flex:0 0 auto; min-height:46px; padding:0 14px; }
+            /* Lignes du bordereau : bouton « retirer » en haut à droite de la carte (pas de rangée vide). */
+            .recep-cols table.sf-stack > tbody > tr { position:relative; }
+            .recep-cols table.sf-stack td.sf-td-title { padding-right:48px !important; }
+            .recep-cols table.sf-stack td[data-label=""]:not(.sf-td-full) { position:absolute; top:8px; right:10px; width:auto; padding:0 !important; margin:0; border:0 !important; }
+            .recep-cols table.sf-stack td[data-label=""] .btn { width:38px; height:38px; min-height:38px; padding:0; justify-content:center; }
+            #lineModal .form-row { grid-template-columns:repeat(2,minmax(0,1fr)) !important; gap:0 10px; }
+            #lineModal .form-group { margin-bottom:12px; min-width:0; }
+            #lineModal .form-group label { font-size:12px; margin-bottom:4px; }
+            .sl-row { display:grid; grid-template-columns:28px 1fr 1fr 34px; gap:6px; align-items:center; margin-bottom:6px; }
+            .sl-row .n { font-weight:800; color:var(--text-muted); text-align:center; }
+            @media (max-width:560px){ .sl-row { grid-template-columns:22px 1fr 34px; } .sl-row .sn { grid-column:2; } .sl-row .rm { grid-row:1; grid-column:3; } }
+            /* Champs longs sur toute la largeur. */
+            #lineModal .form-group:has(#l_model), #lineModal .form-group:has(#l_cpu),
+            #lineModal .form-group:has(#l_storage_type), #lineModal .form-group:has(#l_price) { grid-column:1 / -1; }
+            /* Accessoire (sans « Type ») : Marque | Modèle sur une ligne. */
+            #lineModal .form-row:has(> .pc-only[style*="none"]) .form-group:has(#l_model) { grid-column:auto; }
+            #lineModal .chk-grid { grid-template-columns:1fr 1fr; gap:8px; margin:0 0 4px; }
+            #lineModal .chk { min-height:44px; font-size:13.5px; }
+            #lineModal .chk input { width:18px; height:18px; }
+            #lineModal .form-row[style*="margin-top"] { margin-top:12px !important; }
+            /* Indication « n° de série unique » affichée : catégorie et sous-catégorie sur toute la largeur. */
+            #lineModal .acc-only:has(#acc_serial_hint:not([style*="none"])) .form-group { grid-column:1 / -1; }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar" id="sfSidebar"></aside>
+        <main class="main-content">
+            <header class="page-header">
+                <div class="page-title"><h1>Réception</h1><p>Entrée des produits en stock</p></div>
+                <div class="page-actions"><div id="sfTools"></div></div>
+            </header>
+            <div class="page-body">
+                <div id="soPending" style="display:none;"></div>
+                <div class="tabs">
+                    <button class="tab-btn active" data-tab="new"><i class="fas fa-plus"></i> Nouvelle réception</button>
+                    <button class="tab-btn" data-tab="history"><i class="fas fa-clock-rotate-left"></i> Historique</button>
+                    <button class="tab-btn" data-tab="garreturns"><i class="fas fa-rotate-left"></i> Garanties revenues</button>
+                </div>
+
+                <!-- NOUVELLE RÉCEPTION -->
+                <div class="tab-pane active" id="tab-new">
+                    <div id="successPanel"></div>
+                    <div style="margin-bottom:14px;color:var(--text-muted);font-size:13px;"><i class="fas fa-circle-info"></i> Ajoutez d'abord les produits ; le fournisseur et la facture seront demandés à la validation.</div>
+
+                    <div class="recep-cols">
+                        <div class="card">
+                            <div class="card-header">
+                                <h3><i class="fas fa-laptop"></i> Ordinateurs</h3>
+                                <button class="btn btn-primary btn-sm" onclick="Reception.openLine('pc')"><i class="fas fa-plus"></i> Ajouter</button>
+                            </div>
+                            <div class="card-body">
+                                <div class="table-container">
+                                    <table>
+                                        <thead><tr><th>Produit</th><th>Type</th><th>Qté</th><th>Prix</th><th></th></tr></thead>
+                                        <tbody id="linesBodyPc"><tr><td colspan="5" class="text-center text-muted">Aucun ordinateur.</td></tr></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card">
+                            <div class="card-header">
+                                <h3><i class="fas fa-plug"></i> Accessoires</h3>
+                                <button class="btn btn-primary btn-sm" onclick="Reception.openLine('acc')"><i class="fas fa-plus"></i> Ajouter</button>
+                            </div>
+                            <div class="card-body">
+                                <div class="table-container">
+                                    <table>
+                                        <thead><tr><th>Accessoire</th><th>Catégorie</th><th>Qté</th><th>Prix</th><th></th></tr></thead>
+                                        <tbody id="linesBodyAcc"><tr><td colspan="5" class="text-center text-muted">Aucun accessoire.</td></tr></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-satellite-dish"></i> Starlink <span class="text-muted" style="font-size:12px;font-weight:500;">(kit antenne + routeur, prix unique)</span></h3>
+                            <button class="btn btn-primary btn-sm" onclick="Reception.openStarlink()"><i class="fas fa-plus"></i> Ajouter</button>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-container">
+                                <table>
+                                    <thead><tr><th>Kit</th><th>ID routeur</th><th>Qté</th><th>Prix du kit</th><th></th></tr></thead>
+                                    <tbody id="linesBodySl"><tr><td colspan="5" class="text-center text-muted">Aucun kit Starlink.</td></tr></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card recep-validate"><div class="card-body">
+                        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+                            <div class="text-muted" id="linesSummary">0 produit · 0 unité</div>
+                            <button class="btn btn-success" onclick="Reception.openFinalize()" id="validateBtn" disabled><i class="fas fa-check"></i> Valider &amp; imprimer<span class="m-hide"> les étiquettes</span></button>
+                        </div>
+                    </div></div>
+                </div>
+
+                <!-- HISTORIQUE -->
+                <div class="tab-pane" id="tab-history">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="filters">
+                                <div class="form-group" style="flex:1;min-width:200px;"><label>Rechercher</label><input type="text" id="f_search" class="form-control" placeholder="Référence, fournisseur, utilisateur…" oninput="Reception.renderHistory()"></div>
+                                <div class="form-group"><label>Du</label><input type="date" id="f_from" class="form-control" onchange="Reception.loadHistory()"></div>
+                                <div class="form-group"><label>Au</label><input type="date" id="f_to" class="form-control" onchange="Reception.loadHistory()"></div>
+                                <div class="form-group"><label>Fournisseur</label><select id="f_supplier" class="form-control" onchange="Reception.loadHistory()"></select></div>
+                                <div class="form-group"><label>Utilisateur</label><select id="f_user" class="form-control" onchange="Reception.loadHistory()"><option value="">Tous</option></select></div>
+                                <button class="btn btn-secondary" onclick="Reception.exportHistoryPDF()"><i class="fas fa-file-pdf"></i> Rapport PDF</button>
+                    <button class="btn btn-secondary" onclick="SFReport.as('xlsx', () => Reception.exportHistoryPDF())"><i class="fas fa-file-excel"></i> Excel</button>
+                            </div>
+                            <div class="table-container">
+                                <table>
+                                    <thead><tr><th>Date</th><th>Référence</th><th>Fournisseur</th><th>Utilisateur</th><th>Unités</th><th></th></tr></thead>
+                                    <tbody id="historyBody"><tr><td colspan="6" class="sf-skel-cell"><span class="sf-skel sf-skel-line"></span><span class="sf-skel sf-skel-line"></span><span class="sf-skel sf-skel-line"></span></td></tr></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- GARANTIES REVENUES (retour fournisseur re-réceptionné) -->
+                <div class="tab-pane" id="tab-garreturns">
+                    <div class="card">
+                        <div class="card-body">
+                            <div style="margin-bottom:12px;color:var(--text-muted);font-size:13px;"><i class="fas fa-circle-info"></i> Unités revenues du fournisseur et re-réceptionnées au stock. Imprimez la <strong>nouvelle étiquette</strong> à recoller sur l'appareil.</div>
+                            <div class="filters">
+                                <div class="form-group"><label>Du</label><input type="date" id="g_from" class="form-control" onchange="Reception.loadGarReturns()"></div>
+                                <div class="form-group"><label>Au</label><input type="date" id="g_to" class="form-control" onchange="Reception.loadGarReturns()"></div>
+                                <div class="form-group"><label>Fournisseur</label><select id="g_supplier" class="form-control" onchange="Reception.loadGarReturns()"></select></div>
+                            </div>
+                            <div class="table-container">
+                                <table>
+                                    <thead><tr><th>Date</th><th>N° série</th><th>Produit</th><th>Configuration</th><th>Fournisseur</th><th>Reçu par</th><th>Étiquette</th></tr></thead>
+                                    <tbody id="garReturnsBody"><tr><td colspan="7" class="sf-skel-cell"><span class="sf-skel sf-skel-line"></span><span class="sf-skel sf-skel-line"></span><span class="sf-skel sf-skel-line"></span></td></tr></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modale ligne produit -->
+    <div class="modal-overlay" id="lineModal">
+        <div class="modal" style="max-width:640px;">
+            <div class="modal-header"><h3>Produit reçu</h3><button class="modal-close" onclick="SF.Modal.close('lineModal')">&times;</button></div>
+            <div class="modal-body">
+                <input type="checkbox" id="l_accessory" onchange="Reception.toggleAccessory()" style="display:none;">
+                <div class="acc-only form-row" style="display:none;">
+                    <div class="form-group"><label>Catégorie *</label><input list="dl_acccat" id="l_acc_category" class="form-control" placeholder="Ex : Réseau, Périphérique…" oninput="Reception.hintSerialized()"><small id="acc_serial_hint" class="text-muted" style="display:none;font-size:11.5px;"><i class="fas fa-barcode"></i> Chaque pièce reçoit un numéro de série unique (suivi à l'unité). Laissez le champ « n° de série » vide pour une numérotation automatique.</small></div>
+                    <div class="form-group"><label>Sous-catégorie</label><input list="dl_accsub" id="l_acc_subcategory" class="form-control" placeholder="Ex : Routeur, Clavier…"></div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group pc-only"><label>Type *</label><input list="dl_type" id="l_category" class="form-control" placeholder="UC, Portable…"></div>
+                    <div class="form-group"><label>Marque</label><input list="dl_brand" id="l_brand" class="form-control" placeholder="HP, Dell…"></div>
+                    <div class="form-group"><label id="lbl_model">Modèle *</label><input type="text" id="l_model" class="form-control" placeholder="Ex : EliteBook 840 G5"></div>
+                </div>
+                <div class="form-row pc-only">
+                    <div class="form-group"><label>Processeur / configuration</label><input type="text" id="l_cpu" class="form-control" placeholder="Ex : Core i5-8250U"></div>
+                </div>
+                <div class="form-row pc-only">
+                    <div class="form-group"><label>RAM *</label><input list="dl_ram" id="l_ram" class="form-control" placeholder="8 Go"></div>
+                    <div class="form-group"><label>Stockage *</label><input list="dl_storage" id="l_storage" class="form-control" placeholder="256 Go"></div>
+                    <div class="form-group"><label>Type stockage *</label><input list="dl_stype" id="l_storage_type" class="form-control" placeholder="SSD NVMe"></div>
+                </div>
+                <div class="form-row pc-only">
+                    <div class="form-group"><label>2e carte graphique</label><input type="text" id="l_gpu" class="form-control" placeholder="Ex : NVIDIA MX150 (optionnel)"></div>
+                    <div class="form-group"><label>Taille écran</label><input list="dl_screen" id="l_screen_size" class="form-control" placeholder='15.6"'></div>
+                </div>
+                <div class="chk-grid pc-only">
+                    <label class="chk"><input type="checkbox" id="l_touchscreen"> Tactile</label>
+                    <label class="chk"><input type="checkbox" id="l_webcam"> Webcam</label>
+                    <label class="chk"><input type="checkbox" id="l_wifi"> Wi-Fi</label>
+                    <label class="chk"><input type="checkbox" id="l_bluetooth"> Bluetooth</label>
+                    <label class="chk"><input type="checkbox" id="l_numpad"> Pavé numérique</label>
+                </div>
+                <div class="form-row" style="margin-top:14px;">
+                    <div class="form-group"><label>Prix de vente (Ar) *</label><input type="text" inputmode="numeric" id="l_price" class="form-control money-input" placeholder="0"></div>
+                    <div class="form-group"><label>Garantie (jours)</label><input type="number" inputmode="numeric" id="l_warranty" class="form-control" min="0" placeholder="défaut fournisseur"></div>
+                    <div class="form-group"><label>Quantité *</label><input type="number" inputmode="numeric" id="l_qty" class="form-control" min="1" value="1"></div>
+                </div>
+                <div class="form-group"><label><i class="fas fa-location-dot"></i> Emplacement(s) au dépôt</label><input type="text" id="l_emplacement" class="form-control" placeholder="ex. E04, D03 — plusieurs possibles, séparés par des virgules (optionnel)"></div>
+                <div class="form-group"><label>Description / remarque</label><textarea id="l_description" class="form-control" rows="2" placeholder="Détails additionnels (optionnel)"></textarea></div>
+                <div class="form-group">
+                    <label>Numéros de série constructeur (optionnel)</label>
+                    <textarea id="l_serials" class="form-control" rows="2" placeholder="Un numéro par ligne (ou séparés par une virgule). Ex : SN123ABC…"></textarea>
+                    <p class="form-hint" style="font-size:11px;">Facultatif : permet de suivre l'unité même si l'étiquette code-barres est retirée. Au plus autant de numéros que d'unités ; ils apparaissent sur la facture.</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="SF.Modal.close('lineModal')">Annuler</button>
+                <button class="btn btn-primary" onclick="Reception.addLine()"><i class="fas fa-plus"></i> Ajouter au bordereau</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modale kit STARLINK -->
+    <div class="modal-overlay" id="slModal">
+        <div class="modal" style="max-width:620px;">
+            <div class="modal-header"><h3><i class="fas fa-satellite-dish"></i> Kit Starlink reçu</h3><button class="modal-close" onclick="SF.Modal.close('slModal')">&times;</button></div>
+            <div class="modal-body">
+                <div class="form-group"><label for="sl_vsel">Version *</label>
+                    <select id="sl_vsel" class="form-control" onchange="Reception.slOnSelect()"></select>
+                    <input type="text" id="sl_version" class="form-control" placeholder="Saisir la version (ex. Gen 1, Flat High Performance…)" style="margin-top:8px;display:none;">
+                </div>
+                <div class="form-row">
+                    <div class="form-group"><label>Prix du kit (antenne + routeur) *</label><input type="text" inputmode="numeric" id="sl_price" class="form-control money-input" placeholder="0"></div>
+                    <div class="form-group"><label>Garantie (jours)</label><input type="number" inputmode="numeric" id="sl_warranty" class="form-control" min="0" placeholder="défaut fournisseur"></div>
+                </div>
+                <div class="form-group"><label><i class="fas fa-location-dot"></i> Emplacement(s) au dépôt</label><input type="text" id="sl_emplacement" class="form-control" placeholder="ex. E04 (optionnel)"></div>
+                <div class="form-group"><label>Description / remarque</label><input type="text" id="sl_description" class="form-control" placeholder="Optionnel"></div>
+                <label style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;">
+                    <span><b>Kits reçus</b> — un ID routeur par kit <span style="color:var(--danger);">*</span></span>
+                    <span class="text-muted" id="sl_count" style="font-size:12px;"></span></label>
+                <div id="sl_rows"></div>
+                <button class="btn btn-secondary btn-sm" onclick="Reception.slAddRow(true)" style="margin-top:6px;"><i class="fas fa-plus"></i> Ajouter un kit</button>
+                <p class="form-hint" style="font-size:11px;margin-top:8px;">Chaque kit reçoit un n° STOCKFLOW et <b>deux étiquettes</b> (antenne / routeur) avec le même code-barres. Scanner l'ID routeur retrouve aussi le kit.</p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="SF.Modal.close('slModal')">Annuler</button>
+                <button class="btn btn-primary" onclick="Reception.slSave()"><i class="fas fa-plus"></i> Ajouter au bordereau</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Datalists (référentiels) -->
+    <datalist id="dl_type"></datalist><datalist id="dl_brand"></datalist><datalist id="dl_ram"></datalist>
+    <datalist id="dl_storage"></datalist><datalist id="dl_stype"></datalist><datalist id="dl_screen"></datalist>
+    <datalist id="dl_acccat"></datalist><datalist id="dl_accsub"></datalist>
+
+    <!-- Modale détails réception -->
+    <div class="modal-overlay" id="detailModal">
+        <div class="modal" style="max-width:720px;">
+            <div class="modal-header"><h3 id="detailTitle">Détails de la réception</h3><button class="modal-close" onclick="SF.Modal.close('detailModal')">&times;</button></div>
+            <div class="modal-body" id="detailBody"></div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="SF.Modal.close('detailModal')">Fermer</button>
+                <button class="btn btn-primary" id="detailPdfBtn"><i class="fas fa-file-pdf"></i> Étiquettes (PDF 60×40)</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modale finalisation : fournisseur + facture demandés à la validation -->
+    <div class="modal-overlay" id="finalizeModal">
+        <div class="modal" style="max-width:460px;">
+            <div class="modal-header"><h3>Finaliser la réception</h3><button class="modal-close" onclick="SF.Modal.close('finalizeModal')">&times;</button></div>
+            <div class="modal-body">
+                <div id="finalizeSummary" class="text-muted" style="font-size:12.5px;margin-bottom:12px;"></div>
+                <div class="form-group"><label>Fournisseur *</label><select id="r_supplier" class="form-control"></select></div>
+                <div class="form-group"><label>N° facture / référence</label><input type="text" id="r_reference" class="form-control" placeholder="Ex : FAC-2026-014"></div>
+                <div class="form-group"><label>Note / remarque</label><input type="text" id="r_note" class="form-control" placeholder="Optionnel"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="SF.Modal.close('finalizeModal')">Annuler</button>
+                <button class="btn btn-success" id="confirmFinalizeBtn" onclick="Reception.confirmFinalize()"><i class="fas fa-check"></i> Valider &amp; imprimer</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/sf-core.js"></script>
+    <script src="/js/sf-layout.js"></script>
+    <script src="/js/sf-barcode.js"></script>
+    <script src="/js/sf-report.js"></script>
+    <script>
+    const Reception = {
+        suppliers: [], refs: {}, lines: [], config: {}, history: [], detailUnits: [], garReturns: null,
+        async init() {
+            const user = await SF.Auth.require(['gestion_stock']);
+            if (!user) return;
+            this.user = user;
+            SF.layout({ active: '/reception.html' });
+            document.querySelectorAll('.tab-btn').forEach(b => b.onclick = () => this.switchTab(b.dataset.tab));
+            try { this.config = await SF.api('/api/config'); } catch (e) {}
+            await this.loadSuppliers();
+            await this.loadRefs();
+            this.loadHistory();
+            this.showPendingOrders();
+            SF.on('supplier-order:update', () => this.showPendingOrders());
+        },
+        // Rappel : nouvelles commandes fournisseurs pas encore consultées (bons de commande).
+        async showPendingOrders() {
+            const box = document.getElementById('soPending');
+            const r = await SF.refreshSupplierOrdersPending();
+            if (!r || !r.count) { box.style.display = 'none'; return; }
+            const list = r.orders.slice(0, 4).map(o => `<strong>CF-${String(o.order_number || o.id).padStart(4, '0')}</strong> ${SF.esc(o.supplier_name || '')} (${o.pieces} pce${o.pieces > 1 ? 's' : ''})`).join(' · ')
+                + (r.count > 4 ? ` · +${r.count - 4}` : '');
+            box.innerHTML = `<a href="/commandes-fournisseurs.html" style="display:flex;gap:12px;align-items:center;padding:12px 16px;margin-bottom:14px;border-radius:12px;
+                    background:rgba(217,119,6,.12);border:1px solid rgba(217,119,6,.35);color:#92400e;text-decoration:none;font-size:13px;line-height:1.5;">
+                <i class="fas fa-clipboard-list" style="font-size:20px;"></i>
+                <span><strong>${r.count} nouvelle${r.count > 1 ? 's' : ''} commande${r.count > 1 ? 's' : ''} fournisseur pas encore vue${r.count > 1 ? 's' : ''}</strong> — ${list}</span>
+                <i class="fas fa-chevron-right" style="margin-left:auto;"></i></a>`;
+            box.style.display = '';
+        },
+        switchTab(t) {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === t));
+            document.querySelectorAll('.tab-pane').forEach(p => p.classList.toggle('active', p.id === 'tab-' + t));
+            if (t === 'garreturns' && this.garReturns == null) this.loadGarReturns();
+        },
+        async loadSuppliers() {
+            this.suppliers = await SF.api('/api/suppliers');
+            const opts = this.suppliers.map(s => `<option value="${s.id}">${SF.esc(s.name)}</option>`).join('');
+            document.getElementById('r_supplier').innerHTML = this.suppliers.length ? opts : '<option value="">— Aucun fournisseur (créez-en un dans Fournisseurs) —</option>';
+            document.getElementById('f_supplier').innerHTML = '<option value="">Tous</option>' + opts;
+            document.getElementById('g_supplier').innerHTML = '<option value="">Tous</option>' + opts;
+        },
+        async loadRefs() {
+            this.refs = await SF.api('/api/referentiels');
+            const fill = (id, cat) => { document.getElementById(id).innerHTML = (this.refs[cat] || []).map(v => `<option value="${SF.esc(v)}">`).join(''); };
+            fill('dl_type', 'product_type'); fill('dl_brand', 'brand'); fill('dl_ram', 'ram');
+            fill('dl_storage', 'storage_size'); fill('dl_stype', 'storage_type'); fill('dl_screen', 'screen_size');
+            fill('dl_acccat', 'acc_category'); fill('dl_accsub', 'acc_subcategory');
+        },
+        toggleAccessory() {
+            const acc = document.getElementById('l_accessory').checked;
+            document.querySelectorAll('#lineModal .pc-only').forEach(el => el.style.display = acc ? 'none' : '');
+            document.querySelectorAll('#lineModal .acc-only').forEach(el => el.style.display = acc ? '' : 'none');
+            document.querySelector('#lineModal .modal-header h3').textContent = acc ? 'Accessoire reçu' : 'Ordinateur reçu';
+            this.hintSerialized();
+        },
+        // Tous les accessoires sont suivis à l'unité : chaque pièce reçoit un n° de série unique.
+        hintSerialized() {
+            const hint = document.getElementById('acc_serial_hint');
+            if (!hint) return;
+            hint.style.display = document.getElementById('l_accessory').checked ? '' : 'none';
+        },
+        editIdx: null,
+        setLineBtn(txt) { const b = document.querySelector('#lineModal .modal-footer .btn-primary'); if (b) b.innerHTML = txt; },
+        editLine(i) {
+            const l = this.lines[i]; if (!l) return;
+            this.editIdx = i;
+            document.getElementById('l_accessory').checked = !!l.is_accessory;
+            this.toggleAccessory();
+            const s = (id, v) => document.getElementById(id).value = (v == null ? '' : v);
+            s('l_category', l.is_accessory ? '' : l.category); s('l_brand', l.brand); s('l_model', l.model);
+            s('l_acc_category', l.is_accessory ? l.category : ''); s('l_acc_subcategory', l.subcategory);
+            s('l_cpu', l.cpu); s('l_ram', l.ram); s('l_storage', l.storage); s('l_storage_type', l.storage_type);
+            s('l_gpu', l.gpu); s('l_screen_size', l.screen_size);
+            ['touchscreen', 'webcam', 'wifi', 'bluetooth', 'numpad'].forEach(k => document.getElementById('l_' + k).checked = !!l[k]);
+            SF.money.set(document.getElementById('l_price'), l.unit_price); s('l_warranty', l.warranty_days); document.getElementById('l_qty').value = l.quantity;
+            s('l_description', l.description); s('l_emplacement', l.emplacement); s('l_serials', (l.serials || []).join('\n'));
+            this.setLineBtn('<i class="fas fa-save"></i> Enregistrer la ligne');
+            this.hintSerialized();
+            SF.Modal.open('lineModal');
+        },
+        openLine(mode) {
+            this.editIdx = null;
+            this.setLineBtn('<i class="fas fa-plus"></i> Ajouter au bordereau');
+            ['l_category','l_brand','l_model','l_cpu','l_ram','l_storage','l_storage_type','l_gpu','l_screen_size','l_price','l_warranty','l_description','l_emplacement','l_serials','l_acc_category','l_acc_subcategory'].forEach(id => document.getElementById(id).value = '');
+            ['l_touchscreen','l_webcam','l_wifi','l_bluetooth','l_numpad'].forEach(id => document.getElementById(id).checked = false);
+            document.getElementById('l_accessory').checked = (mode === 'acc');
+            document.getElementById('l_wifi').checked = true; document.getElementById('l_bluetooth').checked = true; document.getElementById('l_webcam').checked = true;
+            document.getElementById('l_qty').value = 1;
+            this.toggleAccessory();
+            SF.Modal.open('lineModal');
+        },
+        addLine() {
+            const acc = document.getElementById('l_accessory').checked;
+            const g = id => document.getElementById(id).value.trim();
+            const c = id => document.getElementById(id).checked;
+            const line = {
+                is_accessory: acc,
+                category: acc ? (g('l_acc_category') || 'Accessoire') : g('l_category'),
+                subcategory: acc ? g('l_acc_subcategory') : '',
+                brand: g('l_brand'), model: g('l_model'),
+                cpu: acc ? '' : g('l_cpu'), ram: acc ? '' : g('l_ram'), storage: acc ? '' : g('l_storage'),
+                storage_type: acc ? '' : g('l_storage_type'), gpu: acc ? '' : g('l_gpu'), screen_size: acc ? '' : g('l_screen_size'),
+                touchscreen: !acc && c('l_touchscreen'), webcam: !acc && c('l_webcam'), wifi: !acc && c('l_wifi'),
+                bluetooth: !acc && c('l_bluetooth'), numpad: !acc && c('l_numpad'),
+                unit_price: SF.money.val(document.getElementById('l_price')),
+                warranty_days: g('l_warranty'),
+                quantity: Math.max(1, parseInt(g('l_qty'), 10) || 1),
+                description: g('l_description'),
+                emplacement: g('l_emplacement'),
+                serials: g('l_serials').split(/[\n,;]+/).map(s => s.trim()).filter(Boolean)
+            };
+            if (!line.model) return SF.toast('Le modèle est requis', 'error');
+            if (acc && !g('l_acc_category')) return SF.toast('La catégorie de l\'accessoire est requise', 'error');
+            if (!acc && !line.category) return SF.toast('Le type de produit est requis', 'error');
+            if (!acc && (!line.ram || !line.storage || !line.storage_type))
+                return SF.toast('RAM, stockage et type de stockage sont obligatoires', 'error');
+            if (!line.unit_price) return SF.toast('Le prix de vente est requis', 'error');
+            if (line.serials.length > line.quantity) return SF.toast(`Trop de numéros de série (${line.serials.length}) pour ${line.quantity} unité(s)`, 'error');
+            // N° de série uniques : pas deux fois le même, ni dans cette ligne ni dans les autres lignes.
+            {
+                const others = this.lines.filter((x, i) => i !== this.editIdx).flatMap(x => x.serials || []).map(x => x.toUpperCase());
+                const seen = new Set();
+                for (const sn of line.serials) {
+                    const k = sn.toUpperCase();
+                    if (seen.has(k) || others.includes(k)) return SF.toast(`N° de série « ${sn} » saisi deux fois : chaque appareil a son propre n°`, 'error', 5000);
+                    seen.add(k);
+                }
+            }
+            if (this.editIdx != null) { this.lines[this.editIdx] = line; this.editIdx = null; }
+            else this.lines.push(line);
+            this.renderLines();
+            SF.Modal.close('lineModal');
+        },
+        renderLines() {
+            const rowHtml = (l, i) => {
+                const spec = [l.cpu, l.ram, l.storage ? l.storage + (l.storage_type ? ' ' + l.storage_type : '') : '', l.screen_size].filter(Boolean).join(' · ');
+                const title = [l.brand, l.model].filter(Boolean).join(' ') || l.model;
+                const sub = l.is_accessory
+                    ? [l.subcategory, l.description].filter(Boolean).join(' · ')
+                    : (l.category || '') + (spec ? ' · ' + spec : '');
+                const col3 = SF.esc(l.category || '—');
+                return `<tr style="cursor:pointer;" onclick="Reception.editLine(${i})" title="Cliquez pour corriger">
+                    <td><div class="line-title">${SF.esc(title)}</div><div class="line-spec">${SF.esc(sub)}${l.serials && l.serials.length ? ` <span class="text-muted">· ${l.serials.length} n° série</span>` : ''}${l.emplacement ? ` · <span style="color:var(--accent);font-weight:700;"><i class="fas fa-location-dot"></i> ${SF.esc(l.emplacement)}</span>` : ''}</div></td>
+                    <td>${col3}</td>
+                    <td>${l.quantity}</td>
+                    <td>${SF.fmt.ar(l.unit_price)}</td>
+                    <td style="text-align:right;white-space:nowrap;"><button class="btn btn-sm btn-danger" onclick="event.stopPropagation();Reception.removeLine(${i})" title="Retirer"><i class="fas fa-trash"></i></button></td>
+                </tr>`;
+            };
+            const pc = [], acc = [], sl = [];
+            this.lines.forEach((l, i) => {
+                if (l.starlink) sl.push(`<tr style="cursor:pointer;" onclick="Reception.openStarlink(${i})" title="Cliquez pour corriger">
+                    <td><div class="line-title">Starlink ${SF.esc(l.subcategory)}</div><div class="line-spec">Antenne + routeur${l.emplacement ? ` · <span style="color:var(--accent);font-weight:700;"><i class="fas fa-location-dot"></i> ${SF.esc(l.emplacement)}</span>` : ''}</div></td>
+                    <td style="font-family:monospace;font-size:12px;">${l.router_ids.map(SF.esc).join('<br>')}</td>
+                    <td>${l.quantity}</td><td>${SF.fmt.ar(l.unit_price)}</td>
+                    <td style="text-align:right;white-space:nowrap;"><button class="btn btn-sm btn-danger" onclick="event.stopPropagation();Reception.removeLine(${i})" title="Retirer"><i class="fas fa-trash"></i></button></td></tr>`);
+                else (l.is_accessory ? acc : pc).push(rowHtml(l, i));
+            });
+            document.getElementById('linesBodySl').innerHTML = sl.length ? sl.join('') : '<tr><td colspan="5" class="text-center text-muted">Aucun kit Starlink.</td></tr>';
+            document.getElementById('linesBodyPc').innerHTML = pc.length ? pc.join('') : '<tr><td colspan="5" class="text-center text-muted">Aucun ordinateur.</td></tr>';
+            document.getElementById('linesBodyAcc').innerHTML = acc.length ? acc.join('') : '<tr><td colspan="5" class="text-center text-muted">Aucun accessoire.</td></tr>';
+            const units = this.lines.reduce((s, l) => s + l.quantity, 0);
+            document.getElementById('linesSummary').textContent = `${this.lines.length} produit(s) · ${units} unité(s)`;
+            document.getElementById('validateBtn').disabled = !this.lines.length;
+        },
+        removeLine(i) { this.lines.splice(i, 1); this.renderLines(); },
+        // ── Kit STARLINK : version + prix unique + (SN antenne, ID routeur) par kit ──
+        // Gammes Starlink courantes (V3 = Gen 2 rectangulaire motorisée, V4 = Standard Gen 3 à béquille ;
+        // Standard 4X = Standard livré avec le Router Mini ; Performance = ex-Flat High Performance).
+        SL_VERS: ['V4 Standard', 'V4 Mini', 'Standard 4X', 'V3 Actuated', 'Performance Gen 3', 'Performance Gen 2', 'Enterprise V4'],
+        openStarlink(i) {
+            const l = i != null ? this.lines[i] : null;
+            this.slIdx = l ? i : null;
+            // Liste déroulante native (fiable sur tablette / téléphone) + « Autre… » pour une saisie libre.
+            const sel = document.getElementById('sl_vsel');
+            sel.innerHTML = '<option value="">— Choisir la version —</option>' + this.SL_VERS.map(v => `<option value="${SF.esc(v)}">${SF.esc(v)}</option>`).join('') + '<option value="__autre">Autre…</option>';
+            const cur = l ? l.subcategory : '';
+            sel.value = !cur ? '' : (this.SL_VERS.includes(cur) ? cur : '__autre');
+            document.getElementById('sl_version').value = cur && !this.SL_VERS.includes(cur) ? cur : '';
+            this.slOnSelect();
+            if (l) SF.money.set(document.getElementById('sl_price'), l.unit_price); else document.getElementById('sl_price').value = '';
+            document.getElementById('sl_warranty').value = l ? (l.warranty_days || '') : '';
+            document.getElementById('sl_emplacement').value = l ? (l.emplacement || '') : '';
+            document.getElementById('sl_description').value = l ? (l.description || '') : '';
+            document.getElementById('sl_rows').innerHTML = '';
+            if (l) l.router_ids.forEach((r, k) => this.slAddRow(false, (l.serials || [])[k] || '', r));
+            else this.slAddRow(false);
+            document.querySelector('#slModal .modal-footer .btn-primary').innerHTML = l ? '<i class="fas fa-save"></i> Enregistrer' : '<i class="fas fa-plus"></i> Ajouter au bordereau';
+            SF.Modal.open('slModal');
+        },
+        slOnSelect() {
+            const other = document.getElementById('sl_vsel').value === '__autre';
+            const inp = document.getElementById('sl_version');
+            inp.style.display = other ? '' : 'none';
+            if (other) inp.focus();
+        },
+        slGetVersion() {
+            const v = document.getElementById('sl_vsel').value;
+            return (v === '__autre' ? document.getElementById('sl_version').value : v).trim();
+        },
+        slAddRow(focus, sn = '', rid = '') {
+            const box = document.getElementById('sl_rows');
+            const row = document.createElement('div'); row.className = 'sl-row';
+            row.innerHTML = `<span class="n"></span>
+                <input type="text" class="form-control rid" placeholder="ID routeur *" value="${SF.esc(rid)}" autocomplete="off">
+                <input type="text" class="form-control sn" placeholder="SN antenne *" value="${SF.esc(sn)}" autocomplete="off">
+                <button type="button" class="btn btn-sm btn-secondary rm" title="Retirer" onclick="this.parentElement.remove();Reception.slNumber()"><i class="fas fa-xmark"></i></button>`;
+            // Douchette : Entrée dans l'ID routeur → SN antenne, puis kit suivant.
+            const [ri, si] = row.querySelectorAll('input');
+            ri.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); si.focus(); } };
+            si.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); this.slAddRow(true); } };
+            box.appendChild(row);
+            this.slNumber();
+            if (focus) ri.focus();
+        },
+        slNumber() {
+            const rows = [...document.querySelectorAll('#sl_rows .sl-row')];
+            rows.forEach((r, k) => { r.querySelector('.n').textContent = k + 1; });
+            document.getElementById('sl_count').textContent = `${rows.length} kit(s)`;
+        },
+        slSave() {
+            const version = this.slGetVersion();
+            if (!version) { document.getElementById('sl_vsel').focus(); return SF.toast('Choisissez la version du Starlink', 'error'); }
+            const price = SF.money.val(document.getElementById('sl_price'));
+            if (!price) return SF.toast('Le prix du kit est requis', 'error');
+            const rows = [...document.querySelectorAll('#sl_rows .sl-row')].map(r => ({
+                rid: r.querySelector('.rid').value.trim().toUpperCase(), sn: r.querySelector('.sn').value.trim() }))
+                .filter(r => r.rid || r.sn);
+            if (!rows.length) return SF.toast('Saisissez au moins un kit (ID routeur)', 'error');
+            if (rows.some(r => !r.rid)) return SF.toast('ID routeur obligatoire pour chaque kit', 'error');
+            if (rows.some(r => !r.sn)) return SF.toast("N° de série de l'antenne obligatoire pour chaque kit", 'error');
+            const ids = rows.map(r => r.rid);
+            const others = this.lines.filter((l, k) => l.starlink && k !== this.slIdx).flatMap(l => l.router_ids);
+            const dup = ids.find((x, k) => ids.indexOf(x) !== k || others.includes(x));
+            if (dup) return SF.toast(`ID routeur ${dup} saisi deux fois`, 'error');
+            // SN antenne : positionnels (un par kit, vide autorisé) — envoyés seulement s'ils sont tous saisis
+            // en tête, sinon on garde l'ordre exact avec des valeurs vides.
+            const line = {
+                starlink: true, is_accessory: true, category: 'Starlink', subcategory: version, brand: 'Starlink',
+                model: `Kit ${version}`, unit_price: price,
+                warranty_days: document.getElementById('sl_warranty').value.trim(),
+                emplacement: document.getElementById('sl_emplacement').value.trim(),
+                description: document.getElementById('sl_description').value.trim(),
+                quantity: rows.length, router_ids: ids, serials: rows.map(r => r.sn)
+            };
+            if (this.slIdx != null) this.lines[this.slIdx] = line; else this.lines.push(line);
+            this.slIdx = null;
+            this.renderLines();
+            SF.Modal.close('slModal');
+        },
+        // Ouvre la modale de finalisation (fournisseur + facture demandés à la fin).
+        openFinalize() {
+            if (!this.lines.length) return SF.toast('Ajoutez au moins un produit', 'error');
+            const units = this.lines.reduce((s, l) => s + (parseInt(l.quantity, 10) || 1), 0);
+            document.getElementById('finalizeSummary').innerHTML = `<i class="fas fa-boxes-packing"></i> ${this.lines.length} produit(s) · ${units} unité(s) à réceptionner.`;
+            document.getElementById('r_reference').value = '';
+            document.getElementById('r_note').value = '';
+            SF.Modal.open('finalizeModal');
+        },
+        async confirmFinalize() {
+            const supplier_id = document.getElementById('r_supplier').value;
+            if (!supplier_id) return SF.toast('Sélectionnez un fournisseur', 'error');
+            if (!this.lines.length) return SF.toast('Ajoutez au moins un produit', 'error');
+            const payload = {
+                supplier_id: parseInt(supplier_id, 10),
+                reference: document.getElementById('r_reference').value.trim(),
+                note: document.getElementById('r_note').value.trim(),
+                lines: this.lines
+            };
+            const btn = document.getElementById('confirmFinalizeBtn'); btn.disabled = true;
+            try {
+                const res = await SF.api('/api/receptions', { method: 'POST', body: payload });
+                this.persistNewRefs();
+                // Sortie directe des étiquettes (aucun dialogue) : quantité × nb d'étiquettes du fournisseur.
+                const sup = this.suppliers.find(s => s.id === payload.supplier_id);
+                const copies = Math.max(1, parseInt(sup && sup.label_count, 10) || 1);
+                const labels = [];
+                (res.units || []).forEach(u => { for (let k = 0; k < copies; k++) labels.push(u); });
+                SF.toast(`Réception enregistrée — ${res.total_units} unité(s) · ${labels.length} étiquette(s)`, 'success');
+                if (labels.length && window.SFBarcode) SFBarcode.downloadPDF(labels, SF.fmt.ar);
+                SF.Modal.close('finalizeModal');
+                this.lines = []; this.renderLines();
+                document.getElementById('r_reference').value = ''; document.getElementById('r_note').value = '';
+                document.getElementById('successPanel').innerHTML = '';
+                this.loadHistory();
+                btn.disabled = false;
+            } catch (e) { SF.toast(e.message, 'error'); btn.disabled = false; }
+        },
+        // Enrichit les listes déroulantes avec les nouvelles valeurs saisies.
+        persistNewRefs() {
+            const pcMap  = { product_type: 'category', brand: 'brand', ram: 'ram', storage_size: 'storage', storage_type: 'storage_type', screen_size: 'screen_size' };
+            const accMap = { acc_category: 'category', acc_subcategory: 'subcategory', brand: 'brand' };
+            const seen = new Set();
+            const push = (cat, v) => {
+                v = (v || '').trim();
+                if (v && !(this.refs[cat] || []).includes(v) && !seen.has(cat + '|' + v)) {
+                    seen.add(cat + '|' + v);
+                    SF.api('/api/referentiels', { method: 'POST', body: { category: cat, value: v } }).catch(() => {});
+                }
+            };
+            this.lines.forEach(l => {
+                const map = l.is_accessory ? accMap : pcMap;
+                for (const [cat, field] of Object.entries(map)) push(cat, l[field]);
+            });
+        },
+        showSuccess(res) {
+            this.lastUnits = res.units;
+            document.getElementById('successPanel').innerHTML = `
+                <div class="success-panel">
+                    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+                        <div><h3 style="color:var(--success-dark);"><i class="fas fa-circle-check"></i> ${res.total_units} unité(s) ajoutée(s) au stock</h3>
+                        <p class="text-muted" style="margin-top:4px;">Numéros de série : ${res.units.slice(0,3).map(u=>SF.esc(u.serial)).join(', ')}${res.units.length>3?'…':''}</p></div>
+                        <div style="display:flex;gap:8px;">
+                            <button class="btn btn-primary" onclick="SFBarcode.downloadPDF(Reception.lastUnits, SF.fmt.ar)"><i class="fas fa-file-pdf"></i> Étiquettes (PDF 60×40)</button>
+                        </div>
+                    </div>
+                </div>`;
+            document.getElementById('successPanel').scrollIntoView({ behavior: 'smooth' });
+        },
+        async loadHistory() {
+            const q = new URLSearchParams();
+            ['from','to'].forEach(k => { const v = document.getElementById('f_' + k).value; if (v) q.set(k, v); });
+            const sup = document.getElementById('f_supplier').value; if (sup) q.set('supplier_id', sup);
+            const usr = document.getElementById('f_user').value; if (usr) q.set('user_id', usr);
+            try {
+                this.history = await SF.api('/api/receptions?' + q.toString());
+                // Alimente le filtre utilisateur.
+                const uSel = document.getElementById('f_user');
+                const cur = uSel.value;
+                const seen = new Map();
+                this.history.forEach(r => { if (r.user_id) seen.set(r.user_id, r.user_name); });
+                uSel.innerHTML = '<option value="">Tous</option>' + [...seen].map(([id, n]) => `<option value="${id}">${SF.esc(n)}</option>`).join('');
+                uSel.value = cur;
+                this.renderHistory();
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        // Recherche libre côté client (référence / fournisseur / utilisateur / date) — comme au stock dépôt.
+        renderHistory() {
+            const body = document.getElementById('historyBody');
+            const q = (document.getElementById('f_search').value || '').trim().toLowerCase();
+            let list = this.history || [];
+            if (q) list = list.filter(r =>
+                `${r.reference || ''} ${r.supplier_name || ''} ${r.user_name || ''} ${SF.fmt.datetime(r.created_at) || ''}`
+                    .toLowerCase().includes(q));
+            if (!list.length) { body.innerHTML = `<tr><td colspan="6" class="text-center text-muted">${q ? 'Aucun résultat pour cette recherche' : 'Aucune réception'}</td></tr>`; return; }
+            body.innerHTML = list.map(r => `
+                <tr style="cursor:pointer;" onclick="Reception.showDetail(${r.id})">
+                    <td>${SF.fmt.datetime(r.created_at)}</td>
+                    <td>${SF.esc(r.reference || '—')}</td>
+                    <td>${SF.esc(r.supplier_name || '—')}</td>
+                    <td>${SF.esc(r.user_name || '—')}</td>
+                    <td><span class="badge badge-info">${r.total_units}</span></td>
+                    <td style="text-align:right;"><i class="fas fa-chevron-right text-muted"></i></td>
+                </tr>`).join('');
+        },
+        async loadGarReturns() {
+            const q = new URLSearchParams();
+            ['from','to'].forEach(k => { const v = document.getElementById('g_' + k).value; if (v) q.set(k, v); });
+            const sup = document.getElementById('g_supplier').value; if (sup) q.set('supplier_id', sup);
+            const body = document.getElementById('garReturnsBody');
+            try {
+                this.garReturns = await SF.api('/api/receptions/garantie-returns?' + q.toString());
+                if (!this.garReturns.length) { body.innerHTML = '<tr><td colspan="7" class="text-center text-muted">Aucune garantie revenue</td></tr>'; return; }
+                body.innerHTML = this.garReturns.map((u, i) => {
+                    const title = [u.brand, u.model].filter(Boolean).join(' ') || u.product_name || '—';
+                    const cfg = u.is_accessory ? [u.category, u.subcategory].filter(Boolean).join(' · ')
+                                                : (window.SFBarcode ? SFBarcode.fullSpec(u) : '');
+                    return `<tr>
+                        <td>${SF.fmt.datetime(u.created_at)}</td>
+                        <td style="font-family:monospace;">${SF.esc(u.serial || '—')}</td>
+                        <td>${SF.esc(title)}</td>
+                        <td class="text-muted" style="font-size:12px;">${SF.esc(cfg || '—')}</td>
+                        <td>${SF.esc(u.supplier_name || '—')}</td>
+                        <td>${SF.esc(u.user_name || '—')}</td>
+                        <td style="text-align:right;white-space:nowrap;">
+                            <button class="btn btn-sm btn-primary" onclick="Reception.labelGarReturn(${i})"${u.serial ? '' : ' disabled title="Pas de n° de série"'}><i class="fas fa-tag"></i> Étiquette</button>
+                        </td></tr>`;
+                }).join('');
+            } catch (e) { body.innerHTML = `<tr><td colspan="7" class="text-center text-muted">${SF.esc(e.message)}</td></tr>`; }
+        },
+        // Ré-impression de la nouvelle étiquette (config/prix actuels de l'unité re-réceptionnée).
+        labelGarReturn(i) {
+            const u = (this.garReturns || [])[i];
+            if (!u) return SF.toast('Introuvable', 'error');
+            if (!u.serial) return SF.toast('Cette unité n\'a pas de n° de série', 'warn');
+            SFBarcode.downloadPDF([u], SF.fmt.ar);
+        },
+        async showDetail(id) {
+            try {
+                const r = await SF.api('/api/receptions/' + id);
+                this.detailUnits = r.units || [];
+                this.detailData = r;
+                document.getElementById('detailTitle').textContent = `Réception #${id} — ${SF.fmt.date(r.created_at)}`;
+                const isAdmin = this.user && this.user.role === 'admin';
+                const itemsHtml = (r.items || []).map(it => {
+                    const spec = [it.cpu, it.ram, it.storage ? it.storage + (it.storage_type ? ' ' + it.storage_type : '') : ''].filter(Boolean).join(' · ');
+                    const title = [it.brand, it.model].filter(Boolean).join(' ') || it.product_name;
+                    const delCell = isAdmin
+                        ? (it.unit_stock > 0
+                            ? `<button class="btn btn-sm btn-danger" onclick="Reception.deleteItem(${it.id}, ${it.unit_stock})" title="Retirer du stock ${it.unit_stock} unité(s) non bougée(s)"><i class="fas fa-trash"></i> ${it.unit_stock}</button>`
+                            : `<span class="text-muted" style="font-size:11px;" title="Déjà bougé, non supprimable">verrouillé</span>`)
+                        : '';
+                    return `<tr><td><div class="line-title">${SF.esc(title)}</div><div class="line-spec">${SF.esc((it.category||'')+(it.subcategory?' · '+it.subcategory:'')+(spec?' · '+spec:''))}</div></td>
+                        <td>${it.quantity}</td><td>${SF.fmt.ar(it.unit_price)}</td>${isAdmin ? `<td style="text-align:right;">${delCell}</td>` : ''}</tr>`;
+                }).join('');
+                const unitsHtml = (r.units || []).map(u => `<tr><td style="font-family:monospace;">${SF.esc(u.serial)}</td><td style="font-family:monospace;">${u.manufacturer_sn ? SF.esc(u.manufacturer_sn) : '<span class="text-muted">—</span>'}</td><td>${SF.esc(u.product_name||'')}</td><td>${SF.warrantyBadge(u.warranty_end)}</td></tr>`).join('');
+                document.getElementById('detailBody').innerHTML = `
+                    <div style="margin-bottom:14px;font-size:13px;">
+                        <strong>Fournisseur :</strong> ${SF.esc(r.supplier_name||'—')} &nbsp;·&nbsp;
+                        <strong>Référence :</strong> ${SF.esc(r.reference||'—')} &nbsp;·&nbsp;
+                        <strong>Reçu par :</strong> ${SF.esc(r.user_name||'—')}
+                        ${r.note ? `<div class="text-muted" style="margin-top:6px;">${SF.esc(r.note)}</div>` : ''}
+                    </div>
+                    <div style="text-align:right;margin-bottom:6px;"><button class="btn btn-sm btn-secondary" onclick="Reception.detailReportPDF()"><i class="fas fa-file-pdf"></i> Rapport détaillé (config)</button> <button class="btn btn-sm btn-secondary" onclick="SFReport.as('xlsx', () => Reception.detailReportPDF())"><i class="fas fa-file-excel"></i> Excel</button></div>
+                    <h4 style="margin:10px 0 6px;">Lignes</h4>
+                    ${isAdmin ? '<p class="text-muted" style="font-size:11.5px;margin-bottom:6px;"><i class="fas fa-circle-info"></i> En tant qu\'admin, vous pouvez retirer du stock les unités non encore bougées.</p>' : ''}
+                    <div class="table-container"><table><thead><tr><th>Produit</th><th>Quantité</th><th>Prix</th>${isAdmin ? '<th style="text-align:right;">Retirer</th>' : ''}</tr></thead><tbody>${itemsHtml}</tbody></table></div>
+                    <h4 style="margin:16px 0 6px;">Unités & garanties</h4>
+                    <div class="table-container" style="max-height:220px;overflow:auto;"><table><thead><tr><th>N° série</th><th>N° série constructeur</th><th>Produit</th><th>Garantie</th></tr></thead><tbody>${unitsHtml}</tbody></table></div>`;
+                document.getElementById('detailPdfBtn').onclick = () => SFBarcode.downloadPDF(this.detailUnits, SF.fmt.ar);
+                SF.Modal.open('detailModal');
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        async deleteItem(itemId, stockCount) {
+            if (!await SF.confirm(`Retirer du stock ${stockCount} unité(s) non bougée(s) de ce produit ? Cette action est définitive.`, { danger: true, okLabel: 'Retirer du stock' })) return;
+            try {
+                const r = await SF.api('/api/reception-items/' + itemId, { method: 'DELETE' });
+                SF.toast(`${r.deleted} unité(s) retirée(s)${r.blocked ? ` · ${r.blocked} déjà bougée(s) conservée(s)` : ''}`, 'success');
+                this.showDetail(this.detailData.id);
+                this.loadHistory();
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        detailReportPDF() {
+            const r = this.detailData; if (!r) return;
+            const pname = it => [it.brand, it.model].filter(Boolean).join(' ') || it.product_name || '—';
+            SFReport.build({
+                company: this.config,
+                title: `Réception #${r.id}`,
+                period: `${SF.fmt.datetime(r.created_at)} · Fournisseur : ${r.supplier_name || '—'} · Réf : ${r.reference || '—'}`,
+                filename: `Reception-${r.id}.pdf`,
+                summary: [
+                    { label: 'Fournisseur', value: r.supplier_name || '—' },
+                    { label: 'Lignes', value: (r.items || []).length },
+                    { label: 'Unités', value: r.total_units || (r.units || []).length }
+                ],
+                sections: [
+                    { heading: 'Produits reçus — configuration complète',
+                      columns: [
+                          { header: 'Produit', key: '_p', width: 34, format: (v, it) => pname(it) },
+                          { header: 'Configuration', key: '_c', width: 70, format: (v, it) => it.is_accessory ? (it.category || '—') : (SFBarcode.fullSpec(it) || '—') },
+                          { header: 'Qté', key: 'quantity', width: 10, align: 'right' },
+                          { header: 'Prix U.', key: 'unit_price', width: 20, align: 'right', format: v => SFReport.fmtNum(v) }
+                      ], rows: r.items || [] },
+                    { heading: 'Unités & numéros de série',
+                      columns: [
+                          { header: 'N° série', key: 'serial', width: 22 },
+                          { header: 'N° série constr.', key: 'manufacturer_sn', width: 24, format: v => v || '—' },
+                          { header: 'Produit', key: 'product_name', width: 34, format: v => v || '—' },
+                          { header: 'Configuration', key: '_c', width: 52, format: (v, u) => SFBarcode.fullSpec(u) || '—' },
+                          { header: 'Garantie', key: 'warranty_end', width: 20, format: v => SF.fmt.date(v) }
+                      ], rows: r.units || [] }
+                ]
+            });
+        },
+        async exportHistoryPDF() {
+            const from = document.getElementById('f_from').value, to = document.getElementById('f_to').value;
+            const q = new URLSearchParams();
+            if (from) q.set('from', from); if (to) q.set('to', to);
+            let rows;
+            try { rows = await SF.api('/api/receptions/detailed?' + q.toString()); }
+            catch (e) { return SF.toast(e.message, 'error'); }
+            if (!rows.length) return SF.toast('Aucune unité reçue sur la période', 'error');
+            const pname = u => [u.brand, u.model].filter(Boolean).join(' ') || u.product_name || '—';
+            const totalValue = rows.reduce((s, u) => s + (u.sale_price || 0), 0);
+            const receptions = new Set(rows.map(u => u.reception_id)).size;
+            SFReport.build({
+                company: this.config,
+                title: 'Rapport de réception détaillé',
+                period: (from || to) ? `Période : ${from ? SF.fmt.date(from) : '…'} — ${to ? SF.fmt.date(to) : '…'}` : 'Toutes les réceptions',
+                filename: 'Receptions-detaillees.pdf',
+                summary: [
+                    { label: 'Réceptions', value: receptions },
+                    { label: 'Unités reçues', value: rows.length },
+                    { label: 'Valeur (vente)', value: SFReport.ar(totalValue) }
+                ],
+                sections: [{
+                    heading: 'Détail unité par unité',
+                    columns: [
+                        { header: 'Réception', key: 'reception_at', width: 22, format: v => SF.fmt.datetime(v) },
+                        { header: 'Reçu par', key: 'user_name', width: 18, format: v => v || '—' },
+                        { header: 'Fournisseur', key: 'supplier_name', width: 20, format: v => v || '—' },
+                        { header: 'N° série', key: 'serial', width: 18 },
+                        { header: 'Produit', key: '_p', width: 26, format: (v, u) => pname(u) },
+                        { header: 'Configuration', key: '_c', width: 46, format: (v, u) => u.is_accessory ? (u.category || '—') : (SFBarcode.fullSpec(u) || '—') },
+                        { header: 'Expiration', key: 'warranty_end', width: 18, format: v => SF.fmt.date(v) },
+                        { header: 'Prix vente', key: 'sale_price', width: 18, align: 'right', format: v => SFReport.fmtNum(v) }
+                    ],
+                    rows,
+                    totals: { warranty_end: 'VALEUR TOTALE', sale_price: SFReport.fmtNum(totalValue) }
+                }]
+            });
+        }
+    };
+    Reception.init();
+    </script>
+</body>
+</html>

@@ -1,0 +1,870 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <title>Commande en ligne — STOCKFLOW</title>
+    <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css">
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/sf.css">
+    <script>document.documentElement.setAttribute('data-theme', localStorage.getItem('stockflow-theme') === 'dark' ? 'dark' : 'light'); try { var sfu = JSON.parse(localStorage.getItem('stockflow-ui') || '{}'); for (var k in sfu) document.documentElement.setAttribute('data-' + k, sfu[k]); } catch (e) {}</script>
+    <style>
+        .cmd { display:grid; grid-template-columns:1fr 360px; gap:16px; align-items:start; }
+        /* Barre de recherche flottante : collée sous l'en-tête (lui-même sticky). */
+        .sticky-toolbar { position:sticky; top:var(--topbar-height); z-index:20; background:var(--bg-body); padding:10px 0; margin:-4px 0 14px; border-bottom:1px solid var(--border-color); }
+        .prod-toolbar { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+        .search-box { position:relative; flex:1; min-width:200px; }
+        .search-box input { width:100%; padding:11px 14px 11px 40px; background:var(--bg-input); border:1px solid transparent; border-radius:var(--border-radius); color:var(--text-primary); font-family:var(--font-body); font-size:14px; }
+        .search-box input:focus { outline:none; border-color:var(--accent); background:var(--bg-card); }
+        .search-box i { position:absolute; left:14px; top:50%; transform:translateY(-50%); color:var(--text-muted); }
+        .res-count { font-size:12px; color:var(--text-muted); margin-bottom:8px; }
+        .prod-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(170px,1fr)); gap:12px; }
+        .pcard { background:var(--bg-card); border:1px solid var(--border-color); border-radius:var(--border-radius); overflow:hidden; cursor:pointer; position:relative; display:flex; flex-direction:column; min-width:0; }
+        /* Code couleur fournisseur (même code que Stock dépôt) : bandeau en haut de la carte + puce cliquable. */
+        .pcard.has-sup::before { content:''; position:absolute; left:0; right:0; top:0; height:4px; background:var(--sup); z-index:2; }
+        .pcard-sups { display:flex; flex-wrap:wrap; gap:3px; margin-top:4px; }
+        .pcard-sup { display:inline-flex; align-items:center; gap:4px; max-width:100%; font-size:10.5px; font-weight:700; color:var(--text-secondary); border:1px solid var(--border-color); background:var(--bg-card); border-radius:999px; padding:0 6px; cursor:pointer; }
+        .pcard-sup span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .pcard-sup i, .sup-leg i { width:8px; height:8px; border-radius:50%; background:var(--c); flex-shrink:0; display:inline-block; }
+        .pcard-sup.active { border-color:var(--c); background:color-mix(in srgb, var(--c) 12%, var(--bg-card)); }
+        #supLegend { display:flex; gap:6px; overflow-x:auto; padding:8px 0 0; scrollbar-width:thin; -webkit-overflow-scrolling:touch; }
+        #supLegend:empty { display:none; }
+        .sup-leg { display:inline-flex; align-items:center; gap:6px; white-space:nowrap; font-size:12px; font-weight:600; padding:5px 11px; border-radius:999px; border:1px solid var(--border-color); background:var(--bg-card); color:var(--text-primary); cursor:pointer; flex-shrink:0; font-family:inherit; }
+        .sup-leg b { color:var(--text-muted); font-weight:600; }
+        .sup-leg.active { border-color:var(--c); box-shadow:inset 0 0 0 1px var(--c); background:color-mix(in srgb, var(--c) 12%, var(--bg-card)); }
+        /* Filtres : en ligne sur grand écran ; sur téléphone, repliés derrière le bouton « Filtres ». */
+        .pfilters { margin-top:8px; }
+        .tb-btn { display:none; position:relative; align-items:center; justify-content:center; gap:6px; height:40px; padding:0 12px; border-radius:var(--border-radius); border:1px solid var(--border-color); background:var(--bg-card); color:var(--text-primary); font-family:var(--font-body); font-size:13px; font-weight:700; cursor:pointer; flex-shrink:0; }
+        .tb-btn.on { border-color:var(--accent); color:var(--accent-dark); background:var(--accent-soft, var(--accent-glow)); }
+        .tb-btn .tb-n { min-width:18px; height:18px; border-radius:999px; background:var(--accent); color:var(--accent-contrast); font-size:11px; display:inline-flex; align-items:center; justify-content:center; padding:0 5px; }
+        .tb-btn .tb-n:empty { display:none; }
+        .tb-cart { background:var(--accent); color:var(--accent-contrast); border-color:var(--accent); }
+        .tb-cart .tb-n { background:var(--accent-contrast); color:var(--accent); }
+        .pf-reset { display:none; }
+        .pm-acts { display:flex; justify-content:flex-end; flex-wrap:wrap; gap:8px; margin-top:16px; }
+        .pcard:hover { border-color:var(--accent); }
+        .pcard-img { position:relative; height:88px; background:var(--bg-input) center/cover no-repeat; display:flex;align-items:center;justify-content:center;color:var(--text-dark);font-size:24px;cursor:pointer; }
+        .pcard-img .card-btn { position:absolute; top:6px; width:26px; height:26px; border-radius:7px; border:none; background:rgba(0,0,0,.5); color:#fff; cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:12px; }
+        .pcard-img .card-btn:hover { background:rgba(0,0,0,.78); }
+        .pcard-img .card-btn.gear { left:6px; } .pcard-img .card-btn.info { right:6px; }
+        /* Envoyer la fiche au client (WhatsApp / Messenger) */
+        .pcard-share { margin-top:8px; width:100%; display:flex; align-items:center; justify-content:center; gap:7px; border:1px solid #25d366; color:#128c4a; background:rgba(37,211,102,.08); border-radius:8px; padding:6px 8px; font-size:12.5px; font-weight:700; cursor:pointer; }
+        .pcard-share:hover { background:rgba(37,211,102,.18); }
+        .sh-wrap { display:grid; grid-template-columns:minmax(0,220px) minmax(0,1fr); gap:16px; }
+        .sh-img { width:100%; aspect-ratio:1; border-radius:12px; background:var(--bg-input) center/contain no-repeat; border:1px solid var(--border-color); display:flex; align-items:center; justify-content:center; font-size:40px; color:var(--text-muted); }
+        .sh-txt { width:100%; height:320px !important; min-height:220px; font-size:13.5px !important; line-height:1.5; font-family:inherit; resize:vertical; }
+        .sh-opts { display:flex; flex-wrap:wrap; gap:12px; font-size:12.5px; margin-top:8px; }
+        .sh-acts { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:8px; margin-top:14px; }
+        .sh-acts .btn { justify-content:center; }
+        .btn-wa { background:#25d366; color:#fff; border-color:#25d366; } .btn-wa:hover { background:#1ebe5b; color:#fff; }
+        @media (max-width:640px) { .sh-wrap { grid-template-columns:1fr; } .sh-img { max-width:200px; margin:0 auto; } .sh-acts { grid-template-columns:1fr; } }
+        .pcard-b { padding:9px 10px; flex:1; display:flex; flex-direction:column; min-width:0; } .pcard-t { font-size:12.5px;font-weight:700;color:var(--text-primary);line-height:1.25; }
+        .pcard-cfg { font-size:11px;color:var(--text-secondary);margin-top:3px;line-height:1.3; }
+        .pcard-emps { display:flex;flex-wrap:wrap;gap:3px 8px;margin-top:3px; }
+        .pcard-emp { display:inline-flex;align-items:center;gap:3px;font-size:10.5px;font-weight:700;color:var(--accent); }
+        .pcard-desc { font-size:10.5px;color:var(--text-muted);margin-top:3px;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden; }
+        .pcard-f { display:flex;justify-content:space-between;align-items:center;gap:6px;margin-top:auto;padding-top:6px; }
+        .pcard-price { font-size:12.5px;font-weight:800; } .pcard-qty { font-size:10.5px;font-weight:700;background:var(--accent);color:var(--accent-contrast);border-radius:6px;padding:1px 6px; }
+        .ci { display:flex;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--border-light); }
+        .empty { text-align:center;color:var(--text-muted);padding:30px 10px;font-size:13px; }
+        .recap { background:var(--bg-input); border:1px solid var(--border-color); border-radius:var(--border-radius); padding:12px; font-size:13px; line-height:1.6; white-space:pre-wrap; word-break:break-word; font-family:var(--font-body); max-height:340px; overflow-y:auto; }
+        .pay-decl { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin:6px 0 12px; }
+        .pay-opt { display:flex; align-items:center; gap:6px; padding:9px; border:1px solid var(--border-color); border-radius:10px; cursor:pointer; font-size:12px; }
+        .pay-opt.active { border-color:var(--accent); background:var(--accent-glow); font-weight:700; }
+        /* Panier : modale réutilisable partout (mobile ET desktop). Sur desktop on la ré-habille en
+           colonne fixe collée à côté du catalogue (au lieu d'un vrai popup) via le bloc ci-dessous. */
+        .mini-cart-bar { display:none; }
+        @media (min-width:901px){
+            #cartModal { position:sticky; inset:auto; top:16px; background:transparent; backdrop-filter:none;
+                display:block; opacity:1; visibility:visible; z-index:1; padding:0; }
+            #cartModal .modal { max-width:none; box-shadow:none; transform:none; }
+            #cartModal .modal-close { display:none; }
+        }
+        @media (max-width:900px){
+            .cmd{ grid-template-columns:minmax(0,1fr); }
+            .tb-cart { display:inline-flex; }
+        }
+        /* Téléphone : tout est compacté pour que la page tienne à l'écran et reste facile à utiliser. */
+        @media (max-width:600px){
+            .page-body { padding-top:6px; }
+            .sticky-toolbar { padding:7px 0; margin:-4px 0 10px; }
+            .prod-toolbar { gap:7px; flex-wrap:nowrap; }
+            .search-box { flex:1 1 auto; min-width:0; }
+            .search-box input { padding:9px 12px 9px 36px; font-size:16px; height:40px; }
+            .search-box i { left:12px; }
+            .tb-btn { display:inline-flex; padding:0 10px; }
+            .tb-btn .tb-lbl { display:none; }
+            /* Panneau de filtres replié : 2 colonnes, prix sur toute la largeur. */
+            .pfilters { display:none; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:7px; margin-top:8px; }
+            .pfilters.open { display:grid; }
+            .pfilters > select.form-control { max-width:none !important; min-width:0; width:100%; font-size:16px; padding:8px 10px; height:40px; }
+            .pfilters > .sf-prange { grid-column:1 / -1; }
+            .pfilters > .pf-reset { display:inline-flex; grid-column:1 / -1; justify-content:center; }
+            #supLegend { padding-top:7px; margin:0 -2px; }
+            .sup-leg { font-size:11.5px; padding:4px 9px; }
+            .prod-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+            .pcard-img { height:76px; }
+            .pcard-b { padding:7px 8px; }
+            .pcard-t { font-size:12px; } .pcard-cfg { font-size:10.5px; }
+            .pcard-desc { font-size:10px; -webkit-line-clamp:2; }
+            .pcard-price { font-size:12px; } .pcard-qty { font-size:10px; padding:1px 5px; white-space:nowrap; }
+            .pcard-img .card-btn { width:30px; height:30px; }
+            .pcard-share { padding:7px 6px; font-size:12px; }
+            .pm-acts .btn { flex:1 1 100%; justify-content:center; }
+            .res-count { font-size:11px; margin-bottom:6px; }
+            /* Modale panier / fiche produit : marges réduites, plein écran mieux exploité. */
+            #cartModal .modal, #pmModal .modal, #recapModal .modal, #paidModal .modal { max-width:96vw; }
+            .modal-body { padding:14px 14px 16px; }
+        }
+        @media (max-width:360px){ .prod-grid { gap:6px; } .pcard-b { padding:6px 7px; } }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar" id="sfSidebar"></aside>
+        <main class="main-content">
+            <header class="page-header">
+                <div class="page-title"><h1>Commande en ligne</h1><p>Créez vos commandes de livraison</p></div>
+                <div class="page-actions"><div id="sfTools"></div></div>
+            </header>
+            <div class="page-body">
+                <div style="margin-bottom:12px;color:var(--text-muted);font-size:13px;"><i class="fas fa-circle-info"></i> Suivez vos livraisons dans <a href="/deliveries.html" style="color:var(--accent-dark);font-weight:600;">Historique des livraisons</a>.</div>
+                <div class="cmd">
+                    <div>
+                        <div class="sticky-toolbar">
+                            <div class="prod-toolbar">
+                                <div class="search-box"><i class="fas fa-search"></i><input type="search" id="psearch" placeholder="Rechercher (nom, marque, config…)" oninput="Online.renderProducts()" enterkeyhint="search"></div>
+                                <button type="button" class="tb-btn" id="filtBtn" onclick="Online.toggleFilters()" title="Filtres"><i class="fas fa-sliders"></i><span class="tb-lbl">Filtres</span><span class="tb-n" id="filtN"></span></button>
+                                <button type="button" class="tb-btn tb-cart" onclick="SF.Modal.open('cartModal')" title="Panier"><i class="fas fa-cart-shopping"></i><span class="tb-n" id="miniCartBadge"></span></button>
+                            </div>
+                            <div class="prod-toolbar pfilters" id="pfilters">
+                                <select id="fsup" class="form-control" style="max-width:190px;" onchange="Online.setSup(this.value, true)"><option value="">Tous fournisseurs</option></select>
+                                <select id="fcat" class="form-control" style="max-width:170px;" onchange="Online.onCatChange()"><option value="">Toutes catégories</option></select>
+                                <select id="fsub" class="form-control" style="max-width:160px;" onchange="Online.renderProducts()"><option value="">Toutes sous-catég.</option></select>
+                                <select id="fbrand" class="form-control" style="max-width:150px;" onchange="Online.renderProducts()"><option value="">Toutes marques</option></select>
+                                <select id="psort" class="form-control" style="max-width:180px;" onchange="Online.renderProducts()">
+                                    <option value="">Trier…</option>
+                                    <option value="price_asc">Prix ↑ (bas → haut)</option>
+                                    <option value="price_desc">Prix ↓ (haut → bas)</option>
+                                    <option value="name">Nom (A → Z)</option>
+                                    <option value="brand">Marque (A → Z)</option>
+                                    <option value="qty_desc">Stock (le plus dispo)</option>
+                                </select>
+                                <div id="pprice"></div>
+                                <button type="button" class="btn btn-sm btn-secondary pf-reset" onclick="Online.resetFilters()"><i class="fas fa-rotate-left"></i> Réinitialiser les filtres</button>
+                            </div>
+                            <div id="supLegend" title="Fournisseurs — toucher pour filtrer"></div>
+                        </div>
+                        <div class="res-count" id="resCount"></div>
+                        <div class="prod-grid" id="prodGrid"><div class="sf-skel sf-skel-card"></div><div class="sf-skel sf-skel-card"></div><div class="sf-skel sf-skel-card"></div></div>
+                    </div>
+                    <div class="modal-overlay" id="cartModal">
+                        <div class="modal" style="max-width:420px;">
+                            <div class="modal-header"><h3>Panier</h3><button class="modal-close" onclick="SF.Modal.close('cartModal')">&times;</button></div>
+                            <div class="modal-body">
+                                <div id="cartItems"><div class="empty">Panier vide</div></div>
+                                <div style="display:flex;justify-content:space-between;font-weight:800;font-size:16px;margin:12px 0;"><span>Total</span><span id="cartTotal">0 Ar</span></div>
+                                <hr style="border-color:var(--border-color);margin:12px 0;">
+                                <div class="form-group"><label><i class="fas fa-share-nodes"></i> Canal (page réseau social) *</label><select id="c_page" class="form-control"><option value="">— Choisir la page —</option></select></div>
+                                <div class="form-group"><label>Nom du client *</label><input type="text" id="c_name" class="form-control"></div>
+                                <div class="form-row">
+                                    <div class="form-group"><label>Date de livraison</label><input type="date" id="c_date" class="form-control"></div>
+                                    <div class="form-group"><label>Heure</label><input type="text" id="c_time" class="form-control" placeholder="ex : 14h"></div>
+                                </div>
+                                <div class="form-group"><label>Contact *</label><input type="text" id="c_phone" class="form-control" inputmode="tel" placeholder="034 12 345 67"></div>
+                                <div class="form-group"><label>Lieu de livraison *</label><input type="text" id="c_address" class="form-control"></div>
+                                <div class="form-group"><label>Frais de livraison (Ar)</label><input type="number" id="c_fee" class="form-control" value="0" min="0" oninput="Online.updateSummary()"></div>
+                                <label style="font-size:12.5px;font-weight:600;color:var(--text-secondary);">Paiement du client</label>
+                                <div class="pay-decl" id="payDecl">
+                                    <label class="pay-opt active" data-p="a_livraison"><input type="radio" name="pd" value="a_livraison" checked onchange="Online.pdChange()"> Paiement à la livraison</label>
+                                    <label class="pay-opt" data-p="paye"><input type="radio" name="pd" value="paye" onchange="Online.pdChange()"> Déjà payé</label>
+                                </div>
+                                <p class="text-muted" style="font-size:11px;margin:-6px 0 10px;"><i class="fas fa-circle-info"></i> Pour « déjà payé », la méthode de paiement sera demandée après la création. La caisse confirmera à la facturation.</p>
+                                <div id="acompteBlock" style="display:none;border-top:1px dashed var(--border-color);padding-top:10px;margin-bottom:8px;">
+                                    <div class="form-group" style="margin-bottom:8px;"><label>Acompte déjà versé (Ar)</label><input type="number" id="c_acompte" class="form-control" value="0" min="0" oninput="Online.updateSummary()"></div>
+                                    <div class="form-group" id="acompteMethodGrp" style="display:none;margin-bottom:8px;"><label>Mode de l'acompte</label>
+                                        <select id="c_acompte_method" class="form-control">
+                                            <option value="especes">Espèces</option><option value="mvola">MVola</option>
+                                            <option value="orange_money">Orange Money</option><option value="airtel_money">Airtel Money</option><option value="cheque">Chèque</option><option value="virement">Virement bancaire</option>
+                                        </select>
+                                    </div>
+                                    <div style="display:flex;justify-content:space-between;font-size:13.5px;font-weight:800;"><span>Reste à payer à la livraison</span><span id="cartReste">0 Ar</span></div>
+                                </div>
+                                <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--text-secondary);margin-bottom:10px;"><span>Total avec frais</span><span id="cartGrand" style="font-weight:700;">0 Ar</span></div>
+                                <button class="btn btn-primary" style="width:100%;" onclick="Online.submit()" id="submitBtn" disabled><i class="fas fa-paper-plane"></i> Créer la commande</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Fiche produit à envoyer au client : texte accrocheur + caractéristiques + prix, avec la photo. -->
+    <div class="modal-overlay" id="shareModal">
+        <div class="modal" style="max-width:760px;">
+            <div class="modal-header"><h3><i class="fab fa-whatsapp" style="color:#25d366;"></i> Envoyer au client</h3><button class="modal-close" onclick="SF.Modal.close('shareModal')">&times;</button></div>
+            <div class="modal-body">
+                <div class="sh-wrap">
+                    <div><div class="sh-img" id="shImg"></div><div class="text-muted" style="font-size:11.5px;margin-top:6px;text-align:center;" id="shImgNote"></div></div>
+                    <div>
+                        <textarea id="shText" class="form-control sh-txt" spellcheck="false"></textarea>
+                        <div class="sh-opts">
+                            <label><input type="checkbox" id="shPrice" checked onchange="Online.shareRefresh()"> Prix</label>
+                            <label><input type="checkbox" id="shPitch" checked onchange="Online.shareRefresh()"> Texte accrocheur</label>
+                            <label><input type="checkbox" id="shShop" checked onchange="Online.shareRefresh()"> Coordonnées du magasin</label>
+                        </div>
+                        <div class="text-muted" style="font-size:11.5px;margin-top:4px;">Le texte reste modifiable avant l'envoi.</div>
+                    </div>
+                </div>
+                <div class="sh-acts">
+                    <button class="btn btn-wa" id="shShareBtn" onclick="Online.shareNative()"><i class="fas fa-share-nodes"></i> Partager (WhatsApp, Messenger…)</button>
+                    <button class="btn btn-primary" id="shStepBtn" onclick="Online.shareCopyAll()"><i class="fas fa-copy"></i> Copier photo + texte (2 étapes)</button>
+                    <button class="btn btn-secondary" onclick="Online.shareCopyCard()" title="Une seule image : photo + caractéristiques + prix + magasin"><i class="fas fa-id-card"></i> Copier la fiche (1 image)</button>
+                    <button class="btn btn-secondary" onclick="Online.shareCopyText()"><i class="fas fa-align-left"></i> Copier le texte seul</button>
+                </div>
+                <div id="shStepHint" style="display:none;margin-top:10px;padding:10px 12px;border-radius:10px;background:rgba(37,211,102,.1);border:1px solid #25d366;font-size:12.5px;line-height:1.5;"></div>
+                <div class="text-muted" style="font-size:11.5px;margin-top:10px;line-height:1.5;"><i class="fas fa-circle-info"></i> <b>Téléphone</b> : « Partager » envoie la photo avec le texte. <b>Ordinateur</b> : WhatsApp / Messenger ne collent qu'une chose à la fois — « Copier photo + texte » copie la photo (collez-la), puis le texte à coller en légende ; ou « Copier la fiche » : une seule image qui contient déjà tous les détails.</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="pmModal">
+        <div class="modal" style="max-width:600px;">
+            <div class="modal-header"><h3 id="pmTitle">Produit</h3><button class="modal-close" onclick="SF.Modal.close('pmModal')">&times;</button></div>
+            <div class="modal-body" id="pmBody"></div>
+        </div>
+    </div>
+
+    <!-- Après création d'une commande « déjà payée » : méthode de paiement (espèces ou mobile money).
+         data-no-dismiss : impossible de fermer par clic extérieur / Échap — le choix doit être validé. -->
+    <div class="modal-overlay" id="paidModal" data-no-dismiss>
+        <div class="modal" style="max-width:440px;">
+            <div class="modal-header"><h3 id="paidTitle">Paiement déjà reçu</h3></div>
+            <div class="modal-body">
+                <p class="text-muted" style="font-size:12.5px;line-height:1.6;margin-bottom:10px;"><i class="fas fa-circle-check"></i> Commande créée. Indiquez comment le client a payé — la caisse le confirmera à la facturation.</p>
+                <label style="font-size:12.5px;font-weight:600;color:var(--text-secondary);">Méthode de paiement</label>
+                <div class="pay-decl" id="paidMethodSel" style="margin:6px 0 12px;">
+                    <label class="pay-opt active" data-m="especes"><input type="radio" name="pm" value="especes" checked onchange="Online.pmMethodChange()"> Espèces</label>
+                    <label class="pay-opt" data-m="mobile"><input type="radio" name="pm" value="mobile" onchange="Online.pmMethodChange()"> Mobile money</label>
+                    <label class="pay-opt" data-m="virement"><input type="radio" name="pm" value="virement" onchange="Online.pmMethodChange()"> Virement bancaire</label>
+                </div>
+                <div id="paidMobileBlock" style="display:none;">
+                    <div class="form-group" style="margin-bottom:8px;"><label>Opérateur *</label>
+                        <select id="c_paid_method" class="form-control">
+                            <option value="mvola">MVola</option>
+                            <option value="orange_money">Orange Money</option>
+                            <option value="airtel_money">Airtel Money</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin-bottom:8px;"><label>Numéro de l'expéditeur *</label><input type="text" id="c_paid_phone" class="form-control" placeholder="034 …"></div>
+                    <div class="form-group" style="margin-bottom:0;"><label>Référence (facultatif)</label><input type="text" id="c_paid_ref" class="form-control" placeholder="N° de transaction"></div>
+                </div>
+                <div id="paidVirBlock" style="display:none;">
+                    <div class="form-group" style="margin-bottom:0;"><label>Référence du virement (facultatif)</label><input type="text" id="c_paid_vref" class="form-control" placeholder="Réf. / n° d'opération bancaire"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" id="paidBtn" onclick="Online.submitPaid()"><i class="fas fa-check"></i> Valider le paiement</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Récapitulatif après création : texte à copier puis envoyer au client (Messenger). -->
+    <div class="modal-overlay" id="recapModal">
+        <div class="modal" style="max-width:520px;">
+            <div class="modal-header"><h3 id="recapTitle">Commande créée</h3><button class="modal-close" onclick="SF.Modal.close('recapModal')">&times;</button></div>
+            <div class="modal-body">
+                <p class="text-muted" style="margin-bottom:10px;font-size:13px;"><i class="fas fa-comment-dots"></i> Copiez ce récapitulatif et envoyez-le au client (Messenger).</p>
+                <div class="recap" id="recapText">…</div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="SF.Modal.close('recapModal')">Fermer</button>
+                <button class="btn btn-primary" id="recapCopyBtn" onclick="Online.copySummary()"><i class="fas fa-copy"></i> Copier le récapitulatif</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Import d'image du catalogue (déclenché par le bouton paramètre de chaque carte). -->
+    <input type="file" id="imgUploadInput" accept="image/*" style="display:none;" onchange="Online.onImgSelected(this)">
+
+    <script src="/js/sf-core.js"></script>
+    <script src="/js/sf-layout.js"></script>
+    <script src="/js/sf-pitch.js"></script>
+    <script>
+    const Online = {
+        products: [], cart: [], lastSummary: '',
+        async init() {
+            const u = await SF.Auth.require(['commercial_ligne']); if (!u) return;
+            SF.layout({ active: '/online.html' });
+            SF.PriceRange.mount(document.getElementById('pprice'), () => this.renderProducts());
+            const dEl = document.getElementById('c_date');   // date de livraison : défaut aujourd'hui, min aujourd'hui
+            dEl.value = SF.fmt.today(); dEl.min = SF.fmt.today();
+            SF.on('stock:update', () => this.loadProducts());
+            SF.api('/api/config').then(c => { this.company = c || {}; }).catch(() => {});
+            this.loadPages();
+            await this.fromRequest();
+            this.loadProducts();
+        },
+        // Pages réseaux sociaux (liste gérée par l'admin dans Paramètres) : canal obligatoire.
+        async loadPages() {
+            try {
+                const r = await SF.api('/api/social-pages'), sel = document.getElementById('c_page'), cur = sel.value;
+                sel.innerHTML = '<option value="">— Choisir la page —</option>' + (r.pages || []).map(p => `<option value="${SF.esc(p)}">${SF.esc(p)}</option>`).join('');
+                if ((r.pages || []).includes(cur)) sel.value = cur;
+            } catch (e) {}
+        },
+        // Ouverte depuis « Demandes clients » (?request=ID) : client et produit pré-remplis ;
+        // la demande passe « commandée » à la création de la commande.
+        async fromRequest() {
+            const id = parseInt(new URLSearchParams(location.search).get('request'), 10);
+            if (!id) return;
+            try {
+                const r = await SF.api('/api/client-requests/' + id);
+                this.requestId = r.id;
+                document.getElementById('c_name').value = r.client_name || '';
+                document.getElementById('c_phone').value = r.client_phone || '';
+                document.getElementById('psearch').value = r.matched_product_name || r.product_text || '';
+                SF.toast(`Demande de ${r.client_name || 'client'} : ${r.product_text}`, 'info', 4000);
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        async loadProducts() {
+            try {
+                // Disponible = dépôt (stock) + boutique : tout produit vendable/livrable.
+                // Les fiches sans pièce vendable en ligne restent connues : une recherche les montre
+                // (grisées, avec la raison) au lieu de « introuvable ».
+                this.allProducts = (await SF.api('/api/stock'))
+                    .map(p => ({ ...p, is_service: !!p.is_service, sellable: p.is_service ? 9999 : (p.available || 0) + (p.in_presentation || 0) }));
+                this.products = this.allProducts.filter(p => p.is_service || p.sellable > 0);
+                this.fillFilters();
+                this.renderProducts();
+            } catch (e) {}
+        },
+        specLine(p) { return [p.cpu, p.ram, p.storage ? p.storage + (p.storage_type ? ' ' + p.storage_type : '') : '', p.screen_size].filter(Boolean).join(' · '); },
+
+        /* ---- Filtres : catégorie → sous-catégorie / marque dépendantes ---- */
+        fillOptions(sel, values, keep) {
+            const first = sel.options[0].outerHTML;
+            sel.innerHTML = first + values.map(v => `<option value="${SF.esc(v)}">${SF.esc(v)}</option>`).join('');
+            if (keep && values.includes(keep)) sel.value = keep;
+        },
+        // ── Fournisseurs : même code couleur que Stock dépôt (SF.supColor) ; select + légende + puces ──
+        supFilter: '',
+        buildSups() {
+            const m = new Map();
+            this.products.forEach(p => (p.is_service ? [] : (p.suppliers || [])).forEach(s => {
+                const o = m.get(s.id) || { id: s.id, name: s.name, products: 0, units: 0 };
+                o.products++; o.units += s.n || 0; m.set(s.id, o);
+            }));
+            this.sups = [...m.values()].sort((a, b) => String(a.name).localeCompare(String(b.name)));
+            if (this.supFilter && !m.has(parseInt(this.supFilter, 10))) this.supFilter = '';
+            const sel = document.getElementById('fsup');
+            sel.innerHTML = '<option value="">Tous fournisseurs</option>' + this.sups.map(s => `<option value="${s.id}">${SF.esc(s.name)} (${s.products})</option>`).join('');
+            sel.value = this.supFilter;
+            this.renderSupLegend();
+        },
+        renderSupLegend() {
+            const box = document.getElementById('supLegend');
+            const sups = this.sups || [];
+            box.innerHTML = sups.length < 2 ? '' : sups.map(s => `<button type="button" class="sup-leg ${String(s.id) === String(this.supFilter) ? 'active' : ''}" style="--c:${SF.supColor(s.id)}" title="${s.products} produit(s)" onclick="Online.setSup('${s.id}')"><i></i>${SF.esc(s.name)} <b>${s.products}</b></button>`).join('')
+                + (this.supFilter ? `<button type="button" class="sup-leg" style="--c:var(--text-muted)" onclick="Online.setSup('', true)"><span class="fas fa-xmark"></span> Tous</button>` : '');
+        },
+        // Puce / légende = bascule (re-toucher retire le filtre) ; le select fixe la valeur.
+        setSup(id, exact) {
+            id = String(id || '');
+            this.supFilter = (!exact && id === String(this.supFilter)) ? '' : id;
+            document.getElementById('fsup').value = this.supFilter;
+            this.renderSupLegend();
+            this.renderProducts();
+        },
+        toggleFilters() { document.getElementById('pfilters').classList.toggle('open'); },
+        resetFilters() {
+            ['fcat', 'fsub', 'fbrand', 'psort'].forEach(id => { document.getElementById(id).value = ''; });
+            const pr = document.getElementById('pprice'), clr = pr.querySelector('.pr-clear');
+            if (clr && pr.classList.contains('on')) clr.click();
+            this.supFilter = ''; this.fillDependent(); this.buildSups(); this.renderProducts();
+        },
+        fillFilters() {
+            this.buildSups();
+            const cats = [...new Set(this.products.map(p => p.category).filter(Boolean))].sort();
+            this.fillOptions(document.getElementById('fcat'), cats, document.getElementById('fcat').value);
+            this.fillDependent();
+        },
+        fillDependent() {
+            const cat = document.getElementById('fcat').value;
+            const pool = cat ? this.products.filter(p => p.category === cat) : this.products;
+            const subs   = [...new Set(pool.map(p => p.subcategory).filter(Boolean))].sort();
+            const brands = [...new Set(pool.map(p => p.brand).filter(Boolean))].sort();
+            this.fillOptions(document.getElementById('fsub'), subs, document.getElementById('fsub').value);
+            this.fillOptions(document.getElementById('fbrand'), brands, document.getElementById('fbrand').value);
+        },
+        onCatChange() { this.fillDependent(); this.renderProducts(); },
+
+        // Recherche tolérante : casse, accents, espaces et tirets ignorés (« x555l » = « X555 L »), chaque mot doit figurer.
+        norm(v) { return String(v || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''); },
+        matchQ(p, q) {
+            const hay = this.norm(`${p.brand || ''} ${p.model || ''} ${p.name || ''} ${p.category || ''} ${p.subcategory || ''} ${p.description || ''} ${this.specLine(p)} ${p.emplacement || ''}`);
+            const flat = hay.replace(/[^a-z0-9]/g, '');
+            return this.norm(q).split(/\s+/).filter(Boolean).every(w => hay.includes(w) || flat.includes(w.replace(/[^a-z0-9]/g, '')))
+                || flat.includes(this.norm(q).replace(/[^a-z0-9]/g, ''));
+        },
+        renderProducts() {
+            const q = (document.getElementById('psearch').value || '').trim().toLowerCase();
+            const cat = document.getElementById('fcat').value;
+            const sub = document.getElementById('fsub').value;
+            const brand = document.getElementById('fbrand').value;
+            const sort = document.getElementById('psort').value;
+            const sup = parseInt(this.supFilter, 10) || 0;
+            const nF = [cat, sub, brand, sort, sup].filter(Boolean).length + (document.getElementById('pprice').classList.contains('on') ? 1 : 0);
+            document.getElementById('filtN').textContent = nF || '';
+            document.getElementById('filtBtn').classList.toggle('on', nF > 0);
+
+            let list = (q ? (this.allProducts || this.products) : this.products).filter(p =>
+                (!sup || (!p.is_service && (p.suppliers || []).some(s => s.id === sup))) &&
+                (!cat || p.category === cat) &&
+                (!sub || p.subcategory === sub) &&
+                (!brand || p.brand === brand) &&
+                SF.PriceRange.test(document.getElementById('pprice'), p.sale_price) &&
+                (!q || this.matchQ(p, q))
+            );
+            // Disponibles d'abord ; les fiches non vendables en ligne (trouvées par la recherche) à la fin.
+            list.sort((a, b) => (b.sellable > 0) - (a.sellable > 0));
+            if (sort === 'price_asc')       list.sort((a, b) => a.sale_price - b.sale_price);
+            else if (sort === 'price_desc') list.sort((a, b) => b.sale_price - a.sale_price);
+            else if (sort === 'qty_desc')   list.sort((a, b) => b.available - a.available);
+            else if (sort === 'brand')      list.sort((a, b) => String(a.brand || a.name).localeCompare(String(b.brand || b.name)));
+            else if (sort === 'name')       list.sort((a, b) => String(a.name).localeCompare(String(b.name)));
+
+            document.getElementById('resCount').textContent =
+                `${list.length} produit(s)${list.length !== this.products.length ? ` sur ${this.products.length}` : ''}`;
+
+            const cond = { neuf: 'Neuf', occasion: 'Occasion', reconditionne: 'Reconditionné' };
+            const g = document.getElementById('prodGrid');
+            const why = p => p.presentoir > 0 ? `${p.presentoir} au présentoir (vente caisse)` : p.in_prep > 0 ? `${p.in_prep} en préparation`
+                : p.reserved > 0 ? `${p.reserved} réservé(s)` : p.in_acompte > 0 ? `${p.in_acompte} réservé(s) avance` : 'Rupture de stock';
+            if (!list.length) { g.innerHTML = '<div class="empty">Aucun produit pour ce filtre</div>'; return; }
+            const sups = p => p.is_service ? [] : (p.suppliers || []);
+            const supAttr = p => sups(p).length ? ` has-sup" style="--sup:${SF.supBar(sups(p))};` : '" style="';
+            const supChips = p => sups(p).length ? `<div class="pcard-sups">${sups(p).map(s => `<span class="pcard-sup ${String(s.id) === String(this.supFilter) ? 'active' : ''}" style="--c:${SF.supColor(s.id)}" title="Fournisseur · toucher pour filtrer" onclick="event.stopPropagation();Online.setSup('${s.id}')"><i></i><span>${SF.esc(s.name)}</span></span>`).join('')}</div>` : '';
+            SF.renderChunks(g, list, p => !p.is_service && !(p.sellable > 0) ? `<div class="pcard${supAttr(p)}opacity:.6;" title="Non disponible à la commande en ligne">
+                <div class="pcard-img" onclick="Online.showProduct(${p.id})" ${p.image ? `data-bg="${p.image}"` : ''}>${p.image ? '' : '<i class="fas fa-' + (p.is_accessory ? 'plug' : 'laptop') + '"></i>'}</div>
+                <div class="pcard-b">
+                    <div class="pcard-t">${SF.esc([p.brand, p.model].filter(Boolean).join(' ') || p.name)}</div>
+                    <div class="pcard-cfg">${SF.esc(p.is_accessory ? (p.category || 'Accessoire') : (this.specLine(p) || '—'))}</div>
+                    ${supChips(p)}
+                    <div class="pcard-f"><span class="pcard-price">${SF.fmt.ar(p.sale_price)}</span><span class="pcard-qty" style="color:var(--danger);"><i class="fas fa-ban"></i> ${SF.esc(why(p))}</span></div>
+                </div></div>` : `<div class="pcard${supAttr(p)}">
+                <div class="pcard-img" title="Voir la fiche" onclick="Online.showProduct(${p.id})" ${p.image ? `data-bg="${p.image}"` : ''}>${p.image ? '' : '<i class="fas fa-' + (p.is_service ? 'screwdriver-wrench' : (p.is_accessory ? 'plug' : 'laptop')) + '"></i>'}
+                    <button class="card-btn gear" onclick="event.stopPropagation();Online.importImage(${p.id})" title="Importer une image"><i class="fas fa-gear"></i></button>
+                    <button class="card-btn info" onclick="event.stopPropagation();Online.showProduct(${p.id})" title="Détails"><i class="fas fa-circle-info"></i></button></div>
+                <div class="pcard-b" style="cursor:pointer;" onclick="Online.add(${p.id})">
+                    <div class="pcard-t" style="cursor:pointer;text-decoration:underline dotted;text-underline-offset:2px;" title="Voir les détails" onclick="event.stopPropagation();Online.showProduct(${p.id})">${SF.esc([p.brand, p.model].filter(Boolean).join(' ') || p.name)}</div>
+                    <div class="pcard-cfg">${SF.esc(p.is_service ? (p.category || 'Service') : (p.is_accessory ? (p.category || 'Accessoire') : (this.specLine(p) || '—')))}</div>
+                    ${supChips(p)}
+                    ${!p.is_service && p.emplacement ? `<div class="pcard-emps">${SF.empList(p.emplacement).map(e => `<span class="pcard-emp"><i class="fas fa-location-dot"></i> ${SF.esc(e)}</span>`).join('')}</div>` : ''}
+                    ${p.description ? `<div class="pcard-desc">${SF.esc(p.description)}</div>` : ''}
+                    <div class="pcard-f"><span class="pcard-price">${SF.fmt.ar(p.sale_price)}</span><span class="pcard-qty">${p.is_service ? '<i class="fas fa-infinity"></i> Service' : p.sellable + ' dispo'}</span></div>
+                    ${p.is_service ? '' : `<button type="button" class="pcard-share" onclick="event.stopPropagation();Online.share(${p.id})" title="Photo + description à envoyer au client"><i class="fab fa-whatsapp"></i> Envoyer au client</button>`}
+                </div></div>`);
+        },
+        // ── Fiche à envoyer au client (WhatsApp / Messenger) : même argumentaire automatique que la proforma ──
+        shareText(p) {
+            const o = id => { const el = document.getElementById(id); return !el || el.checked; };
+            const title = [p.brand, p.model].filter(Boolean).join(' ') || p.name;
+            const cond = { neuf: 'Neuf', occasion: 'Occasion (très bon état)', reconditionne: 'Reconditionné' }[p.condition];
+            const L = [];
+            L.push(`${p.is_accessory ? '🛍️' : '💻'} *${title}*`);
+            if (o('shPitch')) { const pitch = SFPitch.buildPitch(p); if (pitch) L.push('', pitch); }
+            const f = [];
+            if (p.is_accessory) {
+                if (p.category) f.push(['Type', [p.category, p.subcategory].filter(Boolean).join(' · ')]);
+            } else {
+                if (p.cpu) f.push(['Processeur', p.cpu]);
+                if (p.ram) f.push(['Mémoire RAM', p.ram]);
+                if (p.storage) f.push(['Stockage', p.storage + (p.storage_type ? ' ' + p.storage_type : '')]);
+                if (p.screen_size) f.push(['Écran', String(p.screen_size).replace(/"$/, '') + '"' + (p.touchscreen ? ' tactile' : '')]);
+                if (p.gpu) f.push(['Carte graphique', p.gpu]);
+                const opt = [p.webcam && 'Webcam', p.wifi && 'Wi-Fi', p.bluetooth && 'Bluetooth', p.numpad && 'Pavé numérique'].filter(Boolean);
+                if (opt.length) f.push(['Équipements', opt.join(', ')]);
+            }
+            if (cond) f.push(['État', cond]);
+            if (f.length) { L.push('', '📋 *Caractéristiques*'); f.forEach(([k, v]) => L.push(`▪️ ${k} : ${v}`)); }
+            if (p.description && p.description.trim()) L.push('', p.description.trim());
+            if (o('shPrice')) L.push('', `💰 *Prix : ${SF.fmt.ar(p.sale_price)}*`);
+            L.push('', '✅ Produit vérifié et garanti', '🚚 Livraison disponible', '📩 Intéressé(e) ? Répondez à ce message pour le réserver dès maintenant !');
+            const c = this.company || {};
+            if (o('shShop') && (c.name || c.phone)) L.push('', `🏬 ${[c.name, c.phone].filter(Boolean).join(' · ')}${c.address ? '\n📍 ' + c.address : ''}`);
+            return L.join('\n');
+        },
+        share(id) {
+            const p = (this.allProducts || this.products).find(x => x.id === id); if (!p) return;
+            this.shareP = p; this._png = null;
+            const im = document.getElementById('shImg');
+            im.style.backgroundImage = p.image ? `url('${p.image}')` : '';
+            im.innerHTML = p.image ? '' : `<i class="fas fa-${p.is_accessory ? 'plug' : 'laptop'}"></i>`;
+            document.getElementById('shImgNote').textContent = p.image ? '' : 'Pas de photo pour ce produit (bouton ⚙ de la carte pour en ajouter)';
+            this.shareStepReset();
+            this.shareRefresh();
+            SF.Modal.open('shareModal');
+            if (p.image) this.sharePng().catch(() => {});   // prépare la photo (le presse-papiers doit être écrit sans attente)
+        },
+        shareRefresh() { if (this.shareP) document.getElementById('shText').value = this.shareText(this.shareP); },
+        // Photo convertie en PNG (seul format d'image accepté par le presse-papiers).
+        async sharePng() {
+            if (this._png) return this._png;
+            const p = this.shareP; if (!p || !p.image) return null;
+            const img = await new Promise((ok, ko) => { const i = new Image(); i.onload = () => ok(i); i.onerror = ko; i.src = p.image; });
+            const max = 1200, k = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+            const cv = document.createElement('canvas'); cv.width = Math.round(img.naturalWidth * k); cv.height = Math.round(img.naturalHeight * k);
+            const ctx = cv.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, cv.width, cv.height); ctx.drawImage(img, 0, 0, cv.width, cv.height);
+            this._png = await new Promise(ok => cv.toBlob(ok, 'image/png'));
+            return this._png;
+        },
+        fileName() { const p = this.shareP; return (([p.brand, p.model].filter(Boolean).join('-') || 'produit').replace(/[^a-z0-9-]+/gi, '_')) + '.png'; },
+        async shareNative() {
+            const text = document.getElementById('shText').value;
+            try {
+                const png = await this.sharePng().catch(() => null);
+                const files = png ? [new File([png], this.fileName(), { type: 'image/png' })] : [];
+                if (files.length && navigator.canShare && navigator.canShare({ files })) return await navigator.share({ files, text });
+                if (navigator.share) return await navigator.share({ text });
+                SF.toast('Partage direct indisponible sur cet appareil : utilisez « Copier photo + texte »', 'warn', 5000);
+            } catch (e) { if (e && e.name !== 'AbortError') SF.toast(e.message, 'error'); }
+        },
+        async copyTextRaw(text) {
+            try { await navigator.clipboard.writeText(text); return true; }
+            catch (e) {
+                const ta = document.getElementById('shText'); ta.focus(); ta.select();
+                try { return document.execCommand('copy'); } catch (e2) { return false; }
+            }
+        },
+        async shareCopyText() {
+            const ok = await this.copyTextRaw(document.getElementById('shText').value);
+            SF.toast(ok ? 'Texte copié — collez-le dans WhatsApp / Messenger' : 'Copie impossible : sélectionnez le texte et copiez-le', ok ? 'success' : 'error');
+        },
+        // « Copier photo + texte » en 2 étapes : le presse-papiers ne garde qu'UNE chose collable dans
+        // WhatsApp / Messenger (coller photo + texte ensemble ne colle que la photo). Étape 1 : la photo ;
+        // étape 2 : le texte, à coller dans la légende de la photo.
+        shareStepReset() {
+            this._step = 1;
+            const b = document.getElementById('shStepBtn');
+            if (b) { b.className = 'btn btn-primary'; b.innerHTML = '<i class="fas fa-copy"></i> Copier photo + texte (2 étapes)'; }
+            const h = document.getElementById('shStepHint'); if (h) h.style.display = 'none';
+        },
+        async shareCopyAll() {
+            const hint = document.getElementById('shStepHint'), btn = document.getElementById('shStepBtn');
+            if (this._step === 2 || !this.shareP.image || !window.ClipboardItem) {
+                await this.shareCopyText();
+                hint.style.display = '';
+                hint.innerHTML = '<i class="fas fa-circle-check" style="color:#128c4a;"></i> <b>Texte copié.</b> Collez-le (Ctrl+V) dans la légende de la photo (ou dans le message), puis envoyez.';
+                this._step = 1;
+                btn.className = 'btn btn-primary'; btn.innerHTML = '<i class="fas fa-rotate"></i> Recommencer (photo + texte)';
+                return;
+            }
+            try {
+                const png = await this.sharePng();
+                await navigator.clipboard.write([new ClipboardItem({ 'image/png': png })]);
+                this._step = 2;
+                btn.className = 'btn btn-wa'; btn.innerHTML = '<i class="fas fa-align-left"></i> Étape 2 : copier le texte';
+                hint.style.display = '';
+                hint.innerHTML = '<b>① Photo copiée.</b> Collez-la (Ctrl+V) dans la conversation WhatsApp / Messenger.<br><b>② Puis</b> cliquez sur « Étape 2 : copier le texte » et collez-le dans la légende.';
+            } catch (e) { SF.toast('Copie de la photo non prise en charge ici : utilisez « Partager » ou « Copier la fiche »', 'error'); }
+        },
+        // Fiche produit en UNE image (photo + titre + caractéristiques + prix + magasin) : un seul collage.
+        async cardPng() {
+            const p = this.shareP, c = this.company || {};
+            const o = id => { const el = document.getElementById(id); return !el || el.checked; };
+            const W = 1080, PAD = 60, F = 'Arial, Helvetica, sans-serif';
+            let img = null;
+            if (p.image) img = await new Promise(ok => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => ok(null); i.src = p.image; });
+            const cv = document.createElement('canvas'), ctx = cv.getContext('2d');
+            const wrap = (text, font, maxW) => {
+                ctx.font = font; const out = [];
+                String(text || '').split('\n').forEach(par => {
+                    let line = '';
+                    par.split(' ').forEach(w => { const t = line ? line + ' ' + w : w; if (ctx.measureText(t).width > maxW && line) { out.push(line); line = w; } else line = t; });
+                    out.push(line);
+                });
+                return out;
+            };
+            const title = [p.brand, p.model].filter(Boolean).join(' ') || p.name;
+            const specs = [];
+            if (p.is_accessory) { if (p.category) specs.push([p.category, p.subcategory].filter(Boolean).join(' · ')); }
+            else {
+                if (p.cpu) specs.push('Processeur : ' + p.cpu);
+                if (p.ram) specs.push('RAM : ' + p.ram);
+                if (p.storage) specs.push('Stockage : ' + p.storage + (p.storage_type ? ' ' + p.storage_type : ''));
+                if (p.screen_size) specs.push('Écran : ' + String(p.screen_size).replace(/"$/, '') + '"' + (p.touchscreen ? ' tactile' : ''));
+                if (p.gpu) specs.push('Carte graphique : ' + p.gpu);
+                const opt = [p.webcam && 'Webcam', p.wifi && 'Wi-Fi', p.bluetooth && 'Bluetooth', p.numpad && 'Pavé numérique'].filter(Boolean);
+                if (opt.length) specs.push(opt.join(' · '));
+            }
+            const cond = { neuf: 'Neuf', occasion: 'Occasion — très bon état', reconditionne: 'Reconditionné' }[p.condition];
+            if (cond) specs.push('État : ' + cond);
+            const fT = `bold 56px ${F}`, fS = `34px ${F}`, fP = `bold 70px ${F}`, fB = `30px ${F}`;
+            const tL = wrap(title, fT, W - 2 * PAD);
+            const sL = specs.flatMap(x => wrap('•  ' + x, fS, W - 2 * PAD));
+            const shop = o('shShop') ? [[c.name, c.phone].filter(Boolean).join('  ·  '), c.address || ''].filter(Boolean) : [];
+            const photoH = img ? 760 : 0;
+            const H = photoH + PAD + tL.length * 66 + 20 + sL.length * 48 + (o('shPrice') ? 110 : 20) + 64 + (shop.length ? 40 + shop.length * 42 : 0) + 20;
+            cv.width = W; cv.height = H;
+            ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, W, H);
+            let y = 0;
+            if (img) {
+                ctx.fillStyle = '#f3f4f6'; ctx.fillRect(0, 0, W, photoH);
+                const k = Math.min((W - 40) / img.naturalWidth, (photoH - 40) / img.naturalHeight);
+                const w = img.naturalWidth * k, h = img.naturalHeight * k;
+                ctx.drawImage(img, (W - w) / 2, (photoH - h) / 2, w, h);
+                y = photoH;
+            }
+            y += PAD;
+            ctx.fillStyle = '#111827'; ctx.font = fT; ctx.textBaseline = 'top';
+            tL.forEach(l => { ctx.fillText(l, PAD, y); y += 66; });
+            y += 20; ctx.font = fS; ctx.fillStyle = '#374151';
+            sL.forEach(l => { ctx.fillText(l, PAD, y); y += 48; });
+            if (o('shPrice')) { y += 24; ctx.font = fP; ctx.fillStyle = '#0f766e'; ctx.fillText(SF.fmt.ar(p.sale_price), PAD, y); y += 86; } else y += 20;
+            ctx.font = `bold 30px ${F}`; ctx.fillStyle = '#128c4a'; ctx.fillText('✔ Produit vérifié et garanti   ✔ Livraison disponible', PAD, y); y += 64;
+            if (shop.length) {
+                ctx.fillStyle = '#0f766e'; ctx.fillRect(0, y, W, H - y);
+                y += 22; ctx.fillStyle = '#ffffff';
+                shop.forEach((l, i) => { ctx.font = (i ? '' : 'bold ') + fB; ctx.fillText(l, PAD, y); y += 42; });
+            }
+            return await new Promise(ok => cv.toBlob(ok, 'image/png'));
+        },
+        async shareCopyCard() {
+            try {
+                const png = await this.cardPng();
+                await navigator.clipboard.write([new ClipboardItem({ 'image/png': png })]);
+                SF.toast('Fiche copiée (une image avec tous les détails) — collez-la (Ctrl+V) dans la conversation', 'success', 5000);
+            } catch (e) {
+                // Repli : téléchargement de l'image si le presse-papiers refuse.
+                try { const png = await this.cardPng(); const a = document.createElement('a'); a.href = URL.createObjectURL(png); a.download = this.fileName().replace('.png', '-fiche.png'); a.click();
+                      SF.toast('Copie impossible ici : la fiche a été téléchargée (glissez-la dans la conversation)', 'warn', 6000); }
+                catch (e2) { SF.toast(e2.message, 'error'); }
+            }
+        },
+        showProduct(id) {
+            const p = (this.allProducts || this.products).find(x => x.id === id); if (!p) return;
+            const cond = { neuf: 'Neuf', occasion: 'Occasion', reconditionne: 'Reconditionné' };
+            const feats = [];
+            if (p.touchscreen) feats.push('Tactile'); if (p.webcam) feats.push('Webcam');
+            if (p.wifi) feats.push('Wi-Fi'); if (p.bluetooth) feats.push('Bluetooth'); if (p.numpad) feats.push('Pavé numérique');
+            document.getElementById('pmTitle').textContent = [p.brand, p.model].filter(Boolean).join(' ') || p.name;
+            document.getElementById('pmBody').innerHTML = `
+                <div style="display:flex;gap:16px;flex-wrap:wrap;">
+                    <div style="width:180px;max-width:100%;margin:0 auto;">
+                        <div ${p.image ? `data-zoom="${p.image}" title="Agrandir la photo"` : ''} style="width:100%;height:140px;border-radius:12px;border:1px solid var(--border-color);background:#fff center/contain no-repeat;${p.image ? `background-image:url('${p.image}');cursor:zoom-in` : ''};display:flex;align-items:center;justify-content:center;color:var(--text-dark);font-size:34px;">${p.image ? '' : '<i class="fas fa-' + (p.is_accessory ? 'plug' : 'laptop') + '"></i>'}</div>
+                        ${p.is_service ? '' : `<div style="display:flex;gap:6px;margin-top:6px;">
+                            <button class="btn btn-sm btn-secondary" style="flex:1;justify-content:center;" onclick="Online.autoImage(${p.id})" title="Chercher une autre photo sur Internet"><i class="fas fa-rotate"></i> Autre photo</button>
+                            <button class="btn btn-sm btn-secondary" style="justify-content:center;" onclick="Online.importImage(${p.id})" title="Importer une photo"><i class="fas fa-upload"></i></button></div>
+                            ${String(p.image_source || '').startsWith('auto') ? '<div class="text-muted" style="font-size:10.5px;margin-top:3px;"><i class="fas fa-globe"></i> Photo Internet (indicative)</div>' : ''}`}
+                    </div>
+                    <div style="flex:1;min-width:200px;font-size:13px;line-height:1.8;word-break:break-word;">
+                        ${(p.suppliers || []).length && !p.is_service ? `<div><strong>Fournisseur${p.suppliers.length > 1 ? 's' : ''} :</strong> ${p.suppliers.map(s => `<span style="display:inline-flex;align-items:center;gap:5px;margin-right:8px;"><i style="width:9px;height:9px;border-radius:50%;background:${SF.supColor(s.id)};display:inline-block;"></i>${SF.esc(s.name)}</span>`).join('')}</div>` : ''}
+                        ${p.category ? `<div><strong>Type :</strong> ${SF.esc(p.category)}${p.subcategory ? ' · ' + SF.esc(p.subcategory) : ''}</div>` : ''}
+                        ${!p.is_accessory && this.specLine(p) ? `<div><strong>Configuration :</strong> ${SF.esc(this.specLine(p))}</div>` : ''}
+                        ${p.gpu ? `<div><strong>Carte graphique :</strong> ${SF.esc(p.gpu)}</div>` : ''}
+                        ${feats.length ? `<div><strong>Options :</strong> ${feats.join(', ')}</div>` : ''}
+                        ${!p.is_service && p.emplacement ? `<div><strong><i class="fas fa-location-dot"></i> Emplacement${SF.empList(p.emplacement).length > 1 ? 's' : ''} :</strong> ${SF.esc(SF.empList(p.emplacement).join(' · '))}</div>` : ''}
+                        <div><strong>Prix :</strong> ${SF.fmt.ar(p.sale_price)} · <strong>Disponible :</strong> ${p.sellable}${p.in_presentation ? ` <span class="text-muted">(dont ${p.in_presentation} en boutique)</span>` : ''}</div>
+                    </div>
+                </div>
+                ${p.description ? `<div style="margin-top:14px;"><strong>Description :</strong><div style="margin-top:4px;color:var(--text-secondary);white-space:pre-wrap;">${SF.esc(p.description)}</div></div>` : ''}
+                <div class="pm-acts">${p.is_service || p.sellable > 0
+                    ? `<button class="btn btn-wa" onclick="SF.Modal.close('pmModal');Online.share(${p.id})"><i class="fab fa-whatsapp"></i> Envoyer au client</button><button class="btn btn-primary" onclick="Online.add(${p.id});SF.Modal.close('pmModal')"><i class="fas fa-cart-plus"></i> Ajouter au panier</button>`
+                    : `<span class="text-muted"><i class="fas fa-ban"></i> Aucune pièce disponible à la commande en ligne pour le moment</span>`}</div>`;
+            SF.Modal.open('pmModal');
+        },
+        // « Autre photo » : nouvelle recherche Internet (variante suivante) qui remplace la photo de la fiche.
+        async autoImage(id) {
+            this._imgV = this._imgV || {};
+            this._imgV[id] = (this._imgV[id] || 0) + 1;
+            try {
+                SF.toast("Recherche d'une autre photo…", 'info', 1500);
+                const r = await SF.api(`/api/products/${id}/auto-image`, { method: 'POST', body: { variant: this._imgV[id] } });
+                const p = this.products.find(x => x.id === id);
+                if (p) { p.image = r.image; p.image_source = 'auto'; }
+                this.renderProducts();
+                this.showProduct(id);
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        // Bouton paramètre : importer une image pour la fiche (visible par tout le monde).
+        importImage(id) {
+            this.imgTarget = id;
+            const inp = document.getElementById('imgUploadInput');
+            inp.value = '';   // permet de re-choisir le même fichier
+            inp.click();
+        },
+        async onImgSelected(inp) {
+            const file = inp.files && inp.files[0];
+            if (!file || !this.imgTarget) return;
+            const id = this.imgTarget; this.imgTarget = null;
+            const fd = new FormData(); fd.append('image', file);
+            try {
+                SF.toast('Envoi de l\'image…', 'info');
+                const r = await SF.api(`/api/products/${id}/image`, { method: 'POST', body: fd });
+                // Mise à jour locale immédiate ; le broadcast rafraîchit aussi les autres écrans.
+                const p = this.products.find(x => x.id === id);
+                if (p && r.image) { p.image = r.image; p.image_source = 'manuel'; }
+                this.renderProducts();
+                SF.toast('Image enregistrée', 'success');
+            } catch (e) { SF.toast(e.message || 'Échec de l\'envoi', 'error'); }
+        },
+        add(id) {
+            const p = this.products.find(x => x.id === id); if (!p) return;
+            const line = this.cart.find(c => c.product_id === id);
+            if (line) { if (line.quantity < p.sellable) line.quantity++; else return SF.toast('Stock insuffisant', 'warn'); }
+            else this.cart.push({ product_id: id, name: [p.brand, p.model].filter(Boolean).join(' ') || p.name, price: p.sale_price, quantity: 1, max: p.sellable, is_accessory: !!p.is_accessory, is_service: !!p.is_service });
+            this.renderCart();
+        },
+        renderCart() {
+            const box = document.getElementById('cartItems');
+            if (!this.cart.length) { box.innerHTML = '<div class="empty">Panier vide</div>'; }
+            else box.innerHTML = this.cart.map((c, i) => `<div class="ci" style="flex-direction:column;align-items:stretch;gap:6px;">
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <div style="flex:1;"><div style="font-size:13px;font-weight:600;">${SF.esc(c.name)}</div><div class="text-muted" style="font-size:11.5px;">${SF.fmt.ar(c.price)} × ${c.quantity}</div></div>
+                    <button class="btn btn-sm btn-secondary" onclick="Online.qty(${i},-1)">−</button><span>${c.quantity}</span><button class="btn btn-sm btn-secondary" onclick="Online.qty(${i},1)">+</button>
+                    <button class="btn btn-sm btn-danger" onclick="Online.rm(${i})"><i class="fas fa-times"></i></button>
+                </div>
+                ${!c.is_service ? `<input type="text" class="form-control" style="font-size:12px;padding:6px 9px;" placeholder="Couleur (si applicable, ex : Noir, Silver…)" value="${SF.esc(c.color || '')}" oninput="Online.setColor(${i}, this.value)">` : ''}
+                ${!c.is_accessory && !c.is_service ? `<input type="text" class="form-control" style="font-size:12px;padding:6px 9px;" placeholder="Upgrade souhaité (ex : RAM 8→16 Go) — la caisse le réalisera" value="${SF.esc(c.upgrade_note || '')}" oninput="Online.setUpgrade(${i}, this.value)">` : ''}
+            </div>`).join('');
+            const n = this.cart.reduce((s, c) => s + c.quantity, 0);
+            document.getElementById('miniCartBadge').textContent = n || '';
+            this.updateSummary();
+        },
+        qty(i, d) { const c = this.cart[i]; c.quantity = Math.max(1, Math.min(c.max, c.quantity + d)); this.renderCart(); },
+        setColor(i, v) { if (this.cart[i]) this.cart[i].color = v; },   // pas de re-render (garde le focus)
+        setUpgrade(i, v) { if (this.cart[i]) this.cart[i].upgrade_note = v; },
+        rm(i) { this.cart.splice(i, 1); this.renderCart(); },
+        pdChange() {
+            const p = document.querySelector('input[name="pd"]:checked').value;
+            document.querySelectorAll('#payDecl .pay-opt').forEach(o => o.classList.toggle('active', o.dataset.p === p));
+            // L'acompte n'a de sens que pour un paiement à la livraison (le reste est encaissé alors).
+            const show = p === 'a_livraison';
+            document.getElementById('acompteBlock').style.display = show ? '' : 'none';
+            if (!show) document.getElementById('c_acompte').value = 0;
+            this.updateSummary();
+        },
+        updateSummary() {
+            const total = this.cart.reduce((s, c) => s + c.price * c.quantity, 0);
+            const fee = parseFloat(document.getElementById('c_fee').value) || 0;
+            document.getElementById('cartTotal').textContent = SF.fmt.ar(total);
+            document.getElementById('cartGrand').textContent = SF.fmt.ar(total + fee);
+            // Acompte (borné au total des articles) → reste à payer à la livraison.
+            const pd = document.querySelector('input[name="pd"]:checked').value;
+            let acompte = pd === 'a_livraison' ? Math.max(0, Math.min(total, parseFloat(document.getElementById('c_acompte').value) || 0)) : 0;
+            document.getElementById('acompteMethodGrp').style.display = acompte > 0 ? '' : 'none';
+            document.getElementById('cartReste').textContent = SF.fmt.ar(Math.max(0, total - acompte));
+            document.getElementById('submitBtn').disabled = !this.cart.length;
+        },
+        async submit() {
+            const name = document.getElementById('c_name').value.trim(), address = document.getElementById('c_address').value.trim();
+            const page = document.getElementById('c_page').value;
+            if (!page) { document.getElementById('c_page').focus(); return SF.toast('Choisissez le canal : la page réseau social qui a reçu la commande', 'error'); }
+            if (!SF.checkClient('c_name', 'c_phone')) return;
+            if (!address) return SF.toast('Lieu de livraison requis', 'error');
+            if (!this.cart.length) return SF.toast('Panier vide', 'error');
+            const pd = document.querySelector('input[name="pd"]:checked').value;
+            const btn = document.getElementById('submitBtn'); btn.disabled = true;
+            try {
+                const r = await SF.api('/api/deliveries', { method: 'POST', body: {
+                    client: { name, phone: document.getElementById('c_phone').value.trim(), address, time: document.getElementById('c_time').value.trim() },
+                    delivery_fee: document.getElementById('c_fee').value,
+                    planned_date: document.getElementById('c_date').value || SF.fmt.today(),
+                    payment_declared: pd,
+                    acompte: pd === 'a_livraison' ? (document.getElementById('c_acompte').value || 0) : 0,
+                    acompte_method: document.getElementById('c_acompte_method').value,
+                    lines: this.cart.map(c => ({ product_id: c.product_id, quantity: c.quantity, unit_price: c.price, color: (c.color || '').trim() || null, upgrade_note: (c.upgrade_note || '').trim() || null })),
+                    client_request_id: this.requestId || undefined,
+                    source_page: page
+                }});
+                if (this.requestId) { this.requestId = null; history.replaceState(null, '', '/online.html'); }
+                SF.toast(`Commande #${r.number} créée`, 'success');
+                this.cart = []; this.renderCart();
+                ['c_page','c_name','c_phone','c_time','c_address'].forEach(id => document.getElementById(id).value = '');
+                document.getElementById('c_fee').value = 0;
+                document.getElementById('c_acompte').value = 0;
+                document.getElementById('c_date').value = SF.fmt.today();
+                document.querySelector('input[name="pd"][value="a_livraison"]').checked = true; this.pdChange();
+                this.updateSummary();
+                SF.Modal.close('cartModal');   // sur mobile : referme le panier avant d'ouvrir la suite
+                // Commande « déjà payée » → on demande la méthode de paiement (espèces/mobile money)
+                // dans une modale dédiée, PUIS on affiche le récapitulatif. Sinon récapitulatif direct.
+                if (pd === 'paye') this.openPaid(r.delivery_id, r.number);
+                else this.showRecap(r.delivery_id, r.number);
+            } catch (e) { SF.toast(e.message, 'error'); btn.disabled = false; }
+        },
+        // Modale méthode de paiement pour une commande déjà payée (après création).
+        openPaid(id, number) {
+            this.paidTarget = { id, number };
+            document.getElementById('paidTitle').textContent = `Paiement — commande #${number}`;
+            document.querySelector('input[name="pm"][value="especes"]').checked = true;
+            document.getElementById('c_paid_method').value = 'mvola';
+            document.getElementById('c_paid_phone').value = '';
+            document.getElementById('c_paid_ref').value = '';
+            document.getElementById('c_paid_vref').value = '';
+            this.pmMethodChange();
+            SF.Modal.open('paidModal');
+        },
+        pmMethodChange() {
+            const m = document.querySelector('input[name="pm"]:checked').value;
+            document.querySelectorAll('#paidMethodSel .pay-opt').forEach(o => o.classList.toggle('active', o.dataset.m === m));
+            document.getElementById('paidMobileBlock').style.display = m === 'mobile' ? '' : 'none';
+            document.getElementById('paidVirBlock').style.display = m === 'virement' ? '' : 'none';
+        },
+        async submitPaid() {
+            const m = document.querySelector('input[name="pm"]:checked').value;
+            let body;
+            if (m === 'mobile') {
+                const phone = document.getElementById('c_paid_phone').value.trim();
+                if (!phone) return SF.toast('Numéro de l\'expéditeur obligatoire (mobile money)', 'error');
+                body = { paid_method: document.getElementById('c_paid_method').value, paid_phone: phone, paid_ref: document.getElementById('c_paid_ref').value.trim() || null };
+            } else if (m === 'virement') {
+                body = { paid_method: 'virement', paid_phone: null, paid_ref: document.getElementById('c_paid_vref').value.trim() || null };
+            } else {
+                body = { paid_method: 'especes', paid_phone: null, paid_ref: null };
+            }
+            const btn = document.getElementById('paidBtn'); btn.disabled = true;
+            try {
+                await SF.api(`/api/deliveries/${this.paidTarget.id}/declared-payment`, { method: 'POST', body });
+                SF.toast('Paiement enregistré', 'success');
+                SF.Modal.close('paidModal');
+                this.showRecap(this.paidTarget.id, this.paidTarget.number);
+            } catch (e) { SF.toast(e.message, 'error'); }
+            btn.disabled = false;
+        },
+        // Récapitulatif généré par le serveur : même texte partout (ici et dans l'historique).
+        async showRecap(id, number) {
+            document.getElementById('recapTitle').textContent = `Commande #${number} créée`;
+            document.getElementById('recapText').textContent = 'Chargement du récapitulatif…';
+            this.lastSummary = '';
+            SF.Modal.open('recapModal');
+            try {
+                const res = await SF.api('/api/deliveries/' + id + '/summary');
+                this.lastSummary = res.summary;
+                document.getElementById('recapText').textContent = res.summary;
+            } catch (e) {
+                document.getElementById('recapText').textContent = 'Erreur : ' + e.message;
+            }
+        },
+        async copySummary() {
+            if (!this.lastSummary) return SF.toast('Récapitulatif non disponible', 'error');
+            try {
+                await navigator.clipboard.writeText(this.lastSummary);
+                SF.toast('Récapitulatif copié — collez-le dans Messenger', 'success');
+            } catch (e) {
+                // Repli si le presse-papier est bloqué (http, permission refusée).
+                const ta = document.createElement('textarea');
+                ta.value = this.lastSummary; document.body.appendChild(ta); ta.select();
+                const ok = document.execCommand('copy'); ta.remove();
+                SF.toast(ok ? 'Récapitulatif copié' : 'Copie impossible — sélectionnez le texte manuellement', ok ? 'success' : 'error');
+            }
+        }
+    };
+    Online.init();
+    </script>
+</body>
+</html>

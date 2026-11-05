@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <title>Engagements clients — STOCKFLOW</title>
+    <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css">
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/sf.css">
+    <script>document.documentElement.setAttribute('data-theme', localStorage.getItem('stockflow-theme') === 'dark' ? 'dark' : 'light'); try { var sfu = JSON.parse(localStorage.getItem('stockflow-ui') || '{}'); for (var k in sfu) document.documentElement.setAttribute('data-' + k, sfu[k]); } catch (e) {}</script>
+    <style>
+        /* Onglets principaux : Réservations | Avances */
+        .eng-tabs { display:flex; gap:6px; border-bottom:1px solid var(--border-color); margin-bottom:18px; }
+        .eng-tab { padding:12px 18px; border:none; background:none; color:var(--text-secondary); font-family:var(--font-body); font-size:14px; font-weight:600; cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-1px; display:flex; align-items:center; gap:8px; }
+        .eng-tab:hover { color:var(--text-primary); }
+        .eng-tab.active { color:var(--accent); border-bottom-color:var(--accent); }
+        .chips { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:16px; }
+        .chip { padding:7px 14px; border-radius:999px; border:1px solid var(--border-color); background:var(--bg-card); color:var(--text-secondary); font-size:12.5px; font-weight:600; cursor:pointer; }
+        .chip.active { background:var(--accent); color:var(--accent-contrast); border-color:var(--accent); }
+        .rgrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:14px; }
+        .rcard { background:var(--bg-card); border:1px solid var(--border-color); border-radius:var(--border-radius-lg); padding:16px; }
+        .rnum { font-size:14px; font-weight:800; color:var(--text-primary); }
+        .rmeta { font-size:12.5px; color:var(--text-secondary); line-height:1.7; margin-top:6px; }
+        .prod { font-weight:600; color:var(--text-primary); margin:8px 0; font-size:13px; }
+        .empty { text-align:center; color:var(--text-muted); padding:40px; }
+        .bar { height:8px; border-radius:6px; background:var(--bg-input); overflow:hidden; margin:8px 0; }
+        .bar > span { display:block; height:100%; background:var(--accent); }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar" id="sfSidebar"></aside>
+        <main class="main-content">
+            <header class="page-header">
+                <div class="page-title"><h1>Engagements clients</h1><p id="engSub"></p></div>
+                <div class="page-actions"><div id="sfTools"></div></div>
+            </header>
+            <div class="page-body">
+                <!-- Ventes avec avance (acomptes) uniquement. Les réservations « à vendre » sont désormais
+                     vendues au POS (caisse) et suivies / retournées dans « Suivi boutique » (stock). -->
+                <div id="panel-avances">
+                    <div class="card dash-card"><div class="card-header"><h3><i class="fas fa-hand-holding-dollar"></i> Avances en cours</h3></div><div class="card-body"><div class="stats-grid" id="laySum"></div></div></div>
+                    <div class="chips" id="layChips">
+                        <div class="chip" data-s="late">En retard</div>
+                        <div class="chip active" data-s="active">En cours</div>
+                        <div class="chip" data-s="vendu">Soldées</div>
+                        <div class="chip" data-s="annule">Annulées</div>
+                    </div>
+                    <div id="layBody"><div class="sf-skel sf-skel-card"></div><div class="sf-skel sf-skel-card"></div><div class="sf-skel sf-skel-card"></div></div>
+                    <div id="delAvBox" style="margin-top:18px;"></div>
+
+                    <!-- Délais de paiement : règles + échéancier de toutes les avances en cours. -->
+                    <div class="card" style="margin-top:22px;"><div class="card-header"><h3><i class="fas fa-calendar-days"></i> Délais de paiement des avances</h3></div>
+                        <div class="card-body">
+                            <div id="layRules" style="font-size:13px;line-height:1.65;color:var(--text-secondary);margin-bottom:14px;"></div>
+                            <div id="laySchedule"></div>
+                        </div></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modale encaissement réservation -->
+    <div class="modal-overlay" id="resaPay">
+        <div class="modal" style="max-width:480px;">
+            <div class="modal-header"><h3 id="resaPmTitle">Encaisser la réservation</h3><button class="modal-close" onclick="SF.Modal.close('resaPay')">&times;</button></div>
+            <div class="modal-body" id="resaPmBody"></div>
+            <div class="modal-footer"><button class="btn btn-secondary" onclick="SF.Modal.close('resaPay')">Annuler</button><button class="btn btn-primary" onclick="Resa.submitSell()"><i class="fas fa-cash-register"></i> Valider la vente</button></div>
+        </div>
+    </div>
+
+    <!-- Modale : verser un acompte / solder une avance -->
+    <div class="modal-overlay" id="layPay">
+        <div class="modal" style="max-width:480px;">
+            <div class="modal-header"><h3 id="layPmTitle">Paiement</h3><button class="modal-close" onclick="SF.Modal.close('layPay')">&times;</button></div>
+            <div class="modal-body" id="layPmBody"></div>
+            <div class="modal-footer"><button class="btn btn-secondary" onclick="SF.Modal.close('layPay')">Annuler</button><button class="btn btn-primary" id="layPmBtn"><i class="fas fa-check"></i> Valider</button></div>
+        </div>
+    </div>
+
+    <script src="/js/sf-core.js"></script>
+    <script src="/js/sf-layout.js"></script>
+    <script src="/js/sf-invoice.js"></script>
+    <script src="/js/sf-pay.js"></script>
+    <script>
+    /* ============ Contrôleur d'onglets ============ */
+    const Eng = {
+        user: null, config: {}, active: 'avances',
+        async init() {
+            this.user = await SF.Auth.require(['caisse', 'gestion_stock', 'commercial', 'commercial_ligne']);
+            if (!this.user) return;
+            SF.layout({ active: '/engagements.html' });
+            try { this.config = await SF.api('/api/config'); } catch (e) {}
+            Lay.user = this.user;
+            Lay.config = this.config;
+            // Les réservations « à vendre » ne sont plus gérées ici : vente au POS (caisse) et suivi /
+            // retour dans « Suivi boutique » (stock). Cette page ne conserve que les ventes avec avance.
+            Lay.start();
+            this.tab('avances');
+        },
+        tab() {
+            this.active = 'avances';
+            document.getElementById('engSub').textContent = 'Ventes avec avance (acomptes) en cours';
+            Lay.render();
+        },
+        reload() { Lay.load(); }
+    };
+
+    /* ============ Réservations ============ */
+    const Resa = {
+        user: null, list: [], status: 'active', config: {}, current: null, pmMethod: 'especes',
+        start() {
+            document.querySelectorAll('#resaChips .chip').forEach(c => c.onclick = () => { this.status = c.dataset.s; document.querySelectorAll('#resaChips .chip').forEach(x => x.classList.toggle('active', x === c)); this.load(); });
+            SF.on('reservation:update', () => this.load());
+            SF.on('notification', () => { if (Eng.active === 'resa') this.load(); });
+            this.load();
+        },
+        get isCaisse() { return ['admin', 'caisse'].includes(this.user.role); },
+        get canCancel() { return ['admin', 'caisse', 'gestion_stock'].includes(this.user.role); },
+        async load() {
+            try { this.list = await SF.api('/api/reservations?status=' + this.status); this.render(); }
+            catch (e) { SF.toast(e.message, 'error'); }
+        },
+        render() {
+            const box = document.getElementById('resaBody');
+            if (!this.list.length) { box.innerHTML = '<div class="empty">Aucune réservation</div>'; return; }
+            box.innerHTML = `<div class="rgrid">${this.list.map(r => {
+                const acts = [];
+                if (r.status === 'active' && this.isCaisse) acts.push(`<button class="btn btn-sm btn-primary" onclick="Resa.openSell(${r.id})"><i class="fas fa-cash-register"></i> Encaisser</button>`);
+                if (r.status === 'active' && this.canCancel) acts.push(`<button class="btn btn-sm btn-danger" onclick="Resa.cancel(${r.id})"><i class="fas fa-ban"></i> Annuler</button>`);
+                return `<div class="rcard">
+                    <div style="display:flex;justify-content:space-between;align-items:flex-start;"><div class="rnum">Réservation #${r.id}</div>
+                        <span class="badge ${r.status === 'active' ? 'badge-warning' : (r.status === 'vendu' ? 'badge-success' : 'badge-secondary')}">${r.status === 'active' ? 'En attente' : (r.status === 'vendu' ? 'Vendue' : 'Annulée')}</span></div>
+                    <div class="prod"><i class="fas fa-box" style="color:var(--accent-contrast);background:var(--accent);padding:2px 4px;border-radius:5px;font-size:10px;"></i> ${SF.esc(r.items_summary || '—')}</div>
+                    <div class="rmeta"><i class="fas fa-user-tag"></i> Commercial : ${SF.esc(r.commercial_name || '—')}<br>
+                        <i class="fas fa-clock"></i> ${SF.fmt.datetime(r.created_at)} · ${r.item_count} article(s)<br>
+                        <i class="fas fa-coins"></i> ${SF.fmt.ar(r.total)}${r.note ? '<br><i class="fas fa-note-sticky"></i> ' + SF.esc(r.note) : ''}</div>
+                    ${acts.length ? `<div style="display:flex;gap:8px;margin-top:10px;">${acts.join('')}</div>` : ''}
+                </div>`;
+            }).join('')}</div>`;
+        },
+        async openSell(id) {
+            this.current = this.list.find(r => r.id === id);
+            document.getElementById('resaPmTitle').textContent = `Encaisser la réservation #${id}`;
+            this.pmMethod = 'especes';
+            document.getElementById('resaPmBody').innerHTML = `
+                <div style="font-size:14px;margin-bottom:10px;">Total : <b>${SF.fmt.ar(this.current.total)}</b> · Commercial : <b>${SF.esc(this.current.commercial_name || '—')}</b></div>
+                <div class="form-row">
+                    <div class="form-group"><label>Client <span style="color:var(--danger);">*</span></label><input type="text" id="cl_name" class="form-control"></div>
+                    <div class="form-group"><label>Contact <span style="color:var(--danger);">*</span></label><input type="text" id="cl_phone" class="form-control" inputmode="tel"></div>
+                </div>
+                <label style="font-size:12.5px;font-weight:600;">Paiement <span style="font-weight:400;">(répartition possible)</span></label>
+                <div id="resa_paybox"></div>`;
+            SF.Modal.open('resaPay');
+            SFPay.mount(document.getElementById('resa_paybox'), this.current.total || 0);
+        },
+        async submitSell() {
+            if (!SF.checkClient('cl_name', 'cl_phone')) return;
+            const pr = await SFPay.confirm(document.getElementById('resa_paybox')); if (pr.cancelled) return;
+            if (pr.error) return SF.toast(pr.error, 'error');
+            const body = {
+                client: { name: document.getElementById('cl_name').value.trim(), phone: document.getElementById('cl_phone').value.trim() },
+                payment: { payments: pr.payments }
+            };
+            try {
+                const r = await SF.api(`/api/reservations/${this.current.id}/sell`, { method: 'POST', body });
+                SF.toast('Vente enregistrée', 'success'); SF.Modal.close('resaPay');
+                SFInvoice.chooser(r.sale, this.config);
+                this.load();
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        async cancel(id) {
+            const reason = await SF.prompt('Motif de l\'annulation (optionnel) :', { title: 'Annuler la réservation', okLabel: 'Annuler', multiline: true });
+            if (reason === null) return;
+            try { await SF.api(`/api/reservations/${id}/cancel`, { method: 'POST', body: { reason } }); SF.toast('Réservation annulée — retour au stock', 'success'); this.load(); }
+            catch (e) { SF.toast(e.message, 'error'); }
+        }
+    };
+
+    /* ============ Ventes avec avance ============ */
+    const Lay = {
+        user: null, status: 'active', list: [], dels: [], config: {}, current: null, settings: {}, payKind: 'layaway',
+        today() { return SF.fmt.today(); },
+        // Retard : date promise dépassée (warn) ou date limite dépassée (late).
+        lateLevel(l) {
+            if (l.status !== 'active') return null;
+            const t = this.today();
+            if (l.due_date && l.due_date < t) return 'late';
+            if (l.next_payment_date && l.next_payment_date < t) return 'warn';
+            return null;
+        },
+        delLate(d) {
+            const t = this.today();
+            if (d.avance_due_date && d.avance_due_date < t) return 'late';
+            if (d.avance_next_date && d.avance_next_date < t) return 'warn';
+            return null;
+        },
+        renderDels() {
+            const box = document.getElementById('delAvBox'); if (!box) return;
+            const rows = this.status === 'late' ? this.dels.filter(d => this.delLate(d)) : (this.status === 'active' ? this.dels : []);
+            if (!rows.length) { box.innerHTML = ''; return; }
+            box.innerHTML = `<h3 style="font-size:15px;margin:0 0 10px;display:flex;gap:8px;align-items:center;"><i class="fas fa-truck-fast"></i> Livraisons avec avance <span class="text-muted" style="font-size:12px;font-weight:600;margin-left:auto;">${rows.length}</span></h3>
+                <div class="rgrid">${rows.map(d => this.delCard(d)).join('')}</div>`;
+        },
+        delCard(d) {
+            const balance = Math.max(0, d.total - d.acompte);
+            const pct = d.total > 0 ? Math.min(100, Math.round(d.acompte / d.total * 100)) : 0;
+            const lv = this.delLate(d), dn = this.daysTo(d.avance_next_date);
+            const acts = [];
+            if (this.isCaisse()) acts.push(`<button class="btn btn-sm btn-secondary" onclick="Lay.openDelPay(${d.id})"><i class="fas fa-plus"></i> Verser</button>`);
+            acts.push(`<button class="btn btn-sm btn-secondary" onclick="Lay.printDelAvance(${d.id})"><i class="fas fa-file-invoice"></i> Facture</button>`);
+            return `<div class="rcard">
+                <div class="rnum">Livraison #${d.delivery_number} <span class="badge ${d.status === 'en_livraison' ? 'badge-info' : 'badge-warning'}" style="font-size:9px;">${d.status === 'en_livraison' ? 'En livraison' : 'Facturée'}</span></div>
+                <div class="rmeta"><i class="fas fa-user"></i> ${SF.esc(d.client_name || '—')} ${d.client_phone ? '· ' + SF.esc(d.client_phone) : ''}${d.livreur_name ? '<br><i class="fas fa-motorcycle"></i> ' + SF.esc(d.livreur_name) : ''}</div>
+                <div class="prod">${SF.esc(d.items_summary || '')}</div>
+                <div class="bar"><span style="width:${pct}%"></span></div>
+                <div class="rmeta">Avance : <b>${SF.fmt.ar(d.acompte)}</b> / ${SF.fmt.ar(d.total)} · Reste à la livraison : <b>${SF.fmt.ar(balance)}</b></div>
+                <div class="rmeta" style="margin-top:6px;">
+                    <i class="fas fa-calendar-check"></i> Prochain paiement : <b>${d.avance_next_date ? SF.fmt.date(d.avance_next_date) : '—'}</b>${dn != null && dn >= 0 ? ` <span class="text-muted">(${dn === 0 ? 'aujourd\'hui' : 'dans ' + dn + ' j'})</span>` : ''}<br>
+                    <i class="fas fa-hourglass-end"></i> Date limite : <b>${d.avance_due_date ? SF.fmt.date(d.avance_due_date) : '—'}</b>
+                    ${lv ? `<div style="margin-top:6px;"><span class="badge ${lv === 'late' ? 'badge-danger' : 'badge-warning'}">${lv === 'late' ? 'Date limite dépassée' : 'Paiement promis non reçu'}</span></div>` : ''}</div>
+                <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">${acts.join('')}</div>
+            </div>`;
+        },
+        async printDelAvance(id) {
+            try { const doc = await SF.api(`/api/deliveries/${id}/avance-doc`); SFInvoice.avance(doc, this.config, this.settings.layaway_conditions); }
+            catch (e) { SF.toast(e.message, 'error'); }
+        },
+        openDelPay(id) {
+            const d = this.dels.find(x => x.id === id); if (!d) return;
+            this.current = d; this.payKind = 'delivery';
+            const balance = Math.max(0, d.total - d.acompte);
+            document.getElementById('layPmTitle').textContent = 'Verser sur la livraison #' + d.delivery_number;
+            document.getElementById('layPmBody').innerHTML = `
+                <div style="font-size:13px;margin-bottom:8px;">Reste dû : <b>${SF.fmt.ar(balance)}</b> <span class="text-muted">(le solde s'encaisse à la livraison)</span></div>
+                <div class="form-group"><label>Montant du versement (Ar)</label><input type="number" id="lp_amount" data-keypad class="form-control" min="0" max="${balance}" oninput="Lay.payAmt()"></div>
+                <div class="form-group"><label>Date du prochain paiement (annoncée par le client) <span style="color:var(--danger);">*</span></label>
+                    <input type="date" id="lp_next" class="form-control" min="${this.today()}" ${d.avance_due_date ? `max="${d.avance_due_date}"` : ''}>
+                    <div class="text-muted" style="font-size:11.5px;margin-top:4px;">Date limite pour solder : <b>${d.avance_due_date ? SF.fmt.date(d.avance_due_date) : '—'}</b></div></div>
+                <label style="font-size:12.5px;font-weight:600;">Paiement</label><div id="layPB"></div>`;
+            SFPay.mount(document.getElementById('layPB'), 0);
+            document.getElementById('layPmBtn').onclick = () => this.doPay();
+            SF.Modal.open('layPay');
+        },
+        daysTo(d) { if (!d) return null; return Math.round((Date.parse(d + 'T00:00:00Z') - Date.parse(this.today() + 'T00:00:00Z')) / 86400000); },
+        start() {
+            SF.api('/api/settings').then(s => { this.settings = s || {}; this.renderRules(); }).catch(() => {});
+            document.querySelectorAll('#layChips .chip').forEach(ch => ch.addEventListener('click', () => {
+                document.querySelectorAll('#layChips .chip').forEach(c => c.classList.remove('active'));
+                ch.classList.add('active'); this.status = ch.dataset.s; this.render();
+            }));
+            SF.on('layaway:update', () => this.load());
+            SF.on('delivery:update', () => this.load());
+            this.load();
+        },
+        async load() {
+            try { [this.list, this.dels] = await Promise.all([SF.api('/api/layaways'), SF.api('/api/delivery-avances').catch(() => [])]); this.render(); }
+            catch (e) { SF.toast(e.message, 'error'); }
+        },
+        isCaisse() { return this.user.role === 'caisse' || this.user.role === 'admin'; },
+        render() {
+            this.renderSummary(); this.renderSchedule(); this.renderDels();
+            const rows = this.status === 'late' ? this.list.filter(l => this.lateLevel(l))
+                : this.list.filter(l => l.status === this.status)
+                    .sort((a, b) => this.status === 'active' ? String(a.next_payment_date || a.due_date || '9').localeCompare(String(b.next_payment_date || b.due_date || '9')) : 0);
+            if (Eng.active === 'avances') document.getElementById('engSub').textContent = `${rows.length} vente(s) avec avance`;
+            const box = document.getElementById('layBody');
+            if (!rows.length) { box.innerHTML = (this.status === 'active' || this.status === 'late') && (this.status === 'late' ? this.dels.some(d => this.delLate(d)) : this.dels.length)
+                ? '' : `<div class="empty">${this.status === 'late' ? 'Aucune avance en retard.' : 'Aucune vente avec avance.'}</div>`; return; }
+            box.innerHTML = `<div class="rgrid">${rows.map(l => this.card(l)).join('')}</div>`;
+        },
+        card(l) {
+            const balance = Math.max(0, l.total - l.deposit);
+            const pct = l.total > 0 ? Math.min(100, Math.round(l.deposit / l.total * 100)) : 0;
+            const acts = [];
+            if (l.status === 'active' && this.isCaisse()) {
+                acts.push(`<button class="btn btn-sm btn-secondary" onclick="Lay.openPay(${l.id},'acompte')"><i class="fas fa-plus"></i> Verser</button>`);
+                acts.push(`<button class="btn btn-sm btn-primary" onclick="Lay.openPay(${l.id},'solde')"><i class="fas fa-cash-register"></i> Solder</button>`);
+                // Articles réservés au client jusqu'à la date limite : remise en vente seulement à l'expiration (admin : à tout moment).
+                if (l.expired) acts.push(`<button class="btn btn-sm btn-danger" onclick="Lay.cancel(${l.id})" title="Date limite dépassée : les articles retournent en vente"><i class="fas fa-rotate-left"></i> Remettre en vente</button>`);
+                else if (this.user.role === 'admin') acts.push(`<button class="btn btn-sm btn-danger" onclick="Lay.cancel(${l.id})"><i class="fas fa-ban"></i> Annuler</button>`);
+            }
+            if (l.status === 'active') acts.push(`<button class="btn btn-sm btn-secondary" onclick="Lay.printAvance(${l.id})" title="Réimprimer la facture d'avance"><i class="fas fa-file-invoice"></i> Facture</button>`);
+            const lv = this.lateLevel(l);
+            const dn = this.daysTo(l.next_payment_date);
+            const dates = l.status !== 'active' ? '' : `<div class="rmeta" style="margin-top:6px;">
+                <i class="fas fa-calendar-check"></i> Prochain paiement : <b>${l.next_payment_date ? SF.fmt.date(l.next_payment_date) : '—'}</b>${dn != null && dn >= 0 ? ` <span class="text-muted">(${dn === 0 ? 'aujourd\'hui' : 'dans ' + dn + ' j'})</span>` : ''}<br>
+                <i class="fas fa-hourglass-end"></i> Date limite : <b>${l.due_date ? SF.fmt.date(l.due_date) : '—'}</b>
+                ${lv ? `<div style="margin-top:6px;"><span class="badge ${lv === 'late' ? 'badge-danger' : 'badge-warning'}">${lv === 'late' ? 'Date limite dépassée' : 'Paiement promis non reçu'}</span></div>` : ''}</div>`;
+            return `<div class="rcard">
+                <div class="rnum">Avance #${l.layaway_number} <span class="badge ${l.expired?'badge-danger':(l.status==='active'?'badge-warning':(l.status==='vendu'?'badge-success':'badge-secondary'))}" style="font-size:9px;">${l.expired?'Expirée':(l.status==='active'?'En cours':(l.status==='vendu'?'Soldée':'Annulée'))}</span></div>
+                <div class="rmeta"><i class="fas fa-user"></i> ${SF.esc(l.client_name || '—')} ${l.client_phone ? '· ' + SF.esc(l.client_phone) : ''}<br>
+                    <i class="fas fa-boxes-stacked"></i> ${l.item_count} article(s)${l.commercial_name ? ' · ' + SF.esc(l.commercial_name) : ''}</div>
+                <div class="prod">${SF.esc(l.items_summary || '')}</div>
+                <div class="bar"><span style="width:${pct}%"></span></div>
+                <div class="rmeta">Avance : <b>${SF.fmt.ar(l.deposit)}</b> / ${SF.fmt.ar(l.total)} · Reste : <b>${SF.fmt.ar(balance)}</b></div>
+                ${dates}
+                ${l.status === 'annule' ? `<div class="rmeta" style="color:var(--danger);">${SF.esc(l.note || '')}</div>` : ''}
+                ${acts.length ? `<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">${acts.join('')}</div>` : ''}
+            </div>`;
+        },
+        async openPay(id, kind) {
+            this.payKind = 'layaway';
+            try { this.current = await SF.api('/api/layaways/' + id); } catch (e) { return SF.toast(e.message, 'error'); }
+            const l = this.current;
+            const balance = Math.max(0, l.total - l.deposit);
+            document.getElementById('layPmTitle').textContent = (kind === 'solde' ? 'Solder l\'avance #' : 'Verser sur l\'avance #') + l.layaway_number;
+            if (kind === 'solde') {
+                document.getElementById('layPmBody').innerHTML = `
+                    <div style="font-size:13px;margin-bottom:8px;">Total : <b>${SF.fmt.ar(l.total)}</b> · Déjà versé : <b>${SF.fmt.ar(l.deposit)}</b></div>
+                    <div class="cart-total" style="font-size:18px;"><span>Solde à régler</span><span>${SF.fmt.ar(balance)}</span></div>
+                    <div id="layPB"></div>`;
+                SFPay.mount(document.getElementById('layPB'), balance);
+                document.getElementById('layPmBtn').onclick = () => this.doComplete();
+            } else {
+                document.getElementById('layPmBody').innerHTML = `
+                    <div style="font-size:13px;margin-bottom:8px;">Reste dû : <b>${SF.fmt.ar(balance)}</b></div>
+                    <div class="form-group"><label>Montant de l'acompte (Ar)</label><input type="number" id="lp_amount" data-keypad class="form-control" min="0" max="${balance}" oninput="Lay.payAmt()"></div>
+                    <div class="form-group"><label>Date du prochain paiement (annoncée par le client) <span style="color:var(--danger);">*</span></label>
+                        <input type="date" id="lp_next" class="form-control" min="${this.today()}" ${l.due_date ? `max="${l.due_date}"` : ''}>
+                        <div class="text-muted" style="font-size:11.5px;margin-top:4px;">Date limite pour solder : <b>${l.due_date ? SF.fmt.date(l.due_date) : '—'}</b></div></div>
+                    <label style="font-size:12.5px;font-weight:600;">Paiement</label><div id="layPB"></div>`;
+                SFPay.mount(document.getElementById('layPB'), 0);
+                document.getElementById('layPmBtn').onclick = () => this.doPay();
+            }
+            SF.Modal.open('layPay');
+        },
+        payAmt() {
+            const amt = Math.max(0, parseFloat(document.getElementById('lp_amount').value) || 0);
+            SFPay.setTotal(document.getElementById('layPB'), amt);
+        },
+        async doPay() {
+            const amt = Math.max(0, parseFloat(document.getElementById('lp_amount').value) || 0);
+            if (amt <= 0) return SF.toast('Montant requis', 'error');
+            const next = document.getElementById('lp_next').value;
+            if (!next) { document.getElementById('lp_next').focus(); return SF.toast('Date du prochain paiement obligatoire', 'warn'); }
+            const pr = await SFPay.confirm(document.getElementById('layPB')); if (pr.cancelled) return;
+            if (pr.error) return SF.toast(pr.error, 'error');
+            try {
+                const isDel = this.payKind === 'delivery';
+                const r = await SF.api(isDel ? `/api/deliveries/${this.current.id}/avance-pay` : `/api/layaways/${this.current.id}/pay`,
+                    { method: 'POST', body: { payment: { payments: pr.payments }, next_payment_date: next } });
+                SF.toast('Versement enregistré', 'success'); SF.Modal.close('layPay'); this.load();
+                const doc = isDel ? r.doc : r.layaway;
+                if (doc) SFInvoice.avance(doc, this.config, this.settings.layaway_conditions);
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        async doComplete() {
+            const pr = await SFPay.confirm(document.getElementById('layPB')); if (pr.cancelled) return;
+            if (pr.error) return SF.toast(pr.error, 'error');
+            try {
+                const r = await SF.api(`/api/layaways/${this.current.id}/complete`, { method: 'POST', body: { payment: { payments: pr.payments } } });
+                SF.toast('Avance soldée — vente enregistrée', 'success'); SF.Modal.close('layPay');
+                if (r.sale) SFInvoice.chooser(r.sale, this.config);
+                this.load();
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        async printAvance(id) {
+            try { const l = await SF.api('/api/layaways/' + id); SFInvoice.avance(l, this.config, this.settings.layaway_conditions); }
+            catch (e) { SF.toast(e.message, 'error'); }
+        },
+        renderSummary() {
+            const box = document.getElementById('laySum'); if (!box) return;
+            const act = this.unified();
+            const late = act.filter(l => l.late);
+            const rest = act.reduce((s, l) => s + l.rest, 0);
+            const lateRest = late.reduce((s, l) => s + l.rest, 0);
+            const week = act.filter(l => { const d = this.daysTo(l.next); return d != null && d >= 0 && d <= 7; }).length;
+            box.innerHTML = [
+                SF.tile ? SF.tile({ icon: 'fa-hand-holding-dollar', label: 'Avances en cours', value: act.length, tone: 'teal' }) : '',
+                SF.tile ? SF.tile({ icon: 'fa-sack-dollar', label: 'Reste à encaisser', value: SF.fmt.ar(rest), tone: 'yellow' }) : '',
+                SF.tile ? SF.tile({ icon: 'fa-calendar-week', label: 'Paiements prévus ≤ 7 j', value: week, tone: 'blue' }) : '',
+                SF.tile ? SF.tile({ icon: 'fa-triangle-exclamation', label: 'En retard', value: late.length, sub: late.length ? SF.fmt.ar(lateRest) : '', tone: late.length ? 'coral' : 'teal' }) : ''
+            ].join('');
+        },
+        renderRules() {
+            const box = document.getElementById('layRules'); if (!box) return;
+            const days = parseInt(this.settings.layaway_max_days, 10) || 30;
+            box.innerHTML = `
+                <div>• À la caisse, le client verse une <b>avance</b> : les articles sont réservés et une <b>facture d'avance</b> lui est remise.</div>
+                <div>• Il dispose de <b>${days} jours</b> au maximum pour solder (date limite = date de l'avance + ${days} jours, réglable dans Configuration).</div>
+                <div>• À chaque versement, la caisse note la <b>date précise</b> à laquelle le client annonce son prochain paiement ; elle figure sur la facture d'avance.</div>
+                <div>• Date promise dépassée → alerte « paiement promis non reçu » ; date limite dépassée → alerte « date limite dépassée » (caisse + admin).</div>
+                <div>• Au solde, la vente est enregistrée et la facture finale rappelle l'avance déjà versée. En cas d'annulation, les articles reviennent au stock.</div>
+                <div>• <b>Livraisons</b> : à la facturation, la caisse peut choisir « Avance » — l'avance est encaissée ce jour (facture d'avance au client), le reste est encaissé à la livraison ; mêmes date promise, date limite et alertes.</div>
+                ${this.settings.layaway_conditions ? `<div style="margin-top:6px;"><i>Conditions imprimées :</i> ${SF.esc(this.settings.layaway_conditions)}</div>` : ''}`;
+        },
+        // Avances caisse + livraisons avec avance, sous une forme commune (récap, échéancier).
+        unified() {
+            return [
+                ...this.list.filter(l => l.status === 'active').map(l => ({ type: 'Caisse', num: '#' + l.layaway_number, client_name: l.client_name, client_phone: l.client_phone,
+                    next: l.next_payment_date, due: l.due_date, rest: Math.max(0, l.total - l.deposit), late: this.lateLevel(l) })),
+                ...this.dels.map(d => ({ type: 'Livraison', num: '#' + d.delivery_number, client_name: d.client_name, client_phone: d.client_phone,
+                    next: d.avance_next_date, due: d.avance_due_date, rest: Math.max(0, d.total - d.acompte), late: this.delLate(d) }))
+            ].sort((a, b) => String(a.next || a.due || '9').localeCompare(String(b.next || b.due || '9')));
+        },
+        renderSchedule() {
+            const box = document.getElementById('laySchedule'); if (!box) return;
+            const act = this.unified();
+            if (!act.length) { box.innerHTML = '<div class="text-muted" style="font-size:13px;">Aucune avance en cours.</div>'; return; }
+            box.innerHTML = `<div class="table-wrap"><table class="table"><thead><tr><th>Avance</th><th>Client</th><th>Prochain paiement</th><th>Date limite</th><th style="text-align:right;">Reste</th><th>État</th></tr></thead><tbody>
+                ${act.map(l => { const lv = l.late; return `<tr>
+                    <td>${l.type} ${l.num}</td>
+                    <td>${SF.esc(l.client_name || '—')}${l.client_phone ? `<div class="text-muted" style="font-size:11.5px;">${SF.esc(l.client_phone)}</div>` : ''}</td>
+                    <td>${l.next ? SF.fmt.date(l.next) : '—'}</td>
+                    <td>${l.due ? SF.fmt.date(l.due) : '—'}</td>
+                    <td style="text-align:right;font-weight:700;">${SF.fmt.ar(l.rest)}</td>
+                    <td>${lv === 'late' ? '<span class="badge badge-danger">Date limite dépassée</span>' : lv === 'warn' ? '<span class="badge badge-warning">Promesse non tenue</span>' : '<span class="badge badge-success">Dans les délais</span>'}</td>
+                </tr>`; }).join('')}</tbody></table></div>`;
+        },
+        async cancel(id) {
+            const l = this.list.find(x => x.id === id);
+            const kept = l ? SF.fmt.ar(l.deposit) : '';
+            const exp = l && l.expired;
+            if (!await SF.confirm(exp ? `Réservation expirée (date limite ${SF.fmt.date(l.due_date)}). Remettre les articles en vente ? L'avance (${kept}) est CONSERVÉE (non remboursée).`
+                : `Annuler l'avance avant sa date limite ? Les articles redeviennent disponibles et l'avance (${kept}) est CONSERVÉE (non remboursée).`, { danger: true, okLabel: exp ? 'Remettre en vente' : 'Annuler l\'avance' })) return;
+            const reason = (await SF.prompt('Motif (facultatif) :', { title: 'Annuler l\'avance', okLabel: 'Confirmer' })) || '';
+            try { const r = await SF.api(`/api/layaways/${id}/cancel`, { method: 'POST', body: { reason } }); SF.toast(`${exp ? 'Avance expirée clôturée' : 'Avance annulée'} — ${r.units || 0} article(s) remis en vente`, 'success'); this.load(); }
+            catch (e) { SF.toast(e.message, 'error'); }
+        }
+    };
+
+    Eng.init();
+    </script>
+</body>
+</html>

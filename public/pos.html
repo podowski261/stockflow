@@ -1,0 +1,1110 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <title>Point de vente — STOCKFLOW</title>
+    <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css">
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/sf.css">
+    <script>document.documentElement.setAttribute('data-theme', localStorage.getItem('stockflow-theme') === 'dark' ? 'dark' : 'light'); try { var sfu = JSON.parse(localStorage.getItem('stockflow-ui') || '{}'); for (var k in sfu) document.documentElement.setAttribute('data-' + k, sfu[k]); } catch (e) {}</script>
+    <style>
+        .pos { display:grid; grid-template-columns:minmax(0,1fr) 360px; gap:18px; align-items:start; }
+        .scan-bar { position:relative; margin-bottom:14px; display:flex; gap:8px; align-items:stretch; }
+        .scan-bar input { flex:1; min-width:0; width:100%; padding:14px 16px 14px 46px; background:var(--bg-card); border:2px solid var(--accent); border-radius:var(--border-radius); font-size:15px; color:var(--text-primary); font-family:var(--font-body); }
+        .scan-bar input:focus { outline:none; box-shadow:0 0 0 3px var(--accent-glow); }
+        .scan-bar > i { position:absolute; left:16px; top:50%; transform:translateY(-50%); color:var(--accent-contrast); background:var(--accent); width:22px;height:22px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px; }
+        .prod-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(172px,1fr)); gap:12px; }
+        .pos-panel { background:var(--bg-card); border:1px solid var(--border-color); border-radius:var(--border-radius-lg); padding:12px; box-shadow:var(--shadow-xs); }
+        .pos-count { display:flex; justify-content:space-between; align-items:center; font-size:12px; color:var(--text-muted); margin:12px 2px 10px; }
+        .pos-count b { color:var(--text-primary); }
+        .pos-count a { color:var(--accent-dark); font-weight:600; cursor:pointer; }
+        .cart-h h3 { display:flex; align-items:center; gap:8px; font-size:16px; }
+        .cart-n { font-size:11.5px; font-weight:800; padding:1px 9px; border-radius:999px; background:var(--accent); color:var(--accent-contrast); }
+        .cart-total { align-items:baseline; }
+        .cart-total #cartTotal { font-size:22px; }
+        .pos-tools { position:sticky; top:0; z-index:20; background:var(--bg-body); padding-top:6px; margin-bottom:0; }
+        .pos-filters { display:flex; gap:8px; align-items:center; margin-top:10px; }
+        /* Filtres avancés : en ligne sur ordinateur, repliés derrière « Filtres » sur téléphone. */
+        .pos-adv { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:8px; align-items:center; margin-top:8px; }
+        .pos-adv .form-control { width:100%; max-width:none; min-width:0; height:38px; font-size:13px; }
+        .pos-adv .sf-prange { grid-column:span 2; }
+        .pos-adv .pf-reset { display:none; }
+        .tb-btn { display:none; position:relative; align-items:center; justify-content:center; gap:6px; height:42px; padding:0 12px; border-radius:var(--border-radius); border:1px solid var(--border-color); background:var(--bg-card); color:var(--text-primary); font-family:var(--font-body); font-size:13px; font-weight:700; cursor:pointer; flex-shrink:0; }
+        .tb-btn.on { border-color:var(--accent); color:var(--accent-dark); background:var(--accent-glow); }
+        .tb-n { min-width:18px; height:18px; border-radius:999px; background:var(--accent); color:var(--accent-contrast); font-size:11px; display:inline-flex; align-items:center; justify-content:center; padding:0 5px; }
+        .tb-n:empty { display:none; }
+        /* Type de produit (segments) + « Vendables uniquement ». */
+        .pos-chips { display:flex; gap:10px; align-items:center; margin-top:10px; flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none; }
+        .seg { display:inline-flex; background:var(--bg-input); border-radius:10px; padding:3px; gap:2px; }
+        .seg button { border:none; background:transparent; color:var(--text-secondary); font-family:var(--font-body); font-size:12.5px; font-weight:600; padding:6px 12px; border-radius:8px; cursor:pointer; white-space:nowrap; display:inline-flex; align-items:center; gap:6px; }
+        .seg button.active { background:var(--bg-card); color:var(--text-primary); box-shadow:var(--shadow-xs); }
+        .seg button span { font-size:11px; color:var(--text-muted); font-weight:700; }
+        .sell-only { display:inline-flex; align-items:center; gap:7px; font-size:12.5px; font-weight:600; color:var(--text-secondary); cursor:pointer; margin-left:auto; white-space:nowrap; user-select:none; }
+        .sell-only input { accent-color:var(--accent); width:16px; height:16px; }
+        /* Code couleur fournisseur (même code que Stock dépôt et Commande en ligne). */
+        #supLegend { display:flex; gap:6px; overflow-x:auto; padding:10px 0 2px; scrollbar-width:thin; -webkit-overflow-scrolling:touch; }
+        #supLegend:empty { display:none; }
+        .sup-leg { display:inline-flex; align-items:center; gap:6px; white-space:nowrap; font-size:12px; font-weight:600; padding:5px 11px; border-radius:999px; border:1px solid var(--border-color); background:var(--bg-card); color:var(--text-primary); cursor:pointer; flex-shrink:0; font-family:inherit; }
+        .sup-leg b { color:var(--text-muted); font-weight:600; }
+        .sup-leg.active { border-color:var(--c); box-shadow:inset 0 0 0 1px var(--c); background:color-mix(in srgb, var(--c) 12%, var(--bg-card)); }
+        .sup-leg i, .pcard-sup i { width:8px; height:8px; border-radius:50%; background:var(--c); flex-shrink:0; display:inline-block; }
+        .pcard.has-sup::before { content:''; position:absolute; left:0; right:0; top:0; height:4px; background:var(--sup); z-index:2; }
+        .pcard-sups { display:flex; flex-wrap:wrap; gap:3px; margin:-4px 0 8px; }
+        .pcard-sup { display:inline-flex; align-items:center; gap:4px; max-width:100%; font-size:10.5px; font-weight:700; color:var(--text-secondary); border:1px solid var(--border-color); background:var(--bg-card); border-radius:999px; padding:0 6px; cursor:pointer; pointer-events:auto; }
+        .pcard-sup span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .pcard-sup.active { border-color:var(--c); background:color-mix(in srgb, var(--c) 12%, var(--bg-card)); }
+        .search-box2 { position:relative; flex:1; min-width:180px; }
+        .search-box2 input { width:100%; padding:9px 12px 9px 34px; background:var(--bg-input); border:1px solid var(--border-color); border-radius:var(--border-radius); color:var(--text-primary); font-size:13.5px; }
+        .search-box2 i { position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-muted); }
+        .pcard.out { opacity:.6; } .pcard.out .pcard-qty { background:var(--danger); color:#fff; }
+        .pcard-rupture { color:var(--danger); font-weight:800; font-size:10.5px; text-transform:uppercase; }
+        /* Stock physiquement présent mais entièrement réservé par des livraisons facturées non sorties. */
+        .pcard.reserved { opacity:.82; }
+        .pcard-reserved { color:var(--warning-dark); font-weight:800; font-size:10px; text-transform:uppercase; display:inline-flex; align-items:center; gap:4px; }
+        .pcard { position:relative; min-width:0; background:var(--bg-card); border:1px solid var(--border-color); border-radius:var(--border-radius-lg, 12px); overflow:hidden; cursor:pointer; transition:transform .12s, border-color .12s, box-shadow .12s; }
+        .pcard:hover { transform:translateY(-2px); border-color:var(--accent); box-shadow:var(--shadow-md); }
+        .pcard.out { opacity:.5; pointer-events:none; }
+        .pcard { display:flex; flex-direction:column; }
+        .pcard-img { position:relative; height:108px; background:var(--bg-input) center/contain no-repeat; display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:24px; border-bottom:1px solid var(--border-light); }
+        .pcard-b { padding:9px 11px 10px; display:flex; flex-direction:column; flex:1; }
+        .pcard-t { font-size:13px; font-weight:700; color:var(--text-primary); line-height:1.25; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow-wrap:anywhere; }
+        .pcard-s { font-size:11px; line-height:1.35; color:var(--text-muted); margin:3px 0 8px; min-height:2.7em; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow-wrap:anywhere; }
+        .pcard-f { display:flex; justify-content:space-between; align-items:center; margin-top:auto; }
+        .pcard-price { font-size:14px; font-weight:800; color:var(--accent-dark); }
+        .pcard-qty { font-size:11px; font-weight:700; background:var(--accent); color:var(--accent-contrast); border-radius:6px; padding:1px 7px; }
+        .cart { background:var(--bg-card); border:1px solid var(--border-color); border-radius:var(--border-radius-lg); position:sticky; top:16px; display:flex; flex-direction:column; max-height:calc(100vh - 110px); }
+        .cart-h { padding:16px; border-bottom:1px solid var(--border-color); display:flex; justify-content:space-between; align-items:center; }
+        .cart-items { flex:1; overflow-y:auto; padding:8px 12px; min-height:120px; }
+        .cart-empty { text-align:center; color:var(--text-muted); padding:40px 10px; font-size:13px; }
+        .ci { display:flex; gap:10px; align-items:center; padding:10px 4px; border-bottom:1px solid var(--border-light); }
+        .ci-b { flex:1; min-width:0; }
+        .ci-t { font-size:13px; font-weight:600; color:var(--text-primary); }
+        .ci-s { font-size:11px; color:var(--text-muted); font-family:monospace; }
+        .ci-p { font-size:13px; font-weight:700; white-space:nowrap; }
+        .cart-f { padding:16px; border-top:1px solid var(--border-color); }
+        .disc-row { display:flex; align-items:center; gap:8px; margin-bottom:10px; font-size:13px; }
+        .disc-row span { flex:1; color:var(--text-secondary); font-weight:600; }
+        .disc-row select { max-width:64px; padding:6px; }
+        .disc-row input { max-width:100px; padding:6px; text-align:right; }
+        .sub-row { display:flex; justify-content:space-between; font-size:12.5px; color:var(--text-muted); margin-bottom:4px; }
+        .cart-total { display:flex; justify-content:space-between; font-size:18px; font-weight:800; margin:8px 0 12px; border-top:1px solid var(--border-color); padding-top:8px; }
+        .pay-methods { display:grid; grid-template-columns:repeat(2,1fr); gap:8px; margin-bottom:12px; }
+        .pay-opt { display:flex; align-items:center; gap:8px; padding:10px; border:1px solid var(--border-color); border-radius:10px; cursor:pointer; font-size:13px; }
+        .pay-opt.active { border-color:var(--accent); background:var(--accent-glow); font-weight:700; }
+        /* Barre d'action FIXE en bas de l'écran (mobile/tablette) : le total + Encaisser
+           restent toujours visibles et accessibles, quel que soit le défilement. */
+        #mobilePayBar{ display:none; }
+        .cart-close, #posCartBackdrop { display:none; }
+        @media (max-width:900px){
+            .pos{ grid-template-columns:minmax(0,1fr); }
+            .pos > div{ min-width:0; }
+            /* Panier = feuille qui monte du bas (touche la barre total pour l'ouvrir). */
+            .cart{ position:fixed; left:0; right:0; bottom:0; top:auto; z-index:960; max-height:88vh; margin:0;
+                border-radius:18px 18px 0 0; border-bottom:none; box-shadow:0 -12px 40px rgba(16,24,40,.28);
+                transform:translateY(105%); visibility:hidden; transition:transform .22s ease, visibility 0s linear .22s; }
+            .cart.open{ transform:none; visibility:visible; transition:transform .22s ease; }
+            .cart-h{ position:relative; padding:18px 16px 12px; }
+            .cart-h::before{ content:''; position:absolute; top:7px; left:50%; width:40px; height:4px; margin-left:-20px; border-radius:4px; background:var(--border-color); }
+            .cart-h > div{ display:flex; gap:8px; }
+            .cart-close{ display:inline-flex; }
+            .cart-items{ overflow-y:auto; min-height:60px; overscroll-behavior:contain; }
+            .cart-f{ padding-bottom:calc(16px + env(safe-area-inset-bottom,0px)); }
+            #posCartBackdrop{ position:fixed; inset:0; z-index:950; background:rgba(16,24,40,.45); }
+            body.pos-cart-open #posCartBackdrop{ display:block; }
+            body.pos-cart-open{ overflow:hidden; }
+            body.pos-cart-open #mobilePayBar{ display:none !important; }
+            #mobilePayBar .mpb-count::after{ content:'\f077'; font-family:'Font Awesome 6 Free'; font-weight:900; font-size:10px; margin-left:6px; }
+            body{ padding-bottom:76px; }   /* évite que la barre fixe masque le bas du panier */
+            #mobilePayBar{ display:flex; position:fixed; left:0; right:0; bottom:0; z-index:50;
+                align-items:center; gap:12px; padding:10px 14px; background:var(--bg-card);
+                border-top:1px solid var(--border-color); box-shadow:0 -3px 14px rgba(0,0,0,.14); }
+            #mobilePayBar .mpb-info{ flex:1; line-height:1.2; }
+            #mobilePayBar .mpb-count{ font-size:11.5px; color:var(--text-muted); }
+            #mobilePayBar .mpb-total{ font-size:17px; font-weight:800; }
+            #mobilePayBar button{ padding:13px 20px; white-space:nowrap; }
+            #mobilePayBar .mpb-info{ cursor:pointer; }
+        }
+        /* Téléphone : barre d'encaissement flottante AU-DESSUS de la navigation basse,
+           filtres compacts, produits sur 2 colonnes. */
+        @media (max-width:768px){
+            body.sf-has-bnav{ padding-bottom:0; }
+            body.sf-has-bnav #mobilePayBar{ bottom:calc(68px + env(safe-area-inset-bottom,0px)); left:8px; right:8px;
+                border:1px solid var(--border-color); border-radius:16px; padding:8px 8px 8px 14px; z-index:860; }
+            body.sf-has-bnav .page-body{ padding-bottom:84px; }
+            .pos-tools{ position:static; padding-top:0; margin-bottom:10px; }
+            .scan-bar{ margin-bottom:8px; }
+            .scan-bar input{ font-size:16px; padding:12px 12px 12px 44px; }
+            .pos-panel{ padding:10px; }
+            .pos-filters{ margin-top:0; }
+            .search-box2{ min-width:0; }
+            .search-box2 input{ min-height:42px; font-size:16px; }
+            .tb-btn{ display:inline-flex; padding:0 11px; }
+            .tb-btn .tb-lbl{ display:none; }
+            .pos-adv{ display:none; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+            .pos-adv.open{ display:grid; }
+            .pos-adv .form-control{ max-width:none; width:100%; min-width:0; font-size:16px; height:40px; padding-left:10px; padding-right:24px; }
+            .pos-adv .sf-prange{ grid-column:1 / -1; }
+            .pos-adv .pf-reset{ display:inline-flex; grid-column:1 / -1; justify-content:center; }
+            .pos-chips{ flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none; margin:8px -10px 0; padding:0 10px; }
+            .pos-chips::-webkit-scrollbar{ display:none; }
+            .seg button{ padding:6px 10px; font-size:12px; }
+            .sell-only{ margin-left:0; font-size:12px; }
+            #supLegend{ margin:0 -10px; padding:8px 10px 0; }
+            .sup-leg{ font-size:11.5px; padding:4px 9px; }
+            .prod-grid{ grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+            .pcard-img{ height:84px; }
+            .pcard-b{ padding:8px 9px 9px; }
+            .pcard-t{ font-size:12.5px; }
+            .pcard-s{ font-size:10.5px; margin-bottom:6px; }
+            .pcard-price{ font-size:13px; }
+            .cart{ border-radius:16px; }
+            .ci{ flex-wrap:wrap; }
+        }
+        .atelier-box { border:1px solid var(--accent); border-radius:12px; padding:12px 14px 4px; margin:4px 0 14px; background:var(--accent-glow); }
+        .atelier-h { font-weight:800; font-size:13.5px; color:var(--text-primary); margin-bottom:2px; display:flex; align-items:center; gap:8px; }
+        .atelier-svc { font-size:12px; color:var(--text-secondary); margin-bottom:10px; }
+        .atelier-sold { display:flex; align-items:center; gap:8px; font-size:12.5px; font-weight:600; color:var(--text-secondary); cursor:pointer; margin-bottom:10px; }
+        .atelier-chg { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+        .atelier-chg .pay-opt { margin:0; justify-content:center; }
+        .atelier-chg .pay-opt:not(.active) { background:var(--bg-card); }
+        .atelier-chg input { accent-color:var(--accent); }
+        .atelier-box .bad { border-color:var(--danger) !important; }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar" id="sfSidebar"></aside>
+        <main class="main-content">
+            <header class="page-header">
+                <div class="page-title"><h1>Point de vente</h1><p>Scannez ou recherchez un numéro de série</p></div>
+                <div class="page-actions">
+                    <button class="btn btn-secondary" id="draftBtn" onclick="Pos.openDrafts()" title="Brouillons enregistrés" style="position:relative;">
+                        <i class="fas fa-file-lines"></i> Brouillons
+                        <span id="draftBadge" style="display:none;position:absolute;top:-7px;right:-7px;background:#c0392b;color:#fff;border-radius:10px;font-size:10px;font-weight:700;min-width:17px;height:17px;line-height:17px;text-align:center;padding:0 4px;">0</span>
+                    </button>
+                    <div id="sfTools"></div>
+                </div>
+            </header>
+            <div class="page-body">
+                <div class="pos">
+                    <div>
+                        <div class="pos-tools"><div class="pos-panel">
+                            <div class="scan-bar">
+                                <i class="fas fa-barcode"></i>
+                                <input type="text" id="scan" placeholder="Lecteur actif sur toute la page — scannez, ou saisissez un n° de série puis Entrée…" autocomplete="off" autofocus>
+                                <button type="button" title="Scanner avec la caméra (téléphone)" onclick="SF.CamScan.open(s => Pos.addBySerial(s))" style="background:var(--accent);color:var(--accent-contrast);border:none;border-radius:10px;padding:0 14px;min-height:38px;cursor:pointer;font-size:15px;display:flex;align-items:center;gap:6px;flex-shrink:0;"><i class="fas fa-camera"></i></button>
+                            </div>
+                            <div class="pos-filters">
+                                <div class="search-box2"><i class="fas fa-search"></i><input type="search" id="psearch" placeholder="Rechercher (nom, config, description…)" oninput="Pos.renderProducts()" enterkeyhint="search"></div>
+                                <button type="button" class="tb-btn" id="filtBtn" onclick="Pos.toggleFilters()" title="Filtres"><i class="fas fa-sliders"></i><span class="tb-lbl">Filtres</span><span class="tb-n" id="filtN"></span></button>
+                            </div>
+                            <div class="pos-adv" id="posAdv">
+                                <select id="psup" class="form-control" onchange="Pos.setSup(this.value, true)"><option value="">Tous fournisseurs</option></select>
+                                <select id="pcat" class="form-control" onchange="Pos.onCat()"><option value="">Catégories</option></select>
+                                <select id="psub" class="form-control" onchange="Pos.renderProducts()"><option value="">Sous-catég.</option></select>
+                                <select id="pbrand" class="form-control" onchange="Pos.renderProducts()"><option value="">Marques</option></select>
+                                <select id="psort" class="form-control" onchange="Pos.renderProducts()">
+                                    <option value="">Trier…</option>
+                                    <option value="price_asc">Prix ↑</option>
+                                    <option value="price_desc">Prix ↓</option>
+                                    <option value="name">Nom A→Z</option>
+                                    <option value="qty_desc">Plus de stock vendable</option>
+                                </select>
+                                <div id="pprice"></div>
+                                <button type="button" class="btn btn-sm btn-secondary pf-reset" onclick="Pos.resetFilters()"><i class="fas fa-rotate-left"></i> Réinitialiser les filtres</button>
+                            </div>
+                            <div class="pos-chips">
+                                <div class="seg" id="ptype" role="tablist">
+                                    <button type="button" class="active" data-t="" onclick="Pos.setType('')">Tous</button>
+                                    <button type="button" data-t="pc" onclick="Pos.setType('pc')"><i class="fas fa-laptop"></i> Ordinateurs</button>
+                                    <button type="button" data-t="acc" onclick="Pos.setType('acc')"><i class="fas fa-plug"></i> Accessoires</button>
+                                    <button type="button" data-t="svc" onclick="Pos.setType('svc')"><i class="fas fa-screwdriver-wrench"></i> Services</button>
+                                </div>
+                                <label class="sell-only" title="Masquer les produits sans pièce sortie du dépôt"><input type="checkbox" id="psell" onchange="Pos.renderProducts()"> Vendables</label>
+                            </div>
+                            <div id="supLegend" title="Fournisseurs — toucher pour filtrer"></div>
+                        </div></div>
+                        <div class="pos-count" id="prodCount"></div>
+                        <div class="prod-grid" id="prodGrid"><div class="sf-skel sf-skel-card"></div><div class="sf-skel sf-skel-card"></div><div class="sf-skel sf-skel-card"></div></div>
+                    </div>
+
+                    <div class="cart">
+                        <div class="cart-h"><h3><i class="fas fa-basket-shopping"></i> Panier <span class="cart-n" id="cartN" style="display:none;">0</span></h3><div><button class="btn btn-sm btn-secondary" title="Vider le panier" onclick="Pos.clearCart()"><i class="fas fa-trash"></i></button><button class="btn btn-sm btn-secondary cart-close" title="Fermer" onclick="Pos.toggleCart(false)"><i class="fas fa-chevron-down"></i></button></div></div>
+                        <div class="cart-items" id="cartItems"><div class="cart-empty">Panier vide</div></div>
+                        <div class="cart-f">
+                            <div class="disc-row">
+                                <span><i class="fas fa-tag"></i> Remise</span>
+                                <select id="discType" class="form-control" onchange="Pos.onDiscountChange()"><option value="value">Ar</option><option value="percent">%</option></select>
+                                <input type="number" id="discValue" class="form-control" value="0" min="0" oninput="Pos.onDiscountChange()">
+                            </div>
+                            <div class="sub-row"><span>Sous-total</span><span id="cartSubtotal">0 Ar</span></div>
+                            <div class="sub-row"><span>Remise</span><span id="cartRemise">− 0 Ar</span></div>
+                            <div class="sub-row" id="giftPackRow" style="display:none;"><span><i class="fas fa-gift"></i> Pack cadeau</span><span id="cartGiftPack">+ 0 Ar</span></div>
+                            <div class="sub-row" id="upgradeRow" style="display:none;"><span><i class="fas fa-screwdriver-wrench"></i> Upgrades composants</span><span id="cartUpgrades">+ 0 Ar</span></div>
+                            <div class="cart-total"><span>Total</span><span id="cartTotal">0 Ar</span></div>
+                            <div style="display:flex;gap:8px;">
+                                <button class="btn btn-secondary" style="padding:14px;" title="Enregistrer en brouillon" onclick="Pos.saveDraft()"><i class="fas fa-floppy-disk"></i></button>
+                                <button class="btn btn-primary" style="flex:1;padding:14px;" onclick="Pos.openPayment()" id="payBtn" disabled><i class="fas fa-cash-register"></i> Encaisser</button>
+                            </div>
+                            <button class="btn btn-secondary" style="width:100%;padding:11px;margin-top:8px;" onclick="Pos.openLayaway()" id="layawayBtn" disabled><i class="fas fa-hand-holding-dollar"></i> Vente avec avance</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modale paiement -->
+    <div class="modal-overlay" id="payModal">
+        <div class="modal" style="max-width:560px;">
+            <div class="modal-header"><h3>Encaissement</h3><button class="modal-close" onclick="SF.Modal.close('payModal')">&times;</button></div>
+            <div class="modal-body">
+                <div class="cart-total" style="font-size:20px;"><span>À payer</span><span id="payTotal">0 Ar</span></div>
+                <div class="form-row">
+                    <div class="form-group"><label>Client <span style="color:var(--danger);">*</span></label><input type="text" id="cl_name" class="form-control" placeholder="Nom du client" required></div>
+                    <div class="form-group"><label>Contact <span style="color:var(--danger);">*</span></label><input type="text" id="cl_phone" class="form-control" inputmode="tel" placeholder="034 …" required></div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group"><label>Adresse <span id="cl_addr_req" style="color:var(--danger);display:none;">* (Starlink : lieu d'installation)</span></label><input type="text" id="cl_address" class="form-control" placeholder="Quartier, ville…"></div>
+                    <div class="form-group"><label>Commercial (vendeur)</label><select id="cl_commercial" class="form-control"></select></div>
+                </div>
+                <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600;color:var(--text-secondary);cursor:pointer;margin-bottom:10px;">
+                    <input type="checkbox" id="cl_pro_toggle" onchange="document.getElementById('cl_pro_box').style.display=this.checked?'':'none'">
+                    Client professionnel — NIF / STAT / RCS sur la facture
+                </label>
+                <div id="cl_pro_box" style="display:none;">
+                    <div class="form-row">
+                        <div class="form-group"><label>NIF client</label><input type="text" id="cl_nif" class="form-control" placeholder="NIF du client"></div>
+                        <div class="form-group"><label>STAT client</label><input type="text" id="cl_stat" class="form-control" placeholder="STAT du client"></div>
+                    </div>
+                    <div class="form-group"><label>RCS client <span style="font-weight:400;color:var(--text-muted);">(facultatif)</span></label><input type="text" id="cl_rcs" class="form-control" placeholder="RCS du client"></div>
+                </div>
+                <div id="atelierBox" class="atelier-box" style="display:none;">
+                    <div class="atelier-h"><i class="fas fa-laptop-medical"></i> Ordinateur du client</div>
+                    <div class="atelier-svc" id="atelierSvc"></div>
+                    <label class="atelier-sold" id="at_soldWrap"><input type="checkbox" id="at_sold" onchange="Pos.atelierToggle()"> Le service concerne l'ordinateur acheté dans cette vente</label>
+                    <div id="at_fields">
+                        <div class="form-group"><label>Référence de l'ordinateur <span style="color:var(--danger);">*</span></label><input type="text" id="at_pc" class="form-control" placeholder="Ordinateur portable HP EliteBook 820 G3"></div>
+                        <div class="form-row">
+                            <div class="form-group"><label>RAM <span style="color:var(--danger);">*</span></label><input type="text" id="at_ram" class="form-control" list="at_dl_ram" placeholder="8 Go"></div>
+                            <div class="form-group"><label>Stockage <span style="color:var(--danger);">*</span></label><input type="text" id="at_storage" class="form-control" list="at_dl_storage" placeholder="256 Go SSD"></div>
+                        </div>
+                        <div class="form-group"><label>Chargeur <span style="color:var(--danger);">*</span></label>
+                            <div class="atelier-chg" id="at_chg">
+                                <label class="pay-opt"><input type="radio" name="at_charger" value="avec" onchange="Pos.atelierChg()"> Avec chargeur</label>
+                                <label class="pay-opt"><input type="radio" name="at_charger" value="sans" onchange="Pos.atelierChg()"> Sans chargeur</label>
+                            </div>
+                        </div>
+                        <div class="form-group"><label>Panne signalée / remarque</label><input type="text" id="at_note" class="form-control" placeholder="Ex : ne démarre pas, écran noir…"></div>
+                    </div>
+                    <datalist id="at_dl_ram"></datalist><datalist id="at_dl_storage"></datalist>
+                    <!-- Paiement partiel : le reste (part service atelier) est payé à la récupération de l'ordinateur. -->
+                    <label class="atelier-sold" style="margin-top:10px;"><input type="checkbox" id="at_partial" onchange="Pos.partialToggle()"> Paiement partiel — le reste sera payé à la récupération</label>
+                    <div id="at_partialBox" style="display:none;margin-top:6px;">
+                        <div class="form-group"><label>Montant payé maintenant (Ar)</label><input type="text" inputmode="numeric" id="at_paid" data-keypad class="form-control money-input" oninput="Pos.partialChange()"></div>
+                        <div style="font-size:13px;">Reste à payer : <b id="at_rest">0 Ar</b> <span class="text-muted" style="font-size:11.5px;">(max. <span id="at_max">0 Ar</span> : prix du service atelier)</span></div>
+                    </div>
+                </div>
+                <label style="font-size:12.5px;font-weight:600;color:var(--text-secondary);">Paiement <span style="font-weight:400;">(possibilité de répartir : espèces + mobile money…)</span></label>
+                <div id="payBox"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="SF.Modal.close('payModal')">Annuler</button>
+                <button class="btn btn-primary" onclick="Pos.finalize()" id="finalizeBtn"><i class="fas fa-check"></i> Valider la vente</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modale UPGRADE composant -->
+    <div class="modal-overlay" id="upgModal">
+        <div class="modal" style="max-width:560px;">
+            <div class="modal-header"><h3>Upgrade composant</h3><button class="modal-close" onclick="SF.Modal.close('upgModal')">&times;</button></div>
+            <div class="modal-body">
+                <div id="upgPc" class="text-muted" style="font-size:13px;margin-bottom:10px;"></div>
+                <div class="form-group"><label>Composant à changer</label>
+                    <select id="upg_field" class="form-control" onchange="Pos.upgFieldChange()">
+                        <option value="storage">Stockage</option>
+                        <option value="ram">RAM</option>
+                        <option value="cpu">Processeur</option>
+                        <option value="gpu">Carte graphique</option>
+                        <option value="screen_size">Écran</option>
+                    </select>
+                </div>
+                <div class="form-group"><label>Type d'upgrade</label>
+                    <div style="display:flex;flex-direction:column;gap:6px;font-size:13px;">
+                        <label style="display:flex;gap:8px;align-items:flex-start;cursor:pointer;"><input type="radio" name="upg_mode" value="ajout" checked onchange="Pos.upgModeChange()">
+                            <span><b>Ajout</b> — slot libre : le composant neuf s'ajoute à l'existant (ex. RAM 4 Go + 4 Go = 8 Go). Le client paie le prix du neuf.</span></label>
+                        <label style="display:flex;gap:8px;align-items:flex-start;cursor:pointer;"><input type="radio" name="upg_mode" value="remplacement" onchange="Pos.upgModeChange()">
+                            <span><b>Remplacement</b> — l'ancien composant est retiré et gardé par le magasin (ex. 1 seul slot : barrette 4 Go remplacée par 8 Go). Le client paie l'écart ; l'ancien entre au dépôt après validation du stock.</span></label>
+                    </div>
+                </div>
+                <div class="form-group"><label id="upg_oldLbl">Composant actuel (dans l'ordinateur)</label><input type="text" id="upg_oldval" class="form-control" placeholder="Ex : 4 Go" oninput="Pos.upgOldChange()"></div>
+                <div class="form-group"><label>Composant NEUF (depuis le stock accessoires)</label>
+                    <input type="text" id="upg_newsearch" class="form-control" placeholder="Scanner un n° de série OU rechercher par nom…" oninput="Pos.upgSearchNew()" onkeydown="if(event.key==='Enter'){event.preventDefault();Pos.upgScanNew(this.value);}">
+                    <div id="upg_newlist" style="max-height:150px;overflow:auto;margin-top:4px;"></div>
+                    <div id="upg_newsel" style="font-size:12.5px;margin-top:4px;"></div>
+                </div>
+                <div class="form-group"><label>Nouvelle valeur affichée sur la config</label><input type="text" id="upg_newval" class="form-control" placeholder="Ex : SSD SATA 256 Go"></div>
+                <!-- Remplacement : l'ancien composant est repris par le magasin à sa valeur (déduite de l'écart). -->
+                <div id="upg_keepBox" style="display:none;border:1px solid var(--border-color);border-radius:10px;padding:10px 12px;margin:10px 0;">
+                    <div style="font-size:12px;color:var(--text-secondary);margin-bottom:6px;">Le composant retiré « <b id="upg_oldNameEcho">—</b> » sera envoyé au dépôt (réception à valider par le stock) à la valeur ci-dessous :</div>
+                    <div class="form-group"><label>Valeur de reprise (Ar)</label><input type="text" inputmode="numeric" id="upg_oldprice" data-keypad class="form-control money-input" value="0" oninput="Pos.upgRecalc()"></div>
+                </div>
+                <div class="cart-total" style="font-size:18px;"><span>Écart à payer par le client</span><span id="upg_ecart">0 Ar</span></div>
+                <div id="upg_ecartHint" class="text-muted" style="font-size:11.5px;margin-top:4px;"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="SF.Modal.close('upgModal')">Annuler</button>
+                <button class="btn btn-primary" onclick="Pos.addUpgrade()"><i class="fas fa-check"></i> Ajouter l'upgrade</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modale VENTE AVEC AVANCE -->
+    <div class="modal-overlay" id="layModal">
+        <div class="modal" style="max-width:560px;">
+            <div class="modal-header"><h3>Vente avec avance</h3><button class="modal-close" onclick="SF.Modal.close('layModal')">&times;</button></div>
+            <div class="modal-body">
+                <div class="cart-total" style="font-size:18px;"><span>Total</span><span id="layTotal">0 Ar</span></div>
+                <div class="form-row">
+                    <div class="form-group"><label>Client <span style="color:var(--danger);">*</span></label><input type="text" id="lay_name" class="form-control" placeholder="Nom du client" required></div>
+                    <div class="form-group"><label>Contact <span style="color:var(--danger);">*</span></label><input type="text" id="lay_phone" class="form-control" inputmode="tel" placeholder="034 …" required></div>
+                </div>
+                <div class="form-group" id="lay_addr_box" style="display:none;"><label>Adresse du client <span style="color:var(--danger);">* (Starlink : lieu d'installation)</span></label><input type="text" id="lay_address" class="form-control" placeholder="Quartier, ville…"></div>
+                <div class="form-group"><label>Commercial (vendeur)</label><select id="lay_commercial" class="form-control"></select></div>
+                <div class="form-group"><label>Montant de l'avance (Ar)</label><input type="text" inputmode="numeric" id="lay_deposit" data-keypad class="form-control money-input" oninput="Pos.layDepChange()"></div>
+                <div style="font-size:13px;margin:6px 0;">Reste à payer plus tard : <b id="lay_balance">0 Ar</b></div>
+                <div class="form-group"><label>Date du prochain paiement (annoncée par le client) <span style="color:var(--danger);">*</span></label>
+                    <input type="date" id="lay_next" class="form-control">
+                    <div class="text-muted" style="font-size:11.5px;margin-top:4px;">Date limite pour solder : <b id="lay_due">—</b> (délai réglable dans Configuration)</div></div>
+                <label style="font-size:12.5px;font-weight:600;color:var(--text-secondary);">Paiement de l'avance</label>
+                <div id="layPayBox"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="SF.Modal.close('layModal')">Annuler</button>
+                <button class="btn btn-primary" onclick="Pos.finalizeLayaway()" id="layFinalizeBtn"><i class="fas fa-check"></i> Enregistrer l'avance</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modale brouillons -->
+    <div class="modal-overlay" id="draftModal">
+        <div class="modal" style="max-width:560px;">
+            <div class="modal-header"><h3><i class="fas fa-file-lines"></i> Brouillons enregistrés</h3><button class="modal-close" onclick="SF.Modal.close('draftModal')">&times;</button></div>
+            <div class="modal-body"><div id="draftList"><div class="cart-empty">Aucun brouillon.</div></div></div>
+            <div class="modal-footer"><button class="btn btn-secondary" onclick="SF.Modal.close('draftModal')">Fermer</button></div>
+        </div>
+    </div>
+
+    <div id="posCartBackdrop" onclick="Pos.toggleCart(false)"></div>
+    <!-- Barre d'action fixe (mobile/tablette) : total + Encaisser toujours accessibles -->
+    <div id="mobilePayBar">
+        <div class="mpb-info" title="Voir le panier" onclick="Pos.toggleCart(true)"><div class="mpb-count" id="mpbCount">0 article</div><div class="mpb-total" id="mpbTotal">0 Ar</div></div>
+        <button class="btn btn-secondary" title="Enregistrer en brouillon" onclick="Pos.saveDraft()"><i class="fas fa-floppy-disk"></i></button>
+        <button class="btn btn-primary" onclick="Pos.openPayment()"><i class="fas fa-cash-register"></i> Encaisser</button>
+    </div>
+
+    <script src="/js/sf-core.js"></script>
+    <script src="/js/sf-layout.js"></script>
+    <script src="/js/sf-invoice.js"></script>
+    <script src="/js/sf-pay.js"></script>
+    <script>
+    const Pos = {
+        user: null, products: [], cart: [], commercials: [], config: {}, discount: { type: 'value', value: 0 },
+        giftPackAmount: 0, layMaxDays: 30, layConditions: '', upgrades: [], accessoryProducts: [], upgTarget: null, upgNewUnit: null, drafts: [],
+        async init() {
+            this.user = await SF.Auth.require(['caisse']);
+            if (!this.user) return;
+            SF.layout({ active: '/pos.html' });
+            SF.PriceRange.mount(document.getElementById('pprice'), () => this.renderProducts());
+            try { this.config = await SF.api('/api/config'); } catch (e) {}
+            try {
+                const s = await SF.api('/api/settings'); this.giftPackAmount = Math.max(0, parseFloat(s.gift_pack_amount) || 0);
+                this.layMaxDays = Math.max(1, parseInt(s.layaway_max_days, 10) || 30); this.layConditions = s.layaway_conditions || '';
+            } catch (e) {}
+            try { this.commercials = await SF.api('/api/commercials'); } catch (e) {}
+            const opts = '<option value="">—</option>' + this.commercials.map(c => `<option value="${c.id}">${SF.esc(c.name)}</option>`).join('');
+            document.getElementById('cl_commercial').innerHTML = opts;
+            document.getElementById('lay_commercial').innerHTML = opts;
+            SF.on('stock:update', () => this.loadProducts());
+            document.getElementById('scan').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); this.addBySerial(e.target.value.trim()); e.target.value = ''; } });
+            // Scanner physique actif sur toute la page (pas seulement la barre).
+            SF.Scanner.init(code => this.addBySerial(code), { skipInModal: true });
+            this.loadProducts();
+            this.refreshDraftBadge();
+        },
+        async loadProducts() {
+            try {
+                this.products = await SF.api('/api/stock');
+                this.accessoryProducts = this.products.filter(p => p.is_accessory);
+                this.buildPosFilters(); this.renderProducts();
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        buildPosFilters() {
+            const catSel = document.getElementById('pcat');
+            const cats = [...new Set(this.products.map(p => p.category).filter(Boolean))].sort();
+            const cur = catSel.value;
+            catSel.innerHTML = '<option value="">Catégories</option>' + cats.map(c => `<option value="${SF.esc(c)}">${SF.esc(c)}</option>`).join('');
+            if (cats.includes(cur)) catSel.value = cur;
+            this.buildPosSubs();
+            this.buildSups();
+        },
+        // ── Fournisseurs : même code couleur que Stock dépôt / Commande en ligne (SF.supColor) ──
+        supFilter: '', typeFilter: '',
+        buildSups() {
+            const m = new Map();
+            this.products.forEach(p => (p.is_service ? [] : (p.suppliers || [])).forEach(s => {
+                const o = m.get(s.id) || { id: s.id, name: s.name, products: 0 };
+                o.products++; m.set(s.id, o);
+            }));
+            this.sups = [...m.values()].sort((a, b) => String(a.name).localeCompare(String(b.name)));
+            if (this.supFilter && !m.has(parseInt(this.supFilter, 10))) this.supFilter = '';
+            const sel = document.getElementById('psup');
+            sel.innerHTML = '<option value="">Tous fournisseurs</option>' + this.sups.map(s => `<option value="${s.id}">${SF.esc(s.name)} (${s.products})</option>`).join('');
+            sel.value = this.supFilter;
+            this.renderSupLegend();
+        },
+        renderSupLegend() {
+            const sups = this.sups || [];
+            document.getElementById('supLegend').innerHTML = sups.length < 2 ? '' : sups.map(s => `<button type="button" class="sup-leg ${String(s.id) === String(this.supFilter) ? 'active' : ''}" style="--c:${SF.supColor(s.id)}" title="${s.products} produit(s)" onclick="Pos.setSup('${s.id}')"><i></i>${SF.esc(s.name)} <b>${s.products}</b></button>`).join('')
+                + (this.supFilter ? `<button type="button" class="sup-leg" style="--c:var(--text-muted)" onclick="Pos.setSup('', true)"><span class="fas fa-xmark"></span> Tous</button>` : '');
+        },
+        // Puce / légende = bascule (re-toucher retire le filtre) ; le select fixe la valeur.
+        setSup(id, exact) {
+            id = String(id || '');
+            this.supFilter = (!exact && id === String(this.supFilter)) ? '' : id;
+            document.getElementById('psup').value = this.supFilter;
+            this.renderSupLegend();
+            this.renderProducts();
+        },
+        setType(t) {
+            this.typeFilter = t;
+            document.querySelectorAll('#ptype button').forEach(b => b.classList.toggle('active', b.dataset.t === t));
+            this.renderProducts();
+        },
+        toggleFilters() { document.getElementById('posAdv').classList.toggle('open'); },
+        buildPosSubs() {
+            const subSel = document.getElementById('psub');
+            const cat = document.getElementById('pcat').value;
+            const pool = cat ? this.products.filter(p => p.category === cat) : this.products;
+            const subs = [...new Set(pool.map(p => p.subcategory).filter(Boolean))].sort();
+            const cur = subSel.value;
+            subSel.innerHTML = '<option value="">Sous-catég.</option>' + subs.map(s => `<option value="${SF.esc(s)}">${SF.esc(s)}</option>`).join('');
+            if (subs.includes(cur)) subSel.value = cur;
+            const bSel = document.getElementById('pbrand'), bCur = bSel.value;
+            const brands = [...new Set(pool.map(p => p.brand).filter(Boolean))].sort();
+            bSel.innerHTML = '<option value="">Marques</option>' + brands.map(b => `<option value="${SF.esc(b)}">${SF.esc(b)}</option>`).join('');
+            if (brands.includes(bCur)) bSel.value = bCur;
+        },
+        onCat() { this.buildPosSubs(); this.renderProducts(); },
+        specLine(p) { return [p.cpu, p.ram, p.storage].filter(Boolean).join(' · '); },
+        // Vendable à la caisse = unités SORTIES du dépôt (boutique / présentoir). Les unités encore au
+        // dépôt ne se vendent pas ici : il faut d'abord la sortie du stock (responsable stock).
+        stockInfo(p) {
+            const sellable = (p.presentoir || 0) + (p.in_presentation || 0);
+            return { depot: p.available || 0, sellable };
+        },
+        renderProducts() {
+            const q = (document.getElementById('psearch').value || '').toLowerCase().trim();
+            const cat = document.getElementById('pcat').value;
+            const sub = document.getElementById('psub').value;
+            const sort = document.getElementById('psort').value;
+            const brand = document.getElementById('pbrand').value;
+            const sup = parseInt(this.supFilter, 10) || 0, type = this.typeFilter;
+            const sellOnly = document.getElementById('psell').checked;
+            const priceOn = document.getElementById('pprice').classList.contains('on');
+            const nAdv = [sup, cat, sub, brand, sort].filter(Boolean).length + (priceOn ? 1 : 0);
+            document.getElementById('filtN').textContent = nAdv || '';
+            document.getElementById('filtBtn').classList.toggle('on', nAdv > 0);
+            const hay = p => `${p.brand} ${p.model} ${p.name} ${p.category} ${p.subcategory} ${p.description} ${p.cpu} ${p.ram} ${p.storage} ${p.storage_type} ${p.gpu} ${p.screen_size}`.toLowerCase();
+            let list = this.products.filter(p =>
+                (!q || hay(p).includes(q)) && (!cat || p.category === cat) && (!sub || p.subcategory === sub)
+                && (!brand || p.brand === brand)
+                && (!sup || (!p.is_service && (p.suppliers || []).some(s => s.id === sup)))
+                && (!type || (type === 'svc' ? p.is_service : type === 'acc' ? (p.is_accessory && !p.is_service) : (!p.is_accessory && !p.is_service)))
+                && (!sellOnly || p.is_service || this.stockInfo(p).sellable > 0)
+                && SF.PriceRange.test(document.getElementById('pprice'), p.sale_price));
+            const price = p => Number(p.sale_price) || 0;
+            if (sort === 'price_asc') list.sort((a, b) => price(a) - price(b));
+            else if (sort === 'price_desc') list.sort((a, b) => price(b) - price(a));
+            else if (sort === 'name') list.sort((a, b) => String(a.name || '').localeCompare(b.name || ''));
+            else if (sort === 'qty_desc') list.sort((a, b) => this.stockInfo(b).sellable - this.stockInfo(a).sellable);
+            const grid = document.getElementById('prodGrid');
+            const filtered = !!(q || nAdv || type || sellOnly) || list.length !== this.products.length;
+            document.getElementById('prodCount').innerHTML = `<span><b>${list.length}</b> produit(s)${filtered ? ` sur ${this.products.length}` : ''}</span>${filtered ? '<a onclick="Pos.resetFilters()"><i class="fas fa-xmark"></i> Effacer les filtres</a>' : ''}`;
+            if (!list.length) { grid.innerHTML = '<div class="cart-empty" style="grid-column:1/-1;"><i class="fas fa-magnifying-glass"></i> Aucun produit ne correspond</div>'; return; }
+            const supChips = p => (p.suppliers || []).length ? `<div class="pcard-sups">${p.suppliers.map(s => `<span class="pcard-sup ${String(s.id) === String(this.supFilter) ? 'active' : ''}" style="--c:${SF.supColor(s.id)}" title="Fournisseur · toucher pour filtrer" onclick="event.stopPropagation();Pos.setSup('${s.id}')"><i></i><span>${SF.esc(s.name)}</span></span>`).join('')}</div>` : '';
+            SF.renderChunks(grid, list, p => {
+                const isSvc = !!p.is_service;
+                const sups = isSvc ? [] : (p.suppliers || []);
+                const boutique = p.in_presentation || 0;
+                // On retire les unités déjà réservées par des livraisons facturées non encore sorties.
+                const { depot, sellable } = this.stockInfo(p);
+                // Rien de sorti mais du stock au dépôt : « sortie requise » (≠ rupture).
+                const isReserved = !isSvc && sellable === 0 && depot > 0;
+                const icon = isSvc ? 'screwdriver-wrench' : (p.is_accessory ? 'plug' : 'laptop');
+                const cls = isSvc || sellable ? '' : (isReserved ? 'reserved' : 'out');
+                const reservedTitle = `${depot} unité(s) au dépôt, aucune sortie : demandez la sortie du stock avant de vendre.`;
+                const qtyTitle = depot ? ` title="${sellable} sortie(s) du dépôt — ${depot} encore au dépôt"` : '';
+                return `<div class="pcard ${cls}${sups.length ? ' has-sup' : ''}" ${sups.length ? `style="--sup:${SF.supBar(sups)}"` : ''} onclick="Pos.addByProduct(${p.id})">
+                    <div class="pcard-img" ${p.image ? `data-bg="${p.image}"` : ''}>${p.image ? '' : '<i class="fas fa-' + icon + '"></i>'}${isSvc ? '<span style="position:absolute;top:6px;left:6px;background:var(--info);color:#fff;font-size:9.5px;font-weight:700;padding:2px 6px;border-radius:6px;">Service</span>' : (boutique ? `<span style="position:absolute;top:6px;left:6px;background:var(--info);color:#fff;font-size:9.5px;font-weight:700;padding:2px 6px;border-radius:6px;"><i class="fas fa-store"></i> ${boutique} boutique</span>` : '')}</div>
+                    <div class="pcard-b">
+                        <div class="pcard-t" style="cursor:pointer;pointer-events:auto;text-decoration:underline dotted;text-underline-offset:2px;" title="Voir les détails" onclick="event.stopPropagation();Pos.showDetail(${p.id})">${SF.esc([p.brand, p.model].filter(Boolean).join(' ') || p.name)}</div>
+                        <div class="pcard-s">${SF.esc(isSvc ? (p.category || 'Service') : (p.is_accessory ? (p.category || '') : this.specLine(p)))}</div>
+                        ${isSvc ? '' : supChips(p)}
+                        <div class="pcard-f"><span class="pcard-price">${SF.fmt.ar(p.sale_price)}</span>${isSvc ? '<span class="pcard-qty" style="background:var(--info);"><i class="fas fa-infinity"></i></span>' : (sellable ? `<span class="pcard-qty"${qtyTitle}>${sellable}</span>` : (isReserved ? `<span class="pcard-reserved" title="${reservedTitle}"><i class="fas fa-warehouse"></i> Au dépôt</span>` : '<span class="pcard-rupture">Rupture</span>'))}</div>
+                    </div>
+                </div>`;
+            });
+        },
+        filterProducts() { this.renderProducts(); },
+        resetFilters() {
+            ['psearch', 'pcat', 'psub', 'pbrand', 'psort'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+            const pr = document.getElementById('pprice'); if (pr) { pr.querySelectorAll('input').forEach(i => i.value = ''); pr.classList.remove('on'); }
+            document.getElementById('psell').checked = false;
+            this.supFilter = ''; this.typeFilter = '';
+            document.querySelectorAll('#ptype button').forEach(b => b.classList.toggle('active', !b.dataset.t));
+            this.buildPosSubs(); this.buildSups(); this.renderProducts();
+        },
+        showDetail(id) { const p = this.products.find(x => x.id === id); if (p) SF.productDetail(p); },
+        async addBySerial(serial) {
+            if (!serial) return;
+            try {
+                const rows = await SF.api('/api/units/search?q=' + encodeURIComponent(serial));
+                if (!rows.length) return SF.toast('Numéro de série introuvable', 'error');
+                const inCart = u => this.cart.find(c => c.id === u.id);
+                // Accessoires à code de modèle PARTAGÉ : plusieurs unités portent le même code.
+                // On prend la 1re unité VENDABLE non encore au panier (→ on peut scanner N fois le même code).
+                const match = u => u.serial === serial || u.manufacturer_sn === serial || u.router_id === serial;
+                rows.forEach(u => { u.sellable = !!u.pos_sellable; });   // caisse : sortie du dépôt obligatoire
+                let pick = rows.find(u => match(u) && u.sellable && !inCart(u))
+                        || rows.find(u => u.sellable && !inCart(u));
+                if (!pick) {
+                    const done = rows.find(u => match(u) && inCart(u)) || rows.find(u => u.sellable && inCart(u));
+                    if (done) return SF.toast('Plus d\'unité disponible pour ce code (déjà au panier)', 'warn');
+                    const one = rows.find(match) || rows[0];
+                    if (one.status === 'stock') return SF.toast(`${one.serial} est encore AU DÉPÔT : faites d'abord la sortie du stock avant de le vendre`, 'error', 5500);
+                    return SF.toast(`Non vendable (${SF.UNIT_STATUS[one.status] || one.status})`, 'error');
+                }
+                this.addUnit(pick);
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        addByProduct(productId) {
+            const prod = this.products.find(x => x.id === productId) || {};
+            // Service (illimité) : ligne de vente directe, sans unité de stock.
+            if (prod.is_service) { this.addService(prod); return; }
+            // Rien de sorti du dépôt : la caisse ne vend pas une unité encore au dépôt.
+            const { depot, sellable } = this.stockInfo(prod);
+            if (sellable === 0 && depot > 0)
+                return SF.toast(`${depot} unité(s) encore au dépôt : faites d'abord la sortie du stock (responsable stock) avant de vendre.`, 'warn', 5500);
+            return this.addUnitByProduct(productId);
+        },
+        addService(p) {
+            this.cart.push({ id: 'svc-' + p.id + '-' + (this._svcSeq = (this._svcSeq || 0) + 1), product_id: p.id, product_name: p.name, price: Number(p.sale_price) || 0, is_service: true, serial: null, gift: false });
+            SF.toast(`Service ajouté : ${p.name}`, 'success', 1500);
+            this.renderCart();
+        },
+        async addUnitByProduct(productId) {
+            try {
+                const units = await SF.api(`/api/products/${productId}/units`);
+                const free = s => !this.cart.find(c => c.id === s.id);
+                // Seulement les unités déjà sorties du dépôt : présentoir, puis boutique (chez un commercial).
+                const pick = units.find(u => u.status === 'presentoir' && free(u))
+                          || units.find(u => u.status === 'consignation' && free(u));
+                if (!pick) return SF.toast(units.some(u => u.status === 'stock') ? 'Encore au dépôt : faites d\'abord la sortie du stock' : 'Aucune unité sortie disponible', 'error');
+                const p = this.products.find(x => x.id === productId) || {};
+                this.addUnit({ ...pick, product_name: p.name, brand: p.brand, model: p.model, sellable: true });
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        addUnit(u) {
+            if (!u.sellable) return SF.toast(`Unité non vendable (${SF.UNIT_STATUS[u.status] || u.status})`, 'error');
+            if (this.cart.find(c => c.id === u.id)) return SF.toast('Déjà dans le panier', 'warn');
+            this.cart.push({ id: u.id, serial: u.serial, product_id: u.product_id, product_name: [u.brand, u.model].filter(Boolean).join(' ') || u.product_name, price: u.sale_price, status: u.status, holder_name: u.holder_name || null, is_accessory: !!u.is_accessory, gift: false,
+                starlink: !!u.router_id || /^starlink$/i.test(u.category || '') });
+            SF.toast(`Ajouté : ${u.serial}`, 'success', 1500);
+            this.renderCart();
+        },
+        removeItem(id) {
+            this.cart = this.cart.filter(c => c.id !== id);
+            this.upgrades = this.upgrades.filter(u => u.pc_unit_id !== id);   // retire aussi ses upgrades
+            this.renderCart();
+        },
+        clearCart() {
+            this.cart = []; this.upgrades = []; this.discount = { type: 'value', value: 0 };
+            const dt = document.getElementById('discType'), dv = document.getElementById('discValue');
+            if (dt) dt.value = 'value'; if (dv) dv.value = 0;
+            this.renderCart();
+        },
+        upgradesFor(unitId) { return this.upgrades.filter(u => u.pc_unit_id === unitId); },
+        // ── Brouillons de panier ──────────────────────────────────────────
+        async refreshDraftBadge() {
+            try { this.drafts = await SF.api('/api/pos/drafts'); } catch (e) { this.drafts = []; }
+            const b = document.getElementById('draftBadge');
+            if (!b) return;
+            if (this.drafts.length) { b.textContent = this.drafts.length; b.style.display = ''; }
+            else b.style.display = 'none';
+        },
+        async saveDraft() {
+            if (!this.cart.length) return SF.toast('Panier vide', 'warn');
+            const first = this.cart[0].product_name || 'Article';
+            const label = this.cart.length > 1 ? `${first} +${this.cart.length - 1}` : first;
+            try {
+                await SF.api('/api/pos/drafts', {
+                    method: 'POST',
+                    body: { label, items: this.cart, discount: this.discount, upgrades: this.upgrades }
+                });
+                SF.toast('Brouillon enregistré', 'success');
+                this.clearCart();
+                this.refreshDraftBadge();
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        async openDrafts() {
+            await this.refreshDraftBadge();
+            this.renderDraftList();
+            SF.Modal.open('draftModal');
+        },
+        renderDraftList() {
+            const box = document.getElementById('draftList');
+            if (!this.drafts.length) { box.innerHTML = '<div class="cart-empty">Aucun brouillon.</div>'; return; }
+            box.innerHTML = this.drafts.map(d => `<div class="ci">
+                <div class="ci-b"><div class="ci-t">${SF.esc(d.label || 'Brouillon')}</div>
+                <div class="ci-s">${d.item_count} article(s) · ${SF.fmt.ar(d.total)} · ${SF.esc((d.created_at || '').slice(0, 16))}</div></div>
+                <button class="btn btn-sm btn-primary" title="Reprendre" onclick="Pos.resumeDraft(${d.id})"><i class="fas fa-play"></i> Reprendre</button>
+                <button class="btn btn-sm btn-danger" title="Supprimer" onclick="Pos.deleteDraft(${d.id})"><i class="fas fa-times"></i></button>
+            </div>`).join('');
+        },
+        async resumeDraft(id) {
+            if (this.cart.length && !await SF.confirm('Le panier actuel sera remplacé. Continuer ?')) return;
+            let d;
+            try { d = await SF.api('/api/pos/drafts/' + id); } catch (e) { return SF.toast(e.message, 'error'); }
+            const ok = d.items.filter(it => it.available);
+            const gone = d.items.filter(it => !it.available);
+            this.cart = ok.map(it => ({ id: it.id, serial: it.serial, product_id: it.product_id, product_name: it.product_name, price: it.price, status: it.current_status || it.status, holder_name: it.holder_name || null, is_accessory: !!it.is_accessory, gift: !!it.gift }));
+            const keptIds = new Set(this.cart.map(c => c.id));
+            this.upgrades = (d.upgrades || []).filter(u => keptIds.has(u.pc_unit_id));
+            this.discount = d.discount || { type: 'value', value: 0 };
+            const dt = document.getElementById('discType'), dv = document.getElementById('discValue');
+            if (dt) dt.value = this.discount.type || 'value'; if (dv) dv.value = this.discount.value || 0;
+            this.renderCart();
+            try { await SF.api('/api/pos/drafts/' + id, { method: 'DELETE' }); } catch (e) {}
+            this.refreshDraftBadge();
+            SF.Modal.close('draftModal');
+            if (gone.length) SF.toast(`${gone.length} article(s) non disponible(s), ignoré(s)`, 'warn', 4000);
+            else SF.toast('Brouillon repris', 'success');
+        },
+        async deleteDraft(id) {
+            if (!await SF.confirm('Supprimer ce brouillon ?', { danger: true, okLabel: 'Supprimer' })) return;
+            try { await SF.api('/api/pos/drafts/' + id, { method: 'DELETE' }); } catch (e) { return SF.toast(e.message, 'error'); }
+            await this.refreshDraftBadge();
+            this.renderDraftList();
+        },
+        renderCart() {
+            const box = document.getElementById('cartItems');
+            const cn = document.getElementById('cartN'); if (cn) { cn.textContent = this.cart.length; cn.style.display = this.cart.length ? '' : 'none'; }
+            if (!this.cart.length) { box.innerHTML = '<div class="cart-empty"><i class="fas fa-barcode" style="font-size:22px;opacity:.5;"></i><br>Panier vide<br><span style="font-size:11.5px;">Scannez un n° de série ou cliquez sur un produit</span></div>'; }
+            else box.innerHTML = this.cart.map((c, i) => {
+                if (c.is_service) {
+                    return `<div class="ci">
+                    <div class="ci-b"><div class="ci-t">${SF.esc(c.product_name)} <span class="badge badge-info" style="font-size:9px;"><i class="fas fa-screwdriver-wrench"></i> Service</span></div></div>
+                    <div class="ci-p">${SF.fmt.ar(c.price)}</div>
+                    <button class="btn btn-sm btn-danger" onclick="Pos.removeItem('${c.id}')"><i class="fas fa-times"></i></button></div>`;
+                }
+                const ups = this.upgradesFor(c.id);
+                const upHtml = ups.map((u, k) => `<div class="ci-s" style="color:var(--accent);"><i class="fas fa-screwdriver-wrench"></i> ${SF.esc(this.fieldLabel(u.field))} : ${SF.esc(u.new_value)} ${u.mode === 'remplacement' || (!u.mode && u.keep) ? '(remplacement)' : '(ajout)'} (+${SF.fmt.ar(u.ecart)}) <a href="#" onclick="Pos.removeUpgrade(${c.id},${k});return false;" style="color:var(--text-muted);">✕</a></div>`).join('');
+                return `<div class="ci">
+                <div class="ci-b"><div class="ci-t">${SF.esc(c.product_name)}${c.status === 'presentoir' ? ' <span class="badge badge-info" style="font-size:9px;">présentoir</span>' : ''}${c.status === 'consignation' ? ` <span class="badge badge-info" style="font-size:9px;"><i class="fas fa-store"></i> boutique${c.holder_name ? ' · ' + SF.esc(c.holder_name) : ''}</span>` : ''}${c.gift ? ' <span class="badge badge-success" style="font-size:9px;"><i class="fas fa-gift"></i> Cadeau</span>' : ''}</div><div class="ci-s">${SF.esc(c.serial)}</div>${upHtml}</div>
+                <div class="ci-p">${c.gift ? '<span style="text-decoration:line-through;color:var(--text-muted);">' + SF.fmt.ar(c.price) + '</span> 0 Ar' : SF.fmt.ar(c.price)}</div>
+                ${c.is_accessory ? `<button class="btn btn-sm ${c.gift ? 'btn-success' : 'btn-secondary'}" title="Offrir (cadeau)" onclick="Pos.toggleGift(${i})"><i class="fas fa-gift"></i></button>`
+                    : `<button class="btn btn-sm btn-secondary" title="Upgrade composant" onclick="Pos.openUpgrade(${c.id})"><i class="fas fa-screwdriver-wrench"></i></button>`}
+                <button class="btn btn-sm btn-danger" onclick="Pos.removeItem(${c.id})"><i class="fas fa-times"></i></button></div>`;
+            }).join('');
+            this.updateTotals();
+        },
+        fieldLabel(f) { return { storage: 'Stockage', ram: 'RAM', cpu: 'Processeur', gpu: 'Carte graphique', screen_size: 'Écran', storage_type: 'Type stockage' }[f] || f; },
+        toggleGift(i) { this.cart[i].gift = !this.cart[i].gift; this.renderCart(); },
+        // Sous-total (cadeaux = 0), remise (% ou valeur), pack cadeau (forfait fixe), upgrades, total.
+        computeTotals() {
+            const subtotal = this.cart.reduce((s, c) => s + (c.gift ? 0 : c.price), 0);
+            const d = this.discount || { type: 'value', value: 0 };
+            const v = Math.max(0, parseFloat(d.value) || 0);
+            let remise = d.type === 'percent' ? Math.round(subtotal * Math.min(v, 100) / 100) : Math.min(v, subtotal);
+            const hasGift = this.cart.some(c => c.gift);
+            const giftPack = hasGift ? this.giftPackAmount : 0;
+            const upTotal = this.upgrades.reduce((s, u) => s + (u.ecart || 0), 0);
+            const total = Math.max(0, subtotal - remise) + giftPack + upTotal;
+            return { subtotal, remise, giftPack, upTotal, total };
+        },
+        updateTotals() {
+            const t = this.computeTotals();
+            document.getElementById('cartSubtotal').textContent = SF.fmt.ar(t.subtotal);
+            document.getElementById('cartRemise').textContent = '− ' + SF.fmt.ar(t.remise);
+            const gpRow = document.getElementById('giftPackRow');
+            gpRow.style.display = t.giftPack > 0 ? '' : 'none';
+            document.getElementById('cartGiftPack').textContent = '+ ' + SF.fmt.ar(t.giftPack);
+            const upRow = document.getElementById('upgradeRow');
+            upRow.style.display = t.upTotal > 0 ? '' : 'none';
+            document.getElementById('cartUpgrades').textContent = '+ ' + SF.fmt.ar(t.upTotal);
+            document.getElementById('cartTotal').textContent = SF.fmt.ar(t.total);
+            document.getElementById('payBtn').disabled = !this.cart.length;
+            document.getElementById('layawayBtn').disabled = !this.cart.length;
+            // Barre d'action fixe (mobile) : miroir du total + masquée si panier vide.
+            const bar = document.getElementById('mobilePayBar');
+            if (bar) {
+                const n = this.cart.length;
+                bar.style.display = n ? '' : 'none';
+                if (!n) this.toggleCart(false);
+                document.getElementById('mpbCount').textContent = n + ' article' + (n > 1 ? 's' : '');
+                document.getElementById('mpbTotal').textContent = SF.fmt.ar(t.total);
+            }
+        },
+        // Téléphone / tablette : ouvre ou ferme la feuille du panier.
+        toggleCart(open) {
+            const c = document.querySelector('.cart');
+            if (!c) return;
+            const on = open == null ? !c.classList.contains('open') : !!open;
+            c.classList.toggle('open', on);
+            document.body.classList.toggle('pos-cart-open', on);
+        },
+        onDiscountChange() {
+            this.discount = { type: document.getElementById('discType').value, value: document.getElementById('discValue').value };
+            this.updateTotals();
+        },
+        // Kit STARLINK au panier : adresse du client obligatoire (lieu d'installation).
+        hasStarlink() { return this.cart.some(c => c.starlink); },
+        addressOk(id) {
+            if (!this.hasStarlink()) return true;
+            const el = document.getElementById(id);
+            if (el && el.value.trim()) return true;
+            if (el) el.focus();
+            SF.toast("Vente Starlink : saisissez l'adresse du client (lieu d'installation)", 'warn', 4500);
+            return false;
+        },
+        clientOk() {
+            if (!SF.checkClient('cl_name', 'cl_phone')) {
+                return false;
+            }
+            return this.addressOk('cl_address');
+        },
+        openPayment() {
+            if (!this.cart.length) return;
+            const total = this.computeTotals().total;
+            document.getElementById('payTotal').textContent = SF.fmt.ar(total);
+            SFPay.mount(document.getElementById('payBox'), total);
+            document.getElementById('at_partial').checked = false; document.getElementById('at_partialBox').style.display = 'none';
+            this.atelierPrepare();
+            document.getElementById('cl_addr_req').style.display = this.hasStarlink() ? '' : 'none';
+            SF.Modal.open('payModal');
+        },
+        // ---- Service atelier : fiche de l'ordinateur apporté par le client ----
+        atelierServices() {
+            return this.cart.filter(c => c.is_service && (this.products.find(p => p.id === c.product_id) || {}).service_atelier);
+        },
+        hasSoldPc() { return this.cart.some(c => !c.is_service && !c.is_accessory); },
+        async atelierPrepare() {
+            const svcs = this.atelierServices();
+            document.getElementById('atelierBox').style.display = svcs.length ? '' : 'none';
+            if (!svcs.length) return;
+            document.getElementById('atelierSvc').textContent = 'Service : ' + [...new Set(svcs.map(s => s.product_name))].join(', ');
+            const sold = this.hasSoldPc();
+            document.getElementById('at_soldWrap').style.display = sold ? '' : 'none';
+            if (!sold) document.getElementById('at_sold').checked = false;
+            this.atelierToggle();
+            if (!this.refs) {
+                try { this.refs = await SF.api('/api/referentiels'); } catch (e) { this.refs = {}; }
+                const fill = (id, cat) => { document.getElementById(id).innerHTML = (this.refs[cat] || []).map(v => `<option value="${SF.esc(v)}">`).join(''); };
+                fill('at_dl_ram', 'ram'); fill('at_dl_storage', 'storage_size');
+            }
+        },
+        // Paiement partiel : seul le prix des services atelier peut rester dû (le matériel se paie en entier).
+        atelierMaxRest() { return this.atelierServices().reduce((s, c) => s + (c.price || 0), 0); },
+        partialToggle() {
+            const on = document.getElementById('at_partial').checked;
+            document.getElementById('at_partialBox').style.display = on ? '' : 'none';
+            const total = this.computeTotals().total;
+            document.getElementById('at_max').textContent = SF.fmt.ar(Math.min(total, this.atelierMaxRest()));
+            if (on) { document.getElementById('at_paid').value = ''; }
+            this.partialChange();
+        },
+        partialChange() {
+            const total = this.computeTotals().total;
+            const on = document.getElementById('at_partial').checked;
+            const paid = on ? Math.min(total, SF.money.val(document.getElementById('at_paid'))) : total;
+            document.getElementById('at_rest').textContent = SF.fmt.ar(Math.max(0, total - paid));
+            document.getElementById('payTotal').textContent = SF.fmt.ar(on ? paid : total);
+            SFPay.setTotal(document.getElementById('payBox'), on ? paid : total);
+        },
+        atelierToggle() {
+            document.getElementById('at_fields').style.display = document.getElementById('at_sold').checked ? 'none' : '';
+        },
+        atelierChg() {
+            document.querySelectorAll('#at_chg .pay-opt').forEach(l => l.classList.toggle('active', l.querySelector('input').checked));
+        },
+        // null = pas de service atelier ; false = fiche incomplète ; sinon la fiche à envoyer.
+        atelierRead() {
+            if (!this.atelierServices().length) return null;
+            if (this.hasSoldPc() && document.getElementById('at_sold').checked) return { on_sold_pc: true };
+            const v = id => document.getElementById(id).value.trim();
+            const chg = document.querySelector('input[name="at_charger"]:checked');
+            const data = { pc: v('at_pc'), ram: v('at_ram'), storage: v('at_storage'), charger: chg ? chg.value : '', note: v('at_note') };
+            const missing = [['at_pc', data.pc], ['at_ram', data.ram], ['at_storage', data.storage], ['at_chg', data.charger]].find(([, val]) => !val);
+            if (missing) {
+                SF.toast("Ordinateur du client : référence, RAM, stockage et chargeur obligatoires", 'warn');
+                const el = document.getElementById(missing[0]);
+                el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                if (el.focus && missing[0] !== 'at_chg') el.focus();
+                el.classList.add('bad'); el.querySelectorAll('.pay-opt').forEach(l => l.classList.add('bad'));
+                setTimeout(() => { el.classList.remove('bad'); el.querySelectorAll('.pay-opt').forEach(l => l.classList.remove('bad')); }, 2500);
+                return false;
+            }
+            return data;
+        },
+        atelierReset() {
+            ['at_pc', 'at_ram', 'at_storage', 'at_note', 'at_paid'].forEach(id => document.getElementById(id).value = '');
+            document.getElementById('at_partial').checked = false; document.getElementById('at_partialBox').style.display = 'none';
+            document.querySelectorAll('input[name="at_charger"]').forEach(r => r.checked = false);
+            document.getElementById('at_sold').checked = false;
+            this.atelierChg();
+        },
+        async finalize() {
+            if (!this.clientOk()) return;   // champs client dans CE modal : on le laisse ouvert pour corriger
+            const clientPc = this.atelierRead();
+            if (clientPc === false) return;
+            let partial_amount;
+            if (this.atelierServices().length && document.getElementById('at_partial').checked) {
+                const total = this.computeTotals().total, paid = SF.money.val(document.getElementById('at_paid'));
+                if (paid <= 0) return SF.toast('Saisissez le montant payé maintenant', 'warn');
+                if (total - paid > this.atelierMaxRest()) return SF.toast(`Le reste ne peut pas dépasser le prix du service atelier (${SF.fmt.ar(this.atelierMaxRest())})`, 'warn');
+                if (paid < total) partial_amount = paid;
+            }
+            const pr = await SFPay.confirm(document.getElementById('payBox')); if (pr.cancelled) return;
+            if (pr.error) return SF.toast(pr.error, 'error');
+            const payload = {
+                partial_amount,
+                client: { name: document.getElementById('cl_name').value.trim(), phone: document.getElementById('cl_phone').value.trim(), address: document.getElementById('cl_address').value.trim(),
+                          nif: document.getElementById('cl_nif').value.trim(), stat: document.getElementById('cl_stat').value.trim(), rcs: document.getElementById('cl_rcs').value.trim() },
+                commercial_id: document.getElementById('cl_commercial').value || null,
+                unit_ids: this.cart.filter(c => !c.is_service).map(c => c.id),
+                services: this.cart.filter(c => c.is_service).map(c => c.product_id),
+                gifts: this.cart.filter(c => c.gift && !c.is_service).map(c => c.id),
+                discount: { type: this.discount.type, value: this.discount.value },
+                upgrades: this.upgrades.map(u => ({ pc_unit_id: u.pc_unit_id, field: u.field, mode: u.mode || (u.keep ? 'remplacement' : 'ajout'), old_value: u.old_value, new_value: u.new_value, new_unit_id: u.new_unit_id, keep: u.keep, old_price: u.old_price, ecart: u.ecart })),
+                payment: { payments: pr.payments },
+                client_pc: clientPc || undefined
+            };
+            const btn = document.getElementById('finalizeBtn'); btn.disabled = true;
+            try {
+                const res = await SF.api('/api/sales', { method: 'POST', body: payload });
+                SF.toast('Vente enregistrée', 'success');
+                SF.Modal.close('payModal');
+                this.clearCart();
+                ['cl_name','cl_phone','cl_address','cl_nif','cl_stat','cl_rcs'].forEach(id => document.getElementById(id).value = '');
+                document.getElementById('cl_pro_toggle').checked = false;
+                document.getElementById('cl_pro_box').style.display = 'none';
+                this.atelierReset();
+                this.printInvoice(res.sale);
+                this.loadProducts();
+            } catch (e) { SF.toast(e.message, 'error'); }
+            btn.disabled = false;
+        },
+        printInvoice(sale) { SFInvoice.chooser(sale, this.config); },
+
+        // ---- UPGRADE composant ----
+        openUpgrade(pcUnitId) {
+            const pc = this.cart.find(c => c.id === pcUnitId);
+            if (!pc || pc.is_accessory) return;
+            this.upgTarget = pc; this.upgNewUnit = null;
+            document.getElementById('upgPc').innerHTML = `Ordinateur : <b>${SF.esc(pc.product_name)}</b> · ${SF.esc(pc.serial)}`;
+            document.getElementById('upg_field').value = 'storage';
+            document.getElementById('upg_newsearch').value = '';
+            document.getElementById('upg_newlist').innerHTML = '';
+            document.getElementById('upg_newsel').innerHTML = '';
+            document.getElementById('upg_newval').value = ''; document.getElementById('upg_newval').dataset.auto = '';
+            document.querySelector('input[name="upg_mode"][value="ajout"]').checked = true;
+            document.getElementById('upg_keepBox').style.display = 'none';
+            document.getElementById('upg_oldprice').value = 0;
+            this.upgFieldChange();
+            this.upgRecalc();
+            SF.Modal.open('upgModal');
+        },
+        upgMode() { const r = document.querySelector('input[name="upg_mode"]:checked'); return r ? r.value : 'ajout'; },
+        upgModeChange() {
+            const keep = this.upgMode() === 'remplacement';
+            document.getElementById('upg_keepBox').style.display = keep ? '' : 'none';
+            document.getElementById('upg_oldLbl').textContent = keep ? 'Composant actuel (retiré, gardé par le magasin)' : 'Composant actuel (reste dans l\'ordinateur)';
+            document.getElementById('upg_oldNameEcho').textContent = document.getElementById('upg_oldval').value.trim() || '—';
+            this.upgSuggestNewVal(true);
+            this.upgRecalc();
+        },
+        upgOldChange() {
+            document.getElementById('upg_oldNameEcho').textContent = document.getElementById('upg_oldval').value.trim() || '—';
+            this.upgSuggestNewVal(true);
+        },
+        // Valeur affichée proposée : en AJOUT de RAM, somme des capacités (4 Go + 4 Go → 8 Go) ; sinon le composant neuf.
+        upgSuggestNewVal(force) {
+            const el = document.getElementById('upg_newval');
+            if (!this.upgNewUnit || (el.value && !force && el.dataset.auto !== '1')) return;
+            const gb = t => { const m = /(\d+(?:[.,]\d+)?)\s*(go|gb|to|tb)\b/i.exec(String(t || '')); if (!m) return null; const v = parseFloat(m[1].replace(',', '.')); return /t/i.test(m[2]) ? v * 1024 : v; };
+            let val = this.upgNewUnit.label;
+            if (this.upgMode() === 'ajout' && document.getElementById('upg_field').value === 'ram') {
+                const a = gb(document.getElementById('upg_oldval').value), b = gb(this.upgNewUnit.label);
+                if (a && b) val = `${a + b} Go`;
+            }
+            if (el.value && el.dataset.auto !== '1' && !force) return;
+            if (!el.value || el.dataset.auto === '1') { el.value = val; el.dataset.auto = '1'; }
+        },
+        upgFieldChange() {
+            const f = document.getElementById('upg_field').value;
+            const prod = this.products.find(p => p.id === this.upgTarget.product_id);
+            let cur = prod ? (prod[f] || '') : '';
+            if (f === 'storage' && prod) cur = [prod.storage, prod.storage_type].filter(Boolean).join(' ');
+            document.getElementById('upg_oldval').value = cur;
+            const echo = document.getElementById('upg_oldNameEcho'); if (echo) echo.textContent = cur || '—'; this.upgSuggestNewVal(true);
+        },
+        async upgSearchNew() {
+            const q = (document.getElementById('upg_newsearch').value || '').trim();
+            const box = document.getElementById('upg_newlist');
+            if (q.length < 2) { box.innerHTML = ''; return; }
+            // Accessoires disponibles (dépôt) correspondant à la recherche.
+            const ql = q.toLowerCase();
+            const matches = this.accessoryProducts.filter(p =>
+                ((p.presentoir || 0) + (p.in_presentation || 0) > 0) && ([p.name, p.brand, p.model, p.description].filter(Boolean).join(' ').toLowerCase().includes(ql)))
+                .slice(0, 8);
+            box.innerHTML = matches.map(p => `<div class="prod-mini" style="padding:6px 8px;border:1px solid var(--border-color);border-radius:6px;margin:3px 0;cursor:pointer;" onclick="Pos.pickNewComp(${p.id})">
+                ${SF.esc([p.brand, p.model].filter(Boolean).join(' ') || p.name)} — <b>${SF.fmt.ar(p.sale_price)}</b> <span class="text-muted">(${(p.presentoir || 0) + (p.in_presentation || 0)} sorti(s))</span></div>`).join('') || '<div class="text-muted" style="font-size:12px;">Aucun accessoire sorti du dépôt.</div>';
+        },
+        async pickNewComp(productId) {
+            try {
+                const units = await SF.api(`/api/products/${productId}/units`);
+                const u = (units || []).find(x => x.status === 'presentoir') || (units || []).find(x => x.status === 'consignation');
+                if (!u) return SF.toast('Aucune unité sortie du dépôt pour ce composant', 'error');
+                const p = this.accessoryProducts.find(x => x.id === productId);
+                this.upgNewUnit = { id: u.id, serial: u.serial, price: p ? p.sale_price : (u.sale_price || 0), label: [p.brand, p.model].filter(Boolean).join(' ') || (p ? p.name : '') };
+                document.getElementById('upg_newsel').innerHTML = `Neuf : <b>${SF.esc(this.upgNewUnit.label)}</b> · ${SF.esc(this.upgNewUnit.serial)} · ${SF.fmt.ar(this.upgNewUnit.price)}`;
+                document.getElementById('upg_newlist').innerHTML = '';
+                this.upgSuggestNewVal();
+                this.upgRecalc();
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        // Sélection du composant neuf par SCAN d'un n° de série (accessoire), y compris code partagé.
+        async upgScanNew(serial) {
+            serial = (serial || '').trim(); if (!serial) return;
+            try {
+                const rows = await SF.api('/api/units/search?q=' + encodeURIComponent(serial));
+                const u = rows.find(x => x.is_accessory && x.pos_sellable) || rows.find(x => x.is_accessory);
+                if (!u) return SF.toast('Aucun accessoire trouvé pour ce n° de série', 'error');
+                if (u.status === 'stock') return SF.toast('Composant encore au dépôt : faites d\'abord sa sortie du stock', 'error');
+                if (!u.pos_sellable) return SF.toast(`Non disponible (${SF.UNIT_STATUS[u.status] || u.status})`, 'error');
+                const p = this.accessoryProducts.find(x => x.id === u.product_id);
+                this.upgNewUnit = { id: u.id, serial: u.serial, price: p ? p.sale_price : (u.sale_price || 0), label: [u.brand, u.model].filter(Boolean).join(' ') || u.product_name };
+                document.getElementById('upg_newsel').innerHTML = `Neuf : <b>${SF.esc(this.upgNewUnit.label)}</b> · ${SF.esc(this.upgNewUnit.serial)} · ${SF.fmt.ar(this.upgNewUnit.price)}`;
+                document.getElementById('upg_newlist').innerHTML = '';
+                document.getElementById('upg_newsearch').value = '';
+                this.upgSuggestNewVal();
+                this.upgRecalc();
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        // Écart = prix du composant neuf − (valeur de reprise SI on reprend l'ancien au stock).
+        upgRecalc() {
+            const newP = this.upgNewUnit ? this.upgNewUnit.price : 0;
+            const keep = this.upgMode() === 'remplacement';
+            const oldP = keep ? SF.money.val(document.getElementById('upg_oldprice')) : 0;
+            const ecart = Math.max(0, newP - oldP);
+            document.getElementById('upg_ecart').textContent = SF.fmt.ar(ecart);
+            const hint = document.getElementById('upg_ecartHint');
+            if (hint) hint.textContent = !this.upgNewUnit ? 'Choisissez d\'abord le composant neuf.'
+                : keep ? `Prix neuf ${SF.fmt.ar(newP)} − reprise ${SF.fmt.ar(oldP)} (l'ancien composant part au dépôt, réception à valider).`
+                       : `Prix neuf complet ${SF.fmt.ar(newP)} (ajout : le composant actuel reste dans l'ordinateur).`;
+            return ecart;
+        },
+        addUpgrade() {
+            if (!this.upgTarget) return;
+            if (!this.upgNewUnit) return SF.toast('Choisissez le composant neuf en stock', 'error');
+            const newVal = document.getElementById('upg_newval').value.trim();
+            if (!newVal) return SF.toast('Indiquez la nouvelle valeur', 'error');
+            const mode = this.upgMode(), keep = mode === 'remplacement';
+            const oldVal = document.getElementById('upg_oldval').value.trim();
+            if (keep && !oldVal) return SF.toast('Indiquez le composant actuel (à reprendre)', 'error');
+            const oldPrice = keep ? SF.money.val(document.getElementById('upg_oldprice')) : 0;
+            const ecart = this.upgRecalc();
+            this.upgrades.push({
+                pc_unit_id: this.upgTarget.id, field: document.getElementById('upg_field').value,
+                old_value: oldVal, new_value: newVal,
+                new_unit_id: this.upgNewUnit.id, new_price: this.upgNewUnit.price,
+                mode, keep, old_price: oldPrice, ecart
+            });
+            SF.Modal.close('upgModal');
+            this.renderCart();
+        },
+        removeUpgrade(pcUnitId, k) {
+            const ups = this.upgradesFor(pcUnitId);
+            const target = ups[k];
+            if (target) this.upgrades.splice(this.upgrades.indexOf(target), 1);
+            this.renderCart();
+        },
+
+        // ---- VENTE AVEC AVANCE (acompte) ----
+        openLayaway() {
+            if (!this.cart.length) return;
+            if (this.cart.some(c => c.gift) || this.upgrades.length)
+                return SF.toast('Avance : retirez d\'abord les cadeaux / upgrades (vente simple uniquement).', 'error');
+            const total = this.computeTotals().total;
+            document.getElementById('layTotal').textContent = SF.fmt.ar(total);
+            document.getElementById('lay_deposit').value = '';
+            document.getElementById('lay_balance').textContent = SF.fmt.ar(total);
+            document.getElementById('lay_name').value = document.getElementById('cl_name').value || '';
+            document.getElementById('lay_phone').value = document.getElementById('cl_phone').value || '';
+            document.getElementById('lay_addr_box').style.display = this.hasStarlink() ? '' : 'none';
+            document.getElementById('lay_address').value = document.getElementById('cl_address').value || '';
+            const today = SF.fmt.today();
+            const due = new Date(Date.parse(today + 'T00:00:00Z') + this.layMaxDays * 86400000).toISOString().slice(0, 10);
+            const nx = document.getElementById('lay_next');
+            nx.min = today; nx.max = due; nx.value = '';
+            document.getElementById('lay_due').textContent = SF.fmt.date(due) + ` (${this.layMaxDays} jours)`;
+            SFPay.mount(document.getElementById('layPayBox'), 0);
+            SF.Modal.open('layModal');
+        },
+        layDepChange() {
+            const total = this.computeTotals().total;
+            const dep = SF.money.val(document.getElementById('lay_deposit'));
+            document.getElementById('lay_balance').textContent = SF.fmt.ar(Math.max(0, total - dep));
+            SFPay.setTotal(document.getElementById('layPayBox'), dep);
+        },
+        async finalizeLayaway() {
+            const total = this.computeTotals().total;
+            const dep = SF.money.val(document.getElementById('lay_deposit'));
+            if (dep <= 0) return SF.toast('Saisissez le montant de l\'avance', 'error');
+            if (dep >= total) return SF.toast('L\'avance doit être inférieure au total', 'error');
+            if (!SF.checkClient('lay_name', 'lay_phone')) return;
+            if (!this.addressOk('lay_address')) return;
+            const nextDate = document.getElementById('lay_next').value;
+            if (!nextDate) { document.getElementById('lay_next').focus(); return SF.toast('Date du prochain paiement obligatoire', 'warn'); }
+            const pr = await SFPay.confirm(document.getElementById('layPayBox')); if (pr.cancelled) return;
+            if (pr.error) return SF.toast(pr.error, 'error');
+            const btn = document.getElementById('layFinalizeBtn'); btn.disabled = true;
+            try {
+                const r = await SF.api('/api/layaways', { method: 'POST', body: {
+                    next_payment_date: nextDate,
+                    client: { name: document.getElementById('lay_name').value.trim(), phone: document.getElementById('lay_phone').value.trim(), address: document.getElementById('lay_address').value.trim() },
+                    commercial_id: document.getElementById('lay_commercial').value || null,
+                    unit_ids: this.cart.filter(c => !c.is_service).map(c => c.id),      // unités réservées
+                    services: this.cart.filter(c => c.is_service).map(c => c.product_id), // services (sans unité)
+                    discount: this.discount,
+                    deposit: { payments: pr.payments }
+                }});
+                SF.toast('Avance enregistrée — articles réservés', 'success');
+                SF.Modal.close('layModal');
+                if (r.layaway) SFInvoice.avance(r.layaway, this.config, this.layConditions);   // facture d'avance
+                this.clearCart();
+                ['cl_name','cl_phone','cl_address','lay_name','lay_phone','lay_address'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+                this.loadProducts();
+            } catch (e) { SF.toast(e.message, 'error'); }
+            btn.disabled = false;
+        }
+    };
+    Pos.init();
+    </script>
+</body>
+</html>

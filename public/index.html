@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <title>Tableau de bord — STOCKFLOW</title>
+    <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css">
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/sf.css">
+    <script>document.documentElement.setAttribute('data-theme', localStorage.getItem('stockflow-theme') === 'dark' ? 'dark' : 'light'); try { var sfu = JSON.parse(localStorage.getItem('stockflow-ui') || '{}'); for (var k in sfu) document.documentElement.setAttribute('data-' + k, sfu[k]); } catch (e) {}</script>
+    <style>
+        .quick-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(210px, 1fr)); gap:16px; }
+        .rr-quick { grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)) !important; gap:10px !important; }
+        .rr-quick .quick-card { padding:12px; gap:10px; }
+        .quick-card { display:flex; align-items:center; gap:14px; padding:18px; background:var(--bg-card); border:1px solid var(--border-color); border-radius:var(--border-radius-lg); cursor:pointer; transition:transform .12s, border-color .12s; text-decoration:none; }
+        .quick-card:hover { transform:translateY(-2px); border-color:var(--accent); }
+        .quick-icon { width:46px; height:46px; border-radius:13px; background:var(--accent-glow); color:var(--text-primary); display:flex; align-items:center; justify-content:center; font-size:18px; flex-shrink:0; }
+        .quick-card h4 { font-size:14.5px; color:var(--text-primary); } .quick-card span { font-size:12px; color:var(--text-muted); }
+        /* Groupes de KPI du dashboard admin : en-tête discret + grille resserrée. */
+        .dash-group { margin-bottom:18px; }
+        .dash-group-title { font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--text-muted); margin:0 0 10px; display:flex; align-items:center; gap:8px; }
+        :root[data-look="soft"] .dash-group-title { font-size:15px; text-transform:none; letter-spacing:0; color:var(--text-primary) !important; }
+        :root[data-look="soft"] .hcard .hlbl { text-transform:none; letter-spacing:0; font-size:14px; font-weight:600; color:var(--text-primary); }
+        :root[data-look="soft"] .hcard .hval { font-size:32px; margin:14px 0 4px; }
+        .hcard .sf-ico { width:42px; height:42px; font-size:17px; }
+        .achip .sf-ico { width:40px; height:40px; }
+        :root[data-look="soft"] .stats-grid > .scard:not(.accent):nth-child(6n+1) .lbl > i:first-child { color:var(--ink-teal) !important; }
+        :root[data-look="soft"] .stats-grid > .scard:not(.accent):nth-child(6n+2) .lbl > i:first-child { color:var(--ink-yellow) !important; }
+        :root[data-look="soft"] .stats-grid > .scard:not(.accent):nth-child(6n+3) .lbl > i:first-child { color:var(--ink-blue) !important; }
+        :root[data-look="soft"] .stats-grid > .scard:not(.accent):nth-child(6n+4) .lbl > i:first-child { color:var(--ink-violet) !important; }
+        :root[data-look="soft"] .stats-grid > .scard:not(.accent):nth-child(6n+5) .lbl > i:first-child { color:var(--ink-green) !important; }
+        :root[data-look="soft"] .stats-grid > .scard:not(.accent):nth-child(6n) .lbl > i:first-child { color:var(--ink-coral) !important; }
+        :root[data-look="soft"] .quick-card .quick-icon { border-radius:12px !important; }
+        :root[data-look="soft"] .quick-card:nth-child(6n+1) .quick-icon { background:var(--tint-teal) !important; } :root[data-look="soft"] .quick-card:nth-child(6n+1) .quick-icon i { color:var(--ink-teal) !important; }
+        :root[data-look="soft"] .quick-card:nth-child(6n+2) .quick-icon { background:var(--tint-yellow) !important; } :root[data-look="soft"] .quick-card:nth-child(6n+2) .quick-icon i { color:var(--ink-yellow) !important; }
+        :root[data-look="soft"] .quick-card:nth-child(6n+3) .quick-icon { background:var(--tint-blue) !important; } :root[data-look="soft"] .quick-card:nth-child(6n+3) .quick-icon i { color:var(--ink-blue) !important; }
+        :root[data-look="soft"] .quick-card:nth-child(6n+4) .quick-icon { background:var(--tint-violet) !important; } :root[data-look="soft"] .quick-card:nth-child(6n+4) .quick-icon i { color:var(--ink-violet) !important; }
+        :root[data-look="soft"] .quick-card:nth-child(6n+5) .quick-icon { background:var(--tint-green) !important; } :root[data-look="soft"] .quick-card:nth-child(6n+5) .quick-icon i { color:var(--ink-green) !important; }
+        :root[data-look="soft"] .quick-card:nth-child(6n) .quick-icon { background:var(--tint-coral) !important; } :root[data-look="soft"] .quick-card:nth-child(6n) .quick-icon i { color:var(--ink-coral) !important; }
+        .dash-group-title i { color:var(--accent-dark); font-size:13px; }
+        /* Groupes du tableau de bord : une carte à en-tête (comme « Garanties fournisseur »),
+           cartes internes sur fond teinté, une couleur par indicateur. */
+        .dash-card { margin-bottom:16px; }
+        .dash-card .card-body { padding-top:4px; }
+        .dash-card .stats-grid { grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); margin-bottom:0; }
+        .dash-card :is(.scard, .achip)[class*="tone-"] { border-color:transparent !important; }
+        .dash-card :is(.scard, .achip)[class*="tone-"] .sf-ico { background:#fff; }
+        :root[data-theme="dark"] .dash-card :is(.scard, .achip)[class*="tone-"] .sf-ico { background:rgba(255,255,255,.08); }
+        .dash-card :is(.scard, .achip)[class*="tone-"]:hover { border-color:currentColor !important; }
+        .dash-card .tone-teal   { background:var(--tint-teal, #e0f0ec) !important;   color:var(--ink-teal, #0f6b5f); }
+        .dash-card .tone-yellow { background:var(--tint-yellow, #fff2cc) !important; color:var(--ink-yellow, #a46f00); }
+        .dash-card .tone-blue   { background:var(--tint-blue, #e3eefc) !important;   color:var(--ink-blue, #2766c4); }
+        .dash-card .tone-violet { background:var(--tint-violet, #eeeafc) !important; color:var(--ink-violet, #6a4fc4); }
+        .dash-card .tone-coral  { background:var(--tint-coral, #fde9e4) !important;  color:var(--ink-coral, #c4503a); }
+        .dash-card .tone-green  { background:var(--tint-green, #e3f5e9) !important;  color:var(--ink-green, #1b8a49); }
+        .dash-card [class*="tone-"] .lbl, .dash-card [class*="tone-"] .ac-lbl { color:inherit !important; font-weight:700; opacity:.9; }
+        .dash-card [class*="tone-"] .val, .dash-card [class*="tone-"] .ac-val { color:var(--text-primary) !important; }
+        .dash-card [class*="tone-"] .ac-go { color:inherit; opacity:.6; }
+        .dash-group .stats-grid { grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); margin-bottom:0; }
+        /* HERO : 3 chiffres vitaux, plus grands. */
+        .dash-hero { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:14px; margin-bottom:20px; }
+        .hcard { background:var(--bg-card); border:1px solid var(--border-color); border-radius:var(--border-radius-lg); padding:20px 22px; cursor:pointer; transition:transform .12s, border-color .12s; }
+        .hcard:hover { transform:translateY(-2px); border-color:var(--accent); }
+        .hcard.accent { background:linear-gradient(120deg,var(--accent-glow),transparent); border-color:var(--accent); }
+        .hcard.good { border-left:4px solid var(--success-dark,#16a34a); }
+        .hcard .hlbl { font-size:12px; color:var(--text-muted); font-weight:700; text-transform:uppercase; letter-spacing:.05em; }
+        .hcard .hval { font-size:30px; font-weight:800; color:var(--text-primary); margin:8px 0 4px; line-height:1.05; }
+        .hcard .hsub { font-size:12px; color:var(--text-muted); }
+        /* ACTION CENTER : chips « à traiter » (masqués si 0). */
+        .achips { display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:10px; }
+        .achip { display:flex; align-items:center; gap:12px; padding:12px 14px; border-radius:var(--border-radius-lg); background:var(--bg-card); border:1px solid var(--border-color); text-decoration:none; color:var(--text-primary); transition:transform .12s, border-color .12s; }
+        .achip:hover { transform:translateY(-1px); border-color:var(--accent); }
+        .achip > i:first-child { font-size:18px; width:22px; text-align:center; color:var(--text-muted); }
+        .achip .ac-body { flex:1; min-width:0; }
+        .achip .ac-val { font-size:16px; font-weight:800; line-height:1.1; }
+        .achip .ac-lbl { font-size:11.5px; color:var(--text-muted); margin-top:1px; }
+        .achip .ac-go { font-size:11px; opacity:.35; }
+        .achip.warn { border-left:4px solid var(--warning-dark,#d97706); } .achip.warn > i:first-child { color:var(--warning-dark,#d97706); }
+        .achip.danger { border-left:4px solid var(--danger,#ef4444); } .achip.danger > i:first-child { color:var(--danger,#ef4444); }
+        .achip.info { border-left:4px solid #0284c7; } .achip.info > i:first-child { color:#0284c7; }
+        /* Cartes statistiques personnelles : réparties sur toute la largeur (justifiées), contenu centré. */
+        #myStats .stats-grid { grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); }
+        #myStats h3 { text-align:center; }
+        #myStats .scard { text-align:center; }
+        #myStats .scard .lbl { justify-content:center; }
+        #myStats .scard .val { text-align:center; }
+        /* Mobile : garder 2 colonnes de KPI (au lieu d'une seule pile très longue).
+           #id > .stats-grid en spécificité → surcharge la règle globale 1 colonne. */
+        @media (max-width:768px){
+            #statsGrid, #myStats .stats-grid { grid-template-columns:repeat(2,1fr); gap:10px; }
+            #statsGrid .scard, #myStats .scard { padding:13px 12px; }
+            #statsGrid .scard .val, #myStats .scard .val { font-size:18px; }
+            #statsGrid .scard .lbl, #myStats .scard .lbl { font-size:11px; }
+            /* Accueil compact : bandeau de bienvenue réduit, chiffres vitaux 1 + 2. */
+                        .dash-hero { grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px; }
+            .dash-hero .hcard:first-child { grid-column:1 / -1; }
+            .hcard { padding:14px; }
+            .hcard .hlbl { font-size:10.5px; }
+            .hcard .hval { font-size:19px; margin:6px 0 3px; }
+            .dash-hero .hcard:first-child .hval { font-size:26px; }
+            .hcard .hsub { font-size:11px; }
+            .achips { grid-template-columns:1fr; gap:8px; }
+            .dash-group .stats-grid, .dash-card .stats-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+            .dash-card .card-body { padding:4px 12px 12px; }
+            .quick-grid { grid-template-columns:1fr 1fr; gap:10px; }
+            .quick-card { flex-direction:column; align-items:flex-start; gap:10px; padding:14px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar" id="sfSidebar"></aside>
+        <main class="main-content">
+            <header class="page-header">
+                <div class="page-title"><h1>Tableau de bord</h1><p id="todayLabel"></p></div>
+                <div class="page-actions"><div id="sfTools"></div></div>
+            </header>
+            <div class="page-body">
+                <div id="adminDash" style="display:none;"></div>
+                <div id="myStats" style="margin-bottom:24px;"></div>
+                <div id="roleInsights"></div>
+                <div id="stockRecapGeneral" style="margin-bottom:24px;"></div>
+                <div id="stockRecap" style="margin-bottom:24px;"></div>
+                <div id="quickWrap" style="display:none;"><div class="quick-grid" id="quickGrid"></div></div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modale mobile money -->
+    <div class="modal-overlay" id="mmModal">
+        <div class="modal" style="max-width:560px;">
+            <div class="modal-header"><h3>Mobile Money & Chèque</h3><button class="modal-close" onclick="SF.Modal.close('mmModal')">&times;</button></div>
+            <div class="modal-body" id="mmBody"></div>
+            <div class="modal-footer"><button class="btn btn-secondary" onclick="SF.Modal.close('mmModal')">Fermer</button></div>
+        </div>
+    </div>
+
+    <!-- Modale détail récap boutique (drill-down) -->
+    <div class="modal-overlay" id="drillModal">
+        <div class="modal" style="max-width:620px;">
+            <div class="modal-header"><h3 id="drillTitle">Détail</h3><button class="modal-close" onclick="SF.Modal.close('drillModal')">&times;</button></div>
+            <div class="modal-body" id="drillBody"></div>
+            <div class="modal-footer"><button class="btn btn-secondary" onclick="SF.Modal.close('drillModal')">Fermer</button></div>
+        </div>
+    </div>
+
+    <script src="/js/sf-core.js"></script>
+    <script src="/js/sf-chart.js"></script>
+    <script src="/js/sf-layout.js"></script>
+    <script>
+    const Dash = {
+        user: null, chart: null, topRange: 'month', perfRange: 'month',
+        async init() {
+            this.user = await SF.Auth.require();
+            if (!this.user) return;
+            SF.layout({ active: '/index.html' });
+            const hour = new Date().getHours();
+            const greet = hour < 12 ? 'Bonjour' : (hour < 18 ? 'Bon après-midi' : 'Bonsoir');
+            const who = String(this.user.full_name || this.user.username || '').trim().split(/\s+/)[0];
+            const day = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+            document.getElementById('todayLabel').textContent = `${greet}${who ? ' ' + who : ''} · ${day}`;
+
+            if (this.user.role === 'admin') this.renderAdmin();
+            else { this.loadMyStats(); this.loadRoleInsights(); if (this.user.role === 'gestion_stock') { this.loadStockRecapGeneral(); this.loadStockRecap(); } }
+            // Rafraîchissement groupé (anti-emballement) sur les événements métier.
+            let rt = null;
+            const refresh = () => { clearTimeout(rt); rt = setTimeout(() => { this.user.role === 'admin' ? this.loadStats() : (this.loadMyStats(), this.refreshRoleInsights(), this.user.role === 'gestion_stock' && (this.loadStockRecapGeneral(), this.loadStockRecap())); }, 1200); };
+            SF.on('sale:new', refresh);
+            SF.on('delivery:update', refresh);
+            SF.on('install:update', refresh);
+        },
+        TINTS: ['teal', 'yellow', 'blue', 'violet', 'green', 'coral'],
+        // ── Rôles (hors admin) : graphique d'activité + récap, meilleurs produits / accès rapides, caisse du jour ──
+        roleCharts: [], roleRange: '7d', roleTopRange: 'month',
+        async loadRoleInsights() {
+            const box = document.getElementById('roleInsights'); if (!box) return;
+            let charts = [], top = { available: false };
+            try { charts = (await SF.api('/api/dashboard/my-chart?range=' + this.roleRange)).charts || []; } catch (e) {}
+            try { top = await SF.api('/api/dashboard/my-top?range=' + this.roleTopRange); } catch (e) {}
+            const ranges = `<div class="range-btns rr-ranges">${[['7d', '7 jours'], ['1m', '1 mois'], ['3m', '3 mois'], ['6m', '6 mois'], ['global', 'Global']]
+                .map(([r, l]) => `<button data-r="${r}" class="${r === this.roleRange ? 'active' : ''}">${l}</button>`).join('')}</div>`;
+            const side = top.available
+                ? `<div class="card"><div class="card-header"><h3><i class="fas fa-trophy"></i> ${this.user.role === 'caisse' ? 'Meilleurs produits' : 'Mes meilleurs produits'}</h3>
+                    <div class="range-btns" id="roleTopRanges">${[['day', 'Jour'], ['week', 'Semaine'], ['month', 'Mois'], ['global', 'Global']]
+                        .map(([r, l]) => `<button data-r="${r}" class="${r === this.roleTopRange ? 'active' : ''}">${l}</button>`).join('')}</div></div>
+                    <div class="card-body" id="roleTop"></div></div>`
+                : `<div class="card"><div class="card-header"><h3><i class="fas fa-bolt"></i> Accès rapides</h3></div><div class="card-body"><div class="quick-grid rr-quick" id="roleQuick"></div></div></div>`;
+            box.innerHTML = charts.map((c, i) => `<div class="grid2">
+                    <div class="card chart-card"><div class="card-header"><h3><i class="fas ${c.icon}"></i> ${SF.esc(c.title)}</h3>${ranges}</div>
+                        <div class="card-body">
+                            <div class="chart-legend"><span><i style="background:var(--accent);"></i> ${SF.esc(c.a)}</span><span><i style="background:var(--accent-2,#f9c440);"></i> ${SF.esc(c.b)}</span></div>
+                            <div style="height:260px;position:relative;"><canvas id="roleChart${i}"></canvas></div>
+                            <div class="crecap" id="roleRecap${i}"></div>
+                        </div></div>
+                    ${i === 0 ? side : '<div></div>'}
+                </div>`).join('') + (this.user.role === 'caisse' ? '<div id="cashToday"></div>' : '');
+            if (!charts.length) box.innerHTML = `<div class="grid2"><div></div>${side}</div>`;
+            this.roleCharts.forEach(ch => ch && ch.destroy()); this.roleCharts = [];
+            for (let i = 0; i < charts.length; i++) {
+                const c = charts[i];
+                this.roleCharts[i] = await SF.SalesChart.load({ canvas: document.getElementById('roleChart' + i), recap: document.getElementById('roleRecap' + i),
+                    range: this.roleRange, rows: c.rows || [], labels: { a: c.a, b: c.b }, moneyA: !!c.moneyA, unitA: c.unitA || '' });
+            }
+            box.querySelectorAll('.rr-ranges button').forEach(b => b.onclick = () => { this.roleRange = b.dataset.r; this.loadRoleInsights(); });
+            box.querySelectorAll('#roleTopRanges button').forEach(b => b.onclick = () => { this.roleTopRange = b.dataset.r; this.loadRoleInsights(); });
+            if (top.available) this.renderRank(document.getElementById('roleTop'), top.rows || []);
+            else this.renderQuickInto(document.getElementById('roleQuick'));
+            if (this.user.role === 'caisse') this.loadCashToday();
+        },
+        refreshRoleInsights() { clearTimeout(this._rri); this._rri = setTimeout(() => this.loadRoleInsights(), 300); },
+        renderRank(box, rows) {
+            if (!box) return;
+            box.innerHTML = rows.length ? rows.map((r, i) => `<div class="rank"><div class="n">${i + 1}</div><div class="nm">${SF.esc([r.brand, r.model].filter(Boolean).join(' ') || r.product_name || '—')}</div><div style="text-align:right;"><div style="font-weight:700;">${r.qty} vendus</div>${r.revenue != null ? `<div class="text-muted" style="font-size:11.5px;">${SF.fmt.ar(r.revenue)}</div>` : ''}</div></div>`).join('')
+                : '<div class="text-muted" style="padding:20px;text-align:center;">Aucune vente sur la période</div>';
+        },
+        renderQuickInto(grid) {
+            if (!grid) return;
+            const links = [...document.querySelectorAll('#sfSidebar .nav-item')].filter(a => !a.classList.contains('active'));
+            grid.innerHTML = links.map(a => `<a class="quick-card" href="${a.getAttribute('href')}"><div class="quick-icon"><i class="${a.querySelector('i').className}"></i></div><div><h4>${SF.esc(a.querySelector('span').textContent)}</h4></div></a>`).join('')
+                || '<div class="text-muted">—</div>';
+        },
+        // Caisse : ventilation des encaissements du jour par mode de paiement.
+        async loadCashToday() {
+            const box = document.getElementById('cashToday'); if (!box) return;
+            try {
+                const t = await SF.api('/api/treasury/summary');
+                const mm = t.mm_by_method || {};
+                const tile = (lbl, icon, v) => `<div class="scard" role="button" tabindex="0" onclick="location.href='/treasury.html'"><div class="k-top"><div class="lbl">${lbl}</div><span class="sf-ico"><i class="fas ${icon}"></i></span></div><div class="val">${v}</div></div>`;
+                box.innerHTML = `<div class="card sf-group"><div class="card-header"><h3><i class="fas fa-cash-register"></i> Caisse du jour</h3>
+                        <span class="badge ${t.closed ? 'badge-success' : 'badge-warning'}">${t.closed ? 'Clôturée' : 'À clôturer'}</span></div>
+                    <div class="card-body"><div class="stats-grid">
+                        ${tile('Espèces', 'fa-money-bill-wave', SF.fmt.ar(t.cash_sales))}
+                        ${tile('MVola', 'fa-mobile-screen', SF.fmt.ar(mm.mvola || 0))}
+                        ${tile('Orange Money', 'fa-mobile-screen', SF.fmt.ar(mm.orange_money || 0))}
+                        ${tile('Airtel Money', 'fa-mobile-screen', SF.fmt.ar(mm.airtel_money || 0))}
+                        ${tile('Chèque', 'fa-money-check', SF.fmt.ar(t.cheque_sales))}
+                        ${tile('Virement', 'fa-building-columns', SF.fmt.ar(t.virement_sales))}
+                        ${tile('Fond de caisse', 'fa-piggy-bank', SF.fmt.ar(t.fond_total))}
+                        ${tile('Dépenses', 'fa-arrow-down', SF.fmt.ar(t.expenses_total))}
+                        ${tile('Encaisse attendue', 'fa-wallet', SF.fmt.ar(t.expected_cash))}
+                    </div></div></div>`;
+            } catch (e) { box.innerHTML = ''; }
+        },
+        async loadMyStats() {
+            try {
+                const r = await SF.api('/api/dashboard/my-stats');
+                const box = document.getElementById('myStats');
+                if (!r.cards || !r.cards.length) { box.innerHTML = ''; this.renderQuick(); return; }
+                box.innerHTML = `<div class="card sf-group"><div class="card-header"><h3><i class="fas fa-chart-simple"></i> ${SF.esc(r.title)}</h3></div><div class="card-body">
+                    <div class="stats-grid">${r.cards.map((c, i) => {
+                        const val = c.money ? SF.fmt.ar(c.value) : c.value;
+                        const style = c.tone === 'warn' ? ' style="color:var(--warning-dark);"' : '';
+                        const tint = c.tone === 'accent' ? 'white' : c.tone === 'warn' ? 'yellow' : Dash.TINTS[i % Dash.TINTS.length];
+                        return `<div class="scard ${c.tone === 'accent' ? 'accent' : ''}" role="button" tabindex="0" onclick="location.href='${c.link}'">
+                            <div class="k-top"><div class="lbl">${SF.esc(c.label)}</div><span class="sf-ico t-${tint}"><i class="fas ${c.icon}"></i></span></div>
+                            <div class="val"${style}>${val}</div></div>`;
+                    }).join('')}</div></div></div>`;
+            } catch (e) {}
+        },
+        // ── Récap stock GÉNÉRAL (ordinateurs) : stock ancien / entrées / sorties / disponible, période choisie. ──
+        recapGenFrom: null, recapGenTo: null,
+        async loadStockRecapGeneral() {
+            if (!this.recapGenTo) this.recapGenTo = SF.fmt.today();
+            if (!this.recapGenFrom) this.recapGenFrom = SF.fmt.today();
+            try {
+                const r = await SF.api(`/api/dashboard/stock-recap-general?from=${this.recapGenFrom}&to=${this.recapGenTo}`);
+                const o = r.ordinateurs; const box = document.getElementById('stockRecapGeneral'); if (!box) return;
+                const card = (ic, lbl, val, sub, tone, click) => `<div class="scard ${tone || ''}"${click ? ` style="cursor:pointer;" title="Voir le détail" onclick="${click}"` : ''}>
+                    <div class="lbl" style="justify-content:center;"><i class="fas ${ic}"></i> ${lbl}${click ? ' <i class="fas fa-magnifying-glass" style="font-size:10px;opacity:.6;"></i>' : ''}</div>
+                    <div class="val" style="text-align:center;">${val}</div>
+                    ${sub ? `<div class="text-muted" style="text-align:center;font-size:11px;margin-top:2px;">${sub}</div>` : ''}</div>`;
+                box.innerHTML = `<div class="card">
+                    <div class="card-header"><h3><i class="fas fa-laptop"></i> Récap stock général — Ordinateurs</h3>
+                        <a href="/stock.html?g=pc" class="btn btn-sm btn-secondary">Voir le stock</a></div>
+                    <div class="card-body">
+                        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+                            <span class="text-muted" style="font-size:12px;">Du</span>
+                            <input type="date" class="form-control" style="max-width:158px;" value="${this.recapGenFrom}" max="${SF.fmt.today()}" onchange="Dash.recapGenFrom=this.value;if(Dash.recapGenTo<this.value)Dash.recapGenTo=this.value;Dash.loadStockRecapGeneral()">
+                            <span class="text-muted" style="font-size:12px;">au</span>
+                            <input type="date" class="form-control" style="max-width:158px;" value="${this.recapGenTo}" max="${SF.fmt.today()}" onchange="Dash.recapGenTo=this.value;Dash.loadStockRecapGeneral()">
+                            <button class="btn btn-sm btn-secondary" onclick="Dash.recapGenFrom=SF.fmt.today();Dash.recapGenTo=SF.fmt.today();Dash.loadStockRecapGeneral()"><i class="fas fa-calendar-day"></i> Aujourd'hui</button>
+                        </div>
+                        <div class="stats-grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));">
+                            ${card('fa-clock-rotate-left', 'Stock ancien', o.ancien, 'ouverture (veille)')}
+                            ${card('fa-arrow-down', 'Entrées', o.entree, 'réceptions + garanties revenues', 'accent', "Dash.generalDrill('entree','Entrées')")}
+                            ${card('fa-arrow-up', 'Sorties', o.sortie_total, `vendu ${o.sortie_vendu} · garantie ${o.sortie_garantie} · livraison ${o.sortie_livraison}${o.sortie_autre ? ' · autre ' + o.sortie_autre : ''}`, '', "Dash.generalDrill('sortie','Sorties')")}
+                            ${card('fa-boxes-stacked', 'Stock disponible', o.disponible, 'dépôt + boutique + installation', 'accent')}
+                        </div>
+                        <div class="text-muted" style="font-size:11px;margin-top:10px;"><i class="fas fa-circle-info"></i> Seuls <strong>vendu</strong>, <strong>garantie</strong> et <strong>livraison</strong> sortent du stock. La <strong>boutique</strong> et l'<strong>installation</strong> restent comptées dans le stock disponible (elles n'en sortent qu'une fois vendues ou livrées).</div>
+                    </div></div>`;
+            } catch (e) {}
+        },
+        // Détail (unités) derrière « Entrées » / « Sorties » du récap général : où c'est parti,
+        // qui a livré/vendu (le `note` du mouvement porte le livreur, le client, le n° de bon).
+        async generalDrill(metric, title) {
+            const isEntree = metric === 'entree';
+            document.getElementById('drillTitle').textContent = `${title} — du ${SF.fmt.date(this.recapGenFrom)} au ${SF.fmt.date(this.recapGenTo)}`;
+            document.getElementById('drillBody').innerHTML = '<div class="text-center text-muted" style="padding:20px;">Chargement…</div>';
+            SF.Modal.open('drillModal');
+            try {
+                const q = new URLSearchParams({ metric, from: this.recapGenFrom, to: this.recapGenTo });
+                const rows = await SF.api('/api/dashboard/stock-general-units?' + q.toString());
+                if (!rows.length) { document.getElementById('drillBody').innerHTML = '<div class="text-center text-muted" style="padding:20px;">Aucun mouvement.</div>'; return; }
+                const prov = u => u.action === 'reception' ? '<span class="badge badge-success">Réception</span>'
+                    : u.action === 'garantie_traitee' ? '<span class="badge badge-info">Garantie revenue</span>'
+                    : (u.from_status ? SF.statusBadge(u.from_status) : '—');
+                document.getElementById('drillBody').innerHTML =
+                    `<div class="table-container"><table><thead><tr>
+                        <th>Date</th><th>N° série</th><th>Produit</th><th>${isEntree ? 'Provenance' : 'Destination'}</th><th>Par</th><th>Détails</th><th style="text-align:right;">Prix</th>
+                     </tr></thead><tbody>${rows.map(u => `<tr>
+                        <td style="white-space:nowrap;">${SF.fmt.datetime(u.created_at)}</td>
+                        <td style="font-family:monospace;">${SF.esc(u.serial || '—')}</td>
+                        <td>${SF.esc([u.brand, u.model].filter(Boolean).join(' ') || u.product_name || '—')}</td>
+                        <td>${isEntree ? prov(u) : SF.statusBadge(u.to_status)}</td>
+                        <td>${SF.esc(u.user_name || '—')}</td>
+                        <td class="text-muted" style="font-size:12px;">${SF.esc(u.note || '—')}</td>
+                        <td style="text-align:right;white-space:nowrap;">${SF.fmt.ar(u.unit_price)}</td>
+                     </tr>`).join('')}</tbody></table></div>
+                     <div style="text-align:right;font-weight:700;margin-top:10px;">${rows.length} unité(s)</div>`;
+            } catch (e) { document.getElementById('drillBody').innerHTML = '<div class="text-center" style="color:var(--danger);padding:20px;">' + SF.esc(e.message) + '</div>'; }
+        },
+        recapDate: null,
+        async loadStockRecap() {
+            try {
+                if (!this.recapDate) this.recapDate = SF.fmt.today();
+                const r = await SF.api('/api/dashboard/stock-recap?date=' + this.recapDate);
+                const box = document.getElementById('stockRecap');
+                const isToday = this.recapDate === SF.fmt.today();
+                // Bloc « stock dépôt » (général) : cellules liées à la page stock.
+                const rd = this.recapDate;
+                const gblock = (title, icon, g, grp) => {
+                    const to = '/stock.html?g=' + g;
+                    // Entrées/Sorties → détail des mouvements (page Mouvements) filtré par date, sens et type.
+                    const mv = dir => `/movements.html?date=${rd}&dir=${dir}&type=${g}`;
+                    const cell = (ic, t, val, tone, link) => `<div class="scard ${tone || ''}" style="cursor:pointer;" role="button" tabindex="0" onclick="location.href='${link}'" title="Voir le détail">
+                        <div class="lbl" style="justify-content:center;"><i class="fas ${ic}"></i> ${t}</div><div class="val" style="text-align:center;">${val}</div></div>`;
+                    return `<div class="card" style="margin-bottom:16px;">
+                        <div class="card-header"><h3><i class="fas ${icon}"></i> ${title}</h3><a href="${to}" class="btn btn-sm btn-secondary">Voir le stock</a></div>
+                        <div class="card-body"><div class="stats-grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));">
+                            ${cell('fa-arrow-down', isToday ? 'Entrées du jour' : 'Entrées', grp.entree, 'accent', mv('in'))}
+                            ${cell('fa-arrow-up', isToday ? 'Sorties du jour' : 'Sorties', grp.sortie, '', mv('out'))}
+                            ${cell('fa-boxes-stacked', 'Reste (stock + boutique)', grp.reste, 'accent', to)}
+                        </div></div></div>`;
+                };
+                // Bloc « boutique » : cellules cliquables → détail des unités (drill-down).
+                const bblock = (title, icon, isAcc, grp) => {
+                    const cell = (ic, t, val, metric, tone) => `<div class="scard ${tone || ''}" style="cursor:pointer;" role="button" tabindex="0" onclick="Dash.boutiqueDrill('${metric}',${isAcc},'${t.replace(/'/g, '')}')">
+                        <div class="lbl" style="justify-content:center;"><i class="fas ${ic}"></i> ${t}</div><div class="val" style="text-align:center;">${val}</div></div>`;
+                    return `<div class="card" style="margin-bottom:16px;">
+                        <div class="card-header"><h3><i class="fas ${icon}"></i> ${title}</h3></div>
+                        <div class="card-body"><div class="stats-grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));">
+                            ${cell('fa-store', 'Entrée boutique', grp.entree, 'entree', 'accent')}
+                            ${cell('fa-cash-register', 'Sortie boutique (vendu)', grp.sortie, 'sortie', '')}
+                            ${cell('fa-box', 'Reste en boutique', grp.reste, 'reste', 'accent')}
+                        </div></div></div>`;
+                };
+                // Tableau par commercial responsable (reste cliquable).
+                const pc = r.par_commercial || [];
+                const comTable = pc.length ? `<div class="card" style="margin-bottom:16px;">
+                    <div class="card-header"><h3><i class="fas fa-user-tag"></i> Boutique par commercial</h3></div>
+                    <div class="card-body"><div class="table-container"><table>
+                        <thead><tr><th>Commercial</th><th style="text-align:center;">Ordinateurs (E/S/Reste)</th><th style="text-align:center;">Accessoires (E/S/Reste)</th></tr></thead>
+                        <tbody>${pc.map(c => `<tr>
+                            <td><strong>${SF.esc(c.name)}</strong></td>
+                            <td style="text-align:center;">${c.pc_entree} / ${c.pc_sortie} / <a href="#" onclick="event.preventDefault();Dash.boutiqueDrill('reste',0,'Ordinateurs — ${SF.esc(c.name)}','${SF.esc(c.name)}')"><strong>${c.pc_reste}</strong></a></td>
+                            <td style="text-align:center;">${c.acc_entree} / ${c.acc_sortie} / <a href="#" onclick="event.preventDefault();Dash.boutiqueDrill('reste',1,'Accessoires — ${SF.esc(c.name)}','${SF.esc(c.name)}')"><strong>${c.acc_reste}</strong></a></td>
+                        </tr>`).join('')}</tbody>
+                    </table></div></div></div>` : '';
+
+                box.innerHTML = `
+                    <div class="card" style="margin-bottom:16px;"><div class="card-body" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                        <strong style="font-size:15px;"><i class="fas fa-warehouse"></i> Récap stock</strong>
+                        <input type="date" id="recapDateInput" class="form-control" style="max-width:170px;" value="${this.recapDate}" max="${SF.fmt.today()}" onchange="Dash.recapDate=this.value;Dash.loadStockRecap()">
+                        <button class="btn btn-sm btn-secondary" onclick="Dash.recapDate=SF.fmt.today();Dash.loadStockRecap()"><i class="fas fa-calendar-day"></i> Aujourd'hui</button>
+                    </div></div>
+                    ${gblock('Stock dépôt — Ordinateurs', 'fa-laptop', 'pc', r.ordinateurs)}
+                    ${gblock('Stock dépôt — Accessoires', 'fa-plug', 'acc', r.accessoires)}
+                    ${bblock('Boutique — Ordinateurs', 'fa-laptop', 0, r.boutique_ordinateurs)}
+                    ${bblock('Boutique — Accessoires', 'fa-plug', 1, r.boutique_accessoires)}
+                    ${comTable}`;
+            } catch (e) {}
+        },
+        async boutiqueDrill(metric, isAcc, title, commercial) {
+            document.getElementById('drillTitle').textContent = title + ' — ' + SF.fmt.date(this.recapDate);
+            document.getElementById('drillBody').innerHTML = '<div class="text-center text-muted" style="padding:20px;">Chargement…</div>';
+            SF.Modal.open('drillModal');
+            try {
+                const q = new URLSearchParams({ metric, date: this.recapDate, is_accessory: isAcc });
+                if (commercial) q.set('commercial', commercial);
+                const rows = await SF.api('/api/dashboard/boutique-units?' + q.toString());
+                document.getElementById('drillBody').innerHTML = rows.length
+                    ? `<div class="table-container"><table><thead><tr><th>Produit</th><th>N° série</th><th>Commercial</th><th style="text-align:right;">Prix</th></tr></thead>
+                       <tbody>${rows.map(u => `<tr><td>${SF.esc([u.brand, u.model].filter(Boolean).join(' ') || u.product_name)}</td><td style="font-family:monospace;">${SF.esc(u.serial || '—')}</td><td>${SF.esc(u.commercial || '—')}</td><td style="text-align:right;">${SF.fmt.ar(u.unit_price)}</td></tr>`).join('')}</tbody></table></div>
+                       <div style="text-align:right;font-weight:700;margin-top:10px;">${rows.length} article(s)</div>`
+                    : '<div class="text-center text-muted" style="padding:20px;">Aucun article.</div>';
+            } catch (e) { document.getElementById('drillBody').innerHTML = '<div class="text-center" style="color:var(--danger);padding:20px;">' + SF.esc(e.message) + '</div>'; }
+        },
+        renderQuick() {
+            document.getElementById('quickWrap').style.display = '';
+            const links = [...document.querySelectorAll('#sfSidebar .nav-item')].filter(a => !a.classList.contains('active'));
+            const grid = document.getElementById('quickGrid');
+            if (!links.length) { document.getElementById('quickWrap').innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted);"><i class="fas fa-hourglass-half fa-2x"></i><p style="margin-top:12px;">Vos modules apparaîtront ici.</p></div>'; return; }
+            grid.innerHTML = links.map(a => `<a class="quick-card" href="${a.getAttribute('href')}"><div class="quick-icon"><i class="${a.querySelector('i').className}"></i></div><div><h4>${a.querySelector('span').textContent}</h4></div></a>`).join('');
+        },
+        renderAdmin() {
+            document.getElementById('adminDash').style.display = 'block';
+            document.getElementById('adminDash').innerHTML = `
+                <div id="statsHero"></div>
+                <div class="grid2">
+                    <div class="card chart-card"><div class="card-header"><h3><i class="fas fa-chart-area"></i> Évolution des ventes</h3>
+                        <div class="range-btns" id="chartRanges"><button data-r="7d">7 jours</button><button data-r="1m" class="active">1 mois</button><button data-r="3m">3 mois</button><button data-r="6m">6 mois</button><button data-r="global">Tout</button></div></div>
+                        <div class="card-body">
+                            <div class="chart-legend"><span><i style="background:var(--accent);"></i> Chiffre d'affaires</span><span><i style="background:var(--accent-2,#f9c440);"></i> Nombre de ventes</span></div>
+                            <div style="height:260px;position:relative;"><canvas id="dashChart"></canvas></div>
+                            <div class="crecap" id="chartRecap"></div>
+                        </div></div>
+                    <div class="card"><div class="card-header"><h3><i class="fas fa-trophy"></i> Meilleurs produits</h3>
+                        <div class="range-btns" id="topRanges"><button data-r="day">Jour</button><button data-r="week">Semaine</button><button data-r="month" class="active">Mois</button><button data-r="global">Global</button></div></div>
+                        <div class="card-body" id="topProducts"><div class="text-muted" style="padding:20px;text-align:center;">…</div></div></div>
+                </div>
+                <div id="statsGrid"></div>
+                <div class="card" id="garRecapCard" style="margin-bottom:16px;display:none;">
+                    <div class="card-header"><h3><i class="fas fa-shield-halved"></i> Garanties fournisseur</h3>
+                        <a href="/garantie.html" class="btn btn-sm btn-secondary">Ouvrir</a></div>
+                    <div class="card-body" id="garRecap"></div>
+                </div>
+                <div class="card" style="margin-bottom:16px;"><div class="card-header"><h3>Performance</h3>
+                    <div class="range-btns" id="perfRanges"><button data-r="day">Jour</button><button data-r="week">Semaine</button><button data-r="month" class="active">Mois</button><button data-r="global">Global</button></div></div>
+                    <div class="card-body"><div class="grid3" id="perfBody"></div></div></div>`;
+            document.querySelectorAll('#chartRanges button').forEach(b => b.onclick = () => { document.querySelectorAll('#chartRanges button').forEach(x => x.classList.toggle('active', x === b)); this.loadChart(b.dataset.r); });
+            document.querySelectorAll('#topRanges button').forEach(b => b.onclick = () => { this.topRange = b.dataset.r; document.querySelectorAll('#topRanges button').forEach(x => x.classList.toggle('active', x === b)); this.loadTop(); });
+            document.querySelectorAll('#perfRanges button').forEach(b => b.onclick = () => { this.perfRange = b.dataset.r; document.querySelectorAll('#perfRanges button').forEach(x => x.classList.toggle('active', x === b)); this.loadPerf(); });
+            this.loadStats(); this.loadChart('1m'); this.loadTop(); this.loadPerf(); this.loadGarRecap();
+        },
+        async loadGarRecap() {
+            try {
+                const s = await SF.api('/api/garantie/summary');
+                const card = document.getElementById('garRecapCard'); if (!card) return;
+                const t = s.totals;
+                if (!t.to_send && !t.a_renvoyer && !t.sent && !t.returned) { card.style.display = 'none'; return; }
+                card.style.display = 'block';
+                const kpi = (lbl, val, color) => `<div style="flex:1;min-width:130px;"><div class="text-muted" style="font-size:12px;">${lbl}</div><div style="font-size:22px;font-weight:800;${color ? 'color:' + color : ''}">${val}</div></div>`;
+                const rows = s.suppliers.filter(f => f.to_send || f.a_renvoyer || f.sent || f.returned).map(f => `<tr>
+                    <td>${SF.esc(f.supplier_name)}</td>
+                    <td class="text-center" style="color:var(--warning-dark);font-weight:700;">${f.to_send}</td>
+                    <td class="text-center">${f.a_renvoyer}</td>
+                    <td class="text-center" style="color:#0284c7;">${f.sent}</td>
+                    <td class="text-center" style="color:var(--success-dark);">${f.returned}</td></tr>`).join('');
+                document.getElementById('garRecap').innerHTML = `
+                    <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:14px;">
+                        ${kpi('À envoyer', t.to_send, 'var(--warning-dark)')}
+                        ${kpi("En cours d'envoi", t.a_renvoyer, '#0284c7')}
+                        ${kpi('Envoyés — sans retour', t.sent, '#0284c7')}
+                        ${kpi('Revenus / traités', t.returned, 'var(--success-dark)')}
+                    </div>
+                    <div class="table-container"><table>
+                        <thead><tr><th>Fournisseur</th><th class="text-center">À envoyer</th><th class="text-center">En cours</th><th class="text-center">Envoyés</th><th class="text-center">Revenus</th></tr></thead>
+                        <tbody>${rows}</tbody></table></div>`;
+            } catch (e) {}
+        },
+        async loadStats() {
+            try {
+                const s = await SF.api('/api/dashboard/stats');
+                const mmTotal = Object.values(s.mm_balances).reduce((a, b) => a + b, 0);
+                const pct = r => (r * 100).toFixed(1).replace(/\.0$/, '') + '%';
+
+                // ── HERO : les 3 chiffres vitaux du jour (l'essentiel en un coup d'œil) ──
+                const hero = (lbl, val, sub, cls, link, icon, tone) => `<div class="hcard ${cls || ''}" role="button" tabindex="0" onclick="location.href='${link}'">
+                    <div class="k-top"><div class="hlbl">${lbl}</div><span class="sf-ico t-${tone}"><i class="fas ${icon}"></i></span></div>
+                    <div class="hval">${val}</div><div class="hsub">${sub}</div></div>`;
+                const heroBand = `<div class="dash-hero">
+                    ${hero("Chiffre d'affaires du jour", SF.fmt.ar(s.ca_today), `${s.sales_today} vente(s) · net`, 'accent', '/sales.html', 'fa-sack-dollar', 'white')}
+                    ${s.full_ca ? hero('Marge du jour', SF.fmt.ar(s.marge_today), `${pct(s.margin_today)} de marge`, 'good', '/profits.html', 'fa-arrow-trend-up', 'green') : ''}
+                    ${hero('Encaisse en caisse', SF.fmt.ar(s.expected_cash), 'à réconcilier', '', '/treasury.html', 'fa-cash-register', 'yellow')}
+                </div>`;
+
+                // ── À TRAITER : uniquement ce qui demande une action (chips masqués si 0) ──
+                const chips = [];
+                const chip = (cond, o) => { if (cond) chips.push(`<a class="achip tone-${o.tint}" href="${o.link}">
+                    <span class="sf-ico t-${o.tint}"><i class="fas ${o.icon}"></i></span><div class="ac-body"><div class="ac-val">${o.val}</div><div class="ac-lbl">${o.label}${o.sub ? ' · ' + o.sub : ''}</div></div><i class="fas fa-chevron-right ac-go"></i></a>`); };
+                chip(s.a_encaisser > 0, { icon: 'fa-hand-holding-dollar', label: 'À encaisser', val: SF.fmt.ar(s.a_encaisser), sub: `${s.a_encaisser_count} livraison(s)`, link: '/encaissement.html', tone: 'warn', tint: 'yellow' });
+                chip((s.deliveries.pending + s.deliveries.in_progress) > 0, { icon: 'fa-truck-fast', label: 'Livraisons actives', val: s.deliveries.pending + s.deliveries.in_progress, sub: `${s.deliveries.in_progress} en cours`, link: '/deliveries.html', tone: 'info', tint: 'teal' });
+                chip(s.garantie_pending > 0, { icon: 'fa-shield-halved', label: 'Garanties à traiter', val: s.garantie_pending + ' unités', link: '/garantie.html', tone: 'info', tint: 'violet' });
+                chip(s.returns_pending > 0, { icon: 'fa-rotate-left', label: 'Retours à réceptionner', val: s.returns_pending + ' unités', link: '/retour.html', tone: 'warn', tint: 'blue' });
+                chip((s.low_stock.rupture + s.low_stock.faible) > 0, { icon: 'fa-triangle-exclamation', label: 'Réappro', val: `${s.low_stock.rupture} rupture`, sub: `${s.low_stock.faible} faible`, link: '/appro.html', tone: 'danger', tint: 'coral' });
+                chip(s.engagements > 0, { icon: 'fa-user-tag', label: 'Engagements à honorer', val: s.engagements, link: '/engagements.html', tone: 'info', tint: 'green' });
+                const action = chips.length ? `<div class="card dash-card"><div class="card-header"><h3><i class="fas fa-bolt"></i> À traiter</h3><span class="badge badge-warning">${chips.length}</span></div><div class="card-body"><div class="achips">${chips.join('')}</div></div></div>` : '';
+
+                // ── SECONDAIRE : contexte / cumul ──
+                const card = (lbl, icon, val, tone, onclick) => `<div class="scard tone-${tone}" ${onclick ? `role="button" tabindex="0" onclick="${onclick}"` : ''}><div class="k-top"><div class="lbl">${lbl}</div><span class="sf-ico t-${tone}"><i class="fas ${icon}"></i></span></div><div class="val">${val}</div></div>`;
+                const group = (title, icon, cards, link) => `<div class="card dash-card"><div class="card-header"><h3><i class="fas ${icon}"></i> ${title}</h3>${link ? `<a href="${link}" class="btn btn-sm btn-secondary">Ouvrir</a>` : ''}</div><div class="card-body"><div class="stats-grid">${cards}</div></div></div>`;
+                const secondary =
+                    (s.full_ca ? group("Chiffre d'affaires", 'fa-chart-line',
+                        card('Ce mois', 'fa-calendar', SF.fmt.ar(s.ca_month), 'teal', "location.href='/sales.html'") +
+                        card('Global', 'fa-chart-line', SF.fmt.ar(s.ca_global), 'blue', "location.href='/sales.html'") +
+                        card('Marge du mois', 'fa-percent', `${SF.fmt.ar(s.marge_month)} · ${pct(s.margin_month)}`, 'green', "location.href='/profits.html'"), '/sales.html') : '') +
+                    group('Trésorerie & stock', 'fa-wallet',
+                        card('Mobile Money', 'fa-mobile-screen', SF.fmt.ar(mmTotal), 'yellow', "Dash.openMM()") +
+                        card('Stock disponible', 'fa-boxes-stacked', s.stock_units + ' unités', 'violet', "location.href='/stock.html'") +
+                        card('Valeur du stock', 'fa-coins', SF.fmt.ar(s.stock_value), 'coral', "location.href='/stock.html'"), '/treasury.html') +
+                    group('Activité du jour', 'fa-bolt',
+                        card('Ventes du jour', 'fa-receipt', s.sales_today, 'teal', "location.href='/sales.html'") +
+                        card('Réceptions du jour', 'fa-truck-ramp-box', s.units_received_today + ' unités', 'yellow', "location.href='/reception.html'") +
+                        card('Livrées ce jour', 'fa-circle-check', s.deliveries.done_today, 'green', "location.href='/deliveries.html'"), '/ventes-journalieres.html');
+
+                // Ordre : chiffres vitaux → graphique + meilleurs produits → à traiter → cumuls.
+                document.getElementById('statsHero').innerHTML = heroBand;
+                document.getElementById('statsGrid').innerHTML = action + secondary;
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        async loadChart(range) {
+            try { this.chart = await SF.SalesChart.load({ canvas: document.getElementById('dashChart'), recap: document.getElementById('chartRecap'), range, prev: this.chart }); } catch (e) {}
+        },
+        async loadTop() {
+            try {
+                const rows = await SF.api('/api/dashboard/top-products?range=' + this.topRange);
+                const box = document.getElementById('topProducts');
+                if (!rows.length) { box.innerHTML = '<div class="text-muted" style="padding:20px;text-align:center;">Aucune vente</div>'; return; }
+                box.innerHTML = rows.map((r, i) => `<div class="rank"><div class="n">${i + 1}</div><div class="nm">${SF.esc([r.brand, r.model].filter(Boolean).join(' ') || r.product_name || '—')}</div><div style="text-align:right;"><div style="font-weight:700;">${r.qty} vendus</div><div class="text-muted" style="font-size:11.5px;">${SF.fmt.ar(r.revenue)}</div></div></div>`).join('');
+            } catch (e) {}
+        },
+        async loadPerf() {
+            try {
+                const d = await SF.api('/api/dashboard/performance?range=' + this.perfRange);
+                const list = (title, rows, fmt) => `<div><h4 style="margin-bottom:8px;font-size:13px;color:var(--text-muted);">${title}</h4>${rows.length ? rows.slice(0, 6).map((r, i) => `<div class="rank"><div class="n">${i + 1}</div><div class="nm">${SF.esc(r.name || '—')}</div><div style="text-align:right;font-size:12px;">${fmt(r)}</div></div>`).join('') : '<div class="text-muted" style="font-size:12px;padding:10px 0;">—</div>'}</div>`;
+                document.getElementById('perfBody').innerHTML =
+                    list('Commerciaux (ventes)', d.commercials, r => `<b>${r.sales}</b> ventes<div class="text-muted" style="font-size:11px;">${SF.fmt.ar(r.revenue)}</div>`) +
+                    list('Livreurs', d.livreurs, r => `<b>${r.done}</b> livrées${r.cancelled ? `<div style="color:var(--danger);font-size:11px;">${r.cancelled} annulées</div>` : ''}`) +
+                    list('Activité (nombre d\'actions)', d.actions, r => `<b>${r.actions}</b> actions`);
+            } catch (e) {}
+        },
+        async openMM() {
+            try {
+                const d = await SF.api('/api/finance/mobile-money');
+                const opLabel = { mvola: 'MVola', orange_money: 'Orange Money', airtel_money: 'Airtel Money', cheque: 'Chèque' };
+                const bal = Object.entries(d.balances).map(([op, b]) => `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px;border:1px solid var(--border-color);border-radius:10px;margin-bottom:8px;">
+                    <div><b>${opLabel[op]}</b><div class="text-muted" style="font-size:11.5px;">Entrées ${SF.fmt.ar(b.inflow)} · Retraits ${SF.fmt.ar(b.outflow)}</div></div>
+                    <div style="text-align:right;"><div style="font-weight:800;">${SF.fmt.ar(b.balance)}</div><button class="btn btn-sm btn-secondary" onclick="Dash.retrait('${op}')">Retrait</button></div></div>`).join('');
+                const hist = d.history.length ? d.history.map(h => `<div class="rank"><div class="nm">${opLabel[h.operator] || h.operator}</div><div style="text-align:right;"><div style="font-weight:700;color:var(--danger);">-${SF.fmt.ar(h.amount)}</div><div class="text-muted" style="font-size:11px;">${SF.fmt.datetime(h.created_at)}</div></div></div>`).join('') : '<div class="text-muted" style="padding:10px;">Aucun retrait</div>';
+                document.getElementById('mmBody').innerHTML = `${bal}<h4 style="margin:14px 0 6px;">Historique des retraits</h4><div style="max-height:200px;overflow:auto;">${hist}</div>`;
+                SF.Modal.open('mmModal');
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        async retrait(operator) {
+            const amount = await SF.prompt('Montant du retrait (Ar) :', { title: 'Retrait', okLabel: 'Continuer', required: true, placeholder: 'Ex : 50 000', money: true }); if (amount == null || !(+amount > 0)) return;
+            const note = (await SF.prompt('Note (optionnel) :', { title: 'Retrait', okLabel: 'Enregistrer' })) || '';
+            try { await SF.api('/api/finance/retrait', { method: 'POST', body: { operator, amount, note } }); SF.toast('Retrait enregistré', 'success'); this.openMM(); this.loadStats(); }
+            catch (e) { SF.toast(e.message, 'error'); }
+        }
+    };
+    // Active au clavier les cartes cliquables (role="button") : Entrée ou Espace = clic.
+    document.addEventListener('keydown', e => {
+        if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('.scard[role="button"]')) {
+            e.preventDefault();
+            e.target.click();
+        }
+    });
+    Dash.init();
+    </script>
+</body>
+</html>

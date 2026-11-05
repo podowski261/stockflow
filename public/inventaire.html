@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <title>Inventaire — STOCKFLOW</title>
+    <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css">
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/sf.css">
+    <script>document.documentElement.setAttribute('data-theme', localStorage.getItem('stockflow-theme') === 'dark' ? 'dark' : 'light'); try { var sfu = JSON.parse(localStorage.getItem('stockflow-ui') || '{}'); for (var k in sfu) document.documentElement.setAttribute('data-' + k, sfu[k]); } catch (e) {}</script>
+    <style>
+        .inv-kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-bottom:18px; }
+        .inv-kpi { background:var(--bg-card); border:1px solid var(--border-color); border-radius:var(--border-radius-lg); padding:13px 15px; }
+        .inv-kpi h4 { font-size:11.5px; color:var(--text-muted); font-weight:600; text-transform:uppercase; letter-spacing:.03em; }
+        .inv-kpi .v { font-size:26px; font-weight:800; margin-top:3px; }
+        .inv-kpi.exp .v { color:var(--text-primary); } .inv-kpi.pre .v { color:var(--success-dark); }
+        .inv-kpi.sur .v { color:var(--warning-dark); } .inv-kpi.man .v { color:var(--danger); }
+
+        .scan-box { background:var(--bg-card); border:1px solid var(--border-color); border-radius:var(--border-radius-lg); padding:18px; margin-bottom:18px; }
+        .scan-box label { font-weight:700; font-size:14px; display:block; margin-bottom:8px; }
+        .scan-input { font-size:22px; font-family:monospace; padding:14px 16px; letter-spacing:.05em; }
+        .scan-hint { font-size:12px; color:var(--text-muted); margin-top:8px; }
+
+        .prog { height:9px; background:var(--bg-input); border-radius:6px; overflow:hidden; margin:14px 0 4px; }
+        .prog > i { display:block; height:100%; background:var(--success-dark); width:0; transition:width .2s; }
+
+        .feed { max-height:340px; overflow-y:auto; border:1px solid var(--border-color); border-radius:var(--border-radius-lg); }
+        .feed-row { display:flex; align-items:center; gap:12px; padding:9px 13px; border-bottom:1px solid var(--border-color); font-size:14px; }
+        .feed-row:last-child { border-bottom:none; }
+        .feed-row .sn { font-family:monospace; font-weight:700; font-size:15px; }
+        .feed-row .nm { color:var(--text-muted); flex:1; }
+        .ibadge { font-size:11px; font-weight:800; padding:3px 9px; border-radius:20px; white-space:nowrap; }
+        .ibadge.ok  { background:rgba(34,197,94,.15); color:var(--success-dark); }
+        .ibadge.sur { background:rgba(234,179,8,.18); color:var(--warning-dark); }
+        .ibadge.unk { background:rgba(220,38,38,.14); color:var(--danger); }
+        .ibadge.dup { background:var(--bg-input); color:var(--text-muted); }
+        .ibadge.loc { background:rgba(249,115,22,.16); color:#c2410c; }
+
+        .inv-kpi.mis .v { color:#c2410c; }
+        .inv-sec-h.loc { background:rgba(249,115,22,.12); color:#c2410c; }
+        .phase-banner { display:flex; align-items:center; gap:10px; font-size:15px; font-weight:800; padding:12px 15px; border-radius:11px; margin-bottom:16px; }
+        .phase-banner .step { font-size:11.5px; font-weight:700; opacity:.75; margin-left:auto; }
+        .phase-banner.boutique { background:rgba(59,130,246,.12); color:#1d4ed8; }
+        .phase-banner.depot { background:rgba(139,92,246,.13); color:#6d28d9; }
+
+        .inv-sec { margin-bottom:24px; }
+        .inv-sec-h { font-size:16px; font-weight:800; display:flex; align-items:center; gap:9px; padding:9px 13px; border-radius:11px; margin-bottom:8px; }
+        .inv-sec-h .cnt { margin-left:auto; font-weight:800; }
+        .inv-sec-h.man { background:rgba(220,38,38,.12); color:var(--danger); }
+        .inv-sec-h.sur { background:rgba(234,179,8,.13); color:var(--warning-dark); }
+        .inv-sec-h.pre { background:rgba(34,197,94,.12); color:var(--success-dark); }
+        .inv-table { width:100%; border-collapse:collapse; font-size:13.5px; }
+        .inv-table th, .inv-table td { padding:9px 11px; text-align:left; border-bottom:1px solid var(--border-color); }
+        .inv-table th { font-size:11.5px; text-transform:uppercase; color:var(--text-muted); font-weight:700; }
+        .inv-table td.sn { font-family:monospace; font-weight:700; }
+        .inv-wrap { overflow-x:auto; border:1px solid var(--border-color); border-radius:var(--border-radius-lg); }
+        .muted { color:var(--text-muted); }
+        .toolbar { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:16px; }
+        .hist-row { display:flex; align-items:center; gap:12px; padding:11px 13px; border-bottom:1px solid var(--border-color); cursor:pointer; }
+        .hist-row:hover { background:var(--bg-input); }
+        .hist-row:last-child { border-bottom:none; }
+
+        /* Mobile : l'action principale (scan) passe EN HAUT ; KPI / récap en dessous. */
+        @media (max-width: 640px) {
+            #scanPhase { display:flex; flex-direction:column; }
+            #scanPhase .toolbar { order:0; }
+            #scanPhase .scan-box { order:-1; }   /* champ de scan + caméra en premier */
+            .inv-kpi .v { font-size:22px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar" id="sfSidebar"></aside>
+        <main class="main-content">
+            <header class="page-header">
+                <div class="page-title"><h1>Inventaire</h1><p>Comptage physique par scan — ordinateurs, écrans… (hors accessoires)</p></div>
+                <div class="page-actions"><div id="sfTools"></div></div>
+            </header>
+            <div class="page-body">
+
+                <!-- ══════════ PHASE SCAN ══════════ -->
+                <div id="scanPhase">
+                    <div class="toolbar">
+                        <button class="btn btn-secondary" id="pauseBtn" onclick="Inv.pause()" title="Enregistrer et reprendre plus tard"><i class="fas fa-pause"></i> Mettre en pause</button>
+                        <button class="btn btn-secondary" onclick="Inv.openHistory()"><i class="fas fa-clock-rotate-left"></i> Historique</button>
+                        <button class="btn btn-secondary" onclick="Inv.openRetired()" title="Restaurer une unité retirée par erreur"><i class="fas fa-trash-can-arrow-up"></i> Unités retirées</button>
+                        <button class="btn btn-secondary" onclick="Inv.reset()" title="Vider les scans en cours"><i class="fas fa-eraser"></i> Réinitialiser</button>
+                        <span class="muted" id="loadInfo" style="margin-left:auto;"></span>
+                    </div>
+
+                    <div class="phase-banner boutique" id="phaseBanner"></div>
+
+                    <div class="card dash-card keep"><div class="card-header"><h3><i class="fas fa-clipboard-check"></i> Progression de l'inventaire</h3></div>
+                        <div class="card-body"><div class="stats-grid">
+                            <div class="scard tone-teal"><div class="k-top"><div class="lbl">Attendus (base)</div><span class="sf-ico"><i class="fas fa-list-check"></i></span></div><div class="val" id="kExp">—</div></div>
+                            <div class="scard tone-green"><div class="k-top"><div class="lbl">Scannés présents</div><span class="sf-ico"><i class="fas fa-barcode"></i></span></div><div class="val" id="kPre">0</div></div>
+                            <div class="scard tone-coral"><div class="k-top"><div class="lbl">Manquants (restants)</div><span class="sf-ico"><i class="fas fa-circle-question"></i></span></div><div class="val" id="kMan">—</div></div>
+                            <div class="scard tone-blue"><div class="k-top"><div class="lbl">Surplus</div><span class="sf-ico"><i class="fas fa-circle-plus"></i></span></div><div class="val" id="kSur">0</div></div>
+                            <div class="scard tone-yellow"><div class="k-top"><div class="lbl">Mauvais emplacement</div><span class="sf-ico"><i class="fas fa-location-dot"></i></span></div><div class="val" id="kMis">0</div></div>
+                        </div></div></div>
+
+                    <div class="inv-sec" style="margin-bottom:18px;">
+                        <div style="display:flex;align-items:center;gap:9px;margin-bottom:8px;">
+                            <h3 style="font-size:14px;margin:0;"><i class="fas fa-location-dot"></i> Récap par emplacement</h3>
+                            <span class="muted" id="liveTag" style="font-size:11.5px;margin-left:auto;"><i class="fas fa-bolt"></i> Temps réel</span>
+                        </div>
+                        <div class="inv-wrap"><table class="inv-table" id="empRecapTable">
+                            <thead><tr><th>Emplacement</th><th>Attendus</th><th>Présents</th><th>Manquants</th></tr></thead>
+                            <tbody></tbody>
+                        </table></div>
+                    </div>
+
+                    <div class="scan-box">
+                        <label for="scanInput"><i class="fas fa-barcode"></i> Scanner un numéro de série</label>
+                        <input type="text" id="scanInput" class="form-control scan-input" autocomplete="off" spellcheck="false"
+                               placeholder="Scannez un code-barres — validation automatique…" disabled>
+                        <button type="button" id="camScanBtn" class="btn btn-primary" style="margin-top:10px;" disabled onclick="SF.CamScan.open(s => Inv.processScan(s, true))"><i class="fas fa-camera"></i> Scanner avec la caméra (téléphone)</button>
+                        <div class="prog"><i id="progBar"></i></div>
+                        <div class="scan-hint" id="lastResult">Chargement du stock attendu…</div>
+                    </div>
+
+                    <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px;">
+                        <button class="btn btn-secondary" id="prevPhaseBtn" onclick="Inv.prevPhase()" style="display:none;"><i class="fas fa-arrow-left"></i> Revenir au scan boutique</button>
+                        <button class="btn btn-primary" id="nextPhaseBtn" onclick="Inv.nextPhase()"><i class="fas fa-arrow-right"></i> Terminer le scan boutique</button>
+                        <button class="btn btn-primary" id="finishBtn" onclick="Inv.finish()" disabled style="display:none;"><i class="fas fa-clipboard-check"></i> Terminer l'inventaire</button>
+                    </div>
+
+                    <h3 style="font-size:14px; margin-bottom:8px;">Scans récents</h3>
+                    <div class="feed" id="feed"><div class="feed-row"><span class="nm">Aucun scan pour le moment.</span></div></div>
+                </div>
+
+                <!-- ══════════ PHASE RAPPORT ══════════ -->
+                <div id="reportPhase" style="display:none;"></div>
+
+            </div>
+        </main>
+    </div>
+
+    <!-- Modale historique -->
+    <div class="modal-overlay" id="invHistModal">
+        <div class="modal" style="max-width:640px;">
+            <div class="modal-header"><h3><i class="fas fa-clock-rotate-left"></i> Historique des inventaires</h3><button class="modal-close" onclick="SF.Modal.close('invHistModal')">&times;</button></div>
+            <div class="modal-body"><div id="histList"><div class="muted" style="padding:14px;">Chargement…</div></div></div>
+            <div class="modal-footer"><button class="btn btn-secondary" onclick="SF.Modal.close('invHistModal')">Fermer</button></div>
+        </div>
+    </div>
+
+    <!-- Modale : unités retirées (restaurer un retrait accidentel) -->
+    <div class="modal-overlay" id="invRetiredModal">
+        <div class="modal" style="max-width:760px;">
+            <div class="modal-header"><h3><i class="fas fa-trash-can-arrow-up"></i> Unités retirées — restaurer</h3><button class="modal-close" onclick="SF.Modal.close('invRetiredModal')">&times;</button></div>
+            <div class="modal-body">
+                <p class="muted" style="font-size:12.5px;margin-bottom:12px;">Unités passées en « Retiré » (via inventaire ou ajustement). <b>Restaurer</b> les remet en stock (dépôt), disponibles à la vente. L'historique est conservé.</p>
+                <div id="retiredList"><div class="muted" style="padding:14px;">Chargement…</div></div>
+            </div>
+            <div class="modal-footer"><button class="btn btn-secondary" onclick="SF.Modal.close('invRetiredModal')">Fermer</button></div>
+        </div>
+    </div>
+
+    <script src="/js/sf-core.js"></script>
+    <script src="/js/sf-layout.js"></script>
+    <script src="/js/sf-inventaire.js"></script>
+    <script>SF.Inventaire({ kind: 'pc', active: '/inventaire.html', roles: ['admin', 'gestion_stock'] });</script>
+</body>
+</html>

@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <title>Service atelier — STOCKFLOW</title>
+    <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css">
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/sf.css">
+    <script>document.documentElement.setAttribute('data-theme', localStorage.getItem('stockflow-theme') === 'dark' ? 'dark' : 'light'); try { var sfu = JSON.parse(localStorage.getItem('stockflow-ui') || '{}'); for (var k in sfu) document.documentElement.setAttribute('data-' + k, sfu[k]); } catch (e) {}</script>
+    <style>
+        .lb-bar { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:14px; }
+        .lb-bar .grow { flex:1; }
+        .lb-sel { display:flex; align-items:center; gap:8px; font-size:13px; font-weight:600; color:var(--text-secondary); cursor:pointer; }
+        .lb-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:14px; }
+        .lb-card { background:var(--bg-card); border:1px solid var(--border-color); border-radius:var(--border-radius-lg); padding:14px; display:flex; flex-direction:column; gap:10px; }
+        .lb-card.sel { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-glow); }
+        .lb-head { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+        .lb-head label { display:flex; align-items:center; gap:8px; cursor:pointer; font-weight:800; font-size:14px; color:var(--text-primary); }
+        .lb-head input { width:17px; height:17px; accent-color:var(--accent); }
+        .lb-time { font-size:11.5px; color:var(--text-muted); white-space:nowrap; }
+        /* Aperçu fidèle de l'étiquette 60 × 40 mm (noir sur blanc). */
+        .lb-prev { aspect-ratio:3 / 2; background:#fff; color:#000; border:1px solid #cfd6df; border-radius:6px; padding:8px 10px; font-family:Arial,Helvetica,sans-serif; display:flex; flex-direction:column; overflow:hidden; line-height:1.2; }
+        .lb-prev .t { display:flex; justify-content:space-between; align-items:baseline; gap:6px; border-bottom:1.5px solid #000; padding-bottom:2px; }
+        .lb-prev .co { font-size:9.5px; font-weight:700; text-transform:uppercase; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .lb-prev .num { font-size:14px; font-weight:800; white-space:nowrap; }
+        .lb-prev .ref { font-size:9.5px; margin-top:2px; }
+        .lb-prev .cli { font-size:12.5px; font-weight:700; margin-top:2px; display:flex; gap:6px; white-space:nowrap; }
+        .lb-prev .cli .cn { overflow:hidden; text-overflow:ellipsis; min-width:0; }
+        .lb-prev .cli .cp { flex-shrink:0; }
+        .lb-prev .pc { border-top:1px dotted #000; margin-top:3px; padding-top:2px; }
+        .lb-prev .pcn { font-size:12px; font-weight:800; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+        .lb-prev .cfg { font-size:10px; display:flex; gap:10px; white-space:nowrap; overflow:hidden; }
+        .lb-prev .chg { align-self:flex-start; display:inline-block; font-size:9.5px; font-weight:800; padding:0 5px; margin-top:2px; border:1.5px solid #000; }
+        .lb-prev .chg.on { background:#000; color:#fff; }
+        .lb-prev .todo { font-size:10.5px; margin-top:2px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+        .lb-prev .note { font-size:9.5px; font-style:italic; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .lb-meta { font-size:12px; color:var(--text-secondary); }
+        .lb-acts { display:flex; gap:8px; flex-wrap:wrap; }
+        .lb-acts .btn { flex:1; justify-content:center; }
+        .filters { display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; margin-bottom:14px; }
+        .filters .form-group { margin-bottom:0; }
+        .filters .search-box { flex:1; min-width:200px; margin:0; }
+        .search-box { position:relative; }
+        .search-box i { position:absolute; left:14px; top:50%; transform:translateY(-50%); color:var(--text-muted); }
+        .search-box input { width:100%; min-height:42px; padding:10px 14px 10px 40px; background:var(--bg-input); border:1px solid var(--border-color); border-radius:var(--border-radius); color:var(--text-primary); font-size:14px; }
+        .search-box input:focus { outline:none; border-color:var(--accent); background:var(--bg-card); }
+        .st-badge { display:inline-flex; align-items:center; gap:5px; font-size:11.5px; font-weight:700; padding:2px 9px; border-radius:999px; white-space:nowrap; }
+        .st-a_imprimer { background:#fdf0e1; color:#9a4a00; }
+        .st-imprimee { background:#e8f5ee; color:#0f6b46; }
+        .st-annulee { background:#fdecea; color:#a12a22; }
+        :root[data-theme="dark"] .st-a_imprimer { background:rgba(224,160,70,.16); color:#e8b15f; }
+        :root[data-theme="dark"] .st-imprimee { background:rgba(47,165,122,.16); color:#5cc9a3; }
+        :root[data-theme="dark"] .st-annulee { background:rgba(239,122,114,.16); color:#ef7a72; }
+        .empty { text-align:center; color:var(--text-muted); padding:34px 10px; }
+        .muted-sm { font-size:11.5px; color:var(--text-muted); }
+        @media (max-width:768px) {
+            .lb-grid { grid-template-columns:minmax(0,1fr); }
+            .filters .form-group { flex:1 1 40%; }
+            .filters .search-box { flex:1 1 100%; }
+            .search-box input { font-size:16px; }
+            .lb-bar .btn { flex:1; justify-content:center; }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar" id="sfSidebar"></aside>
+        <main class="main-content">
+            <header class="page-header">
+                <div class="page-title"><h1>Service atelier</h1><p id="sub"></p></div>
+                <div class="page-actions"><div id="sfTools"></div></div>
+            </header>
+            <div class="page-body">
+                <div class="tabs">
+                    <div class="tab active" data-t="pending" onclick="Lb.tab('pending')"><i class="fas fa-print"></i> À imprimer <span id="nPending"></span></div>
+                    <div class="tab" data-t="history" onclick="Lb.tab('history')"><i class="fas fa-clock-rotate-left"></i> Historique</div>
+                </div>
+
+                <div id="panel-pending">
+                    <div class="lb-bar" id="pendingBar" style="display:none;">
+                        <label class="lb-sel"><input type="checkbox" id="selAll" onchange="Lb.selectAll(this.checked)"> Tout sélectionner</label>
+                        <span class="grow"></span>
+                        <button class="btn btn-primary" id="printSelBtn" onclick="Lb.printSelected()" disabled><i class="fas fa-print"></i> Imprimer la sélection</button>
+                    </div>
+                    <div id="pendingList"><div class="sf-skel sf-skel-card"></div><div class="sf-skel sf-skel-card"></div></div>
+                </div>
+
+                <div id="panel-history" style="display:none;">
+                    <div class="filters">
+                        <div class="form-group"><label>Du</label><input type="date" id="h_from" class="form-control" onchange="Lb.loadHistory()"></div>
+                        <div class="form-group"><label>Au</label><input type="date" id="h_to" class="form-control" onchange="Lb.loadHistory()"></div>
+                        <div class="search-box"><i class="fas fa-search"></i><input type="text" id="h_q" placeholder="Client, téléphone, ordinateur, n° ou réf. facture…" oninput="Lb.onSearch()"></div>
+                    </div>
+                    <div id="historyList"></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="/js/sf-core.js"></script>
+    <script src="/js/sf-layout.js"></script>
+    <script>
+    const Lb = {
+        user: null, company: '', pending: [], history: [], selected: new Set(), active: 'pending',
+        async init() {
+            this.user = await SF.Auth.require([]);
+            if (!this.user) return;
+            if (this.user.role !== 'admin' && !this.user.atelier_responsible) {
+                SF.toast('Réservé au responsable du service atelier', 'error');
+                return setTimeout(() => location.href = this.user.home || '/index.html', 800);
+            }
+            SF.layout({ active: '/service-atelier.html' });
+            try { const c = await SF.api('/api/config'); this.company = (c && c.name) || ''; } catch (e) {}
+            const t = SF.fmt.today();
+            const d = new Date(t + 'T00:00:00'); d.setDate(d.getDate() - 30);
+            const p = n => String(n).padStart(2, '0');
+            document.getElementById('h_from').value = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+            document.getElementById('h_to').value = t;
+            SF.on('atelier:update', () => { this.loadPending(); if (this.active === 'history') this.loadHistory(); });
+            this.loadPending();
+        },
+        tab(t) {
+            this.active = t;
+            document.querySelectorAll('.tabs .tab').forEach(b => b.classList.toggle('active', b.dataset.t === t));
+            document.getElementById('panel-pending').style.display = t === 'pending' ? '' : 'none';
+            document.getElementById('panel-history').style.display = t === 'history' ? '' : 'none';
+            if (t === 'history') this.loadHistory();
+        },
+        async loadPending() {
+            try { this.pending = await SF.api('/api/atelier-labels'); }
+            catch (e) { return SF.toast(e.message, 'error'); }
+            const ids = new Set(this.pending.map(l => l.id));
+            this.selected = new Set([...this.selected].filter(id => ids.has(id)));
+            this.renderPending();
+        },
+        dt(s) { return s ? SF.fmt.datetime(s) : '—'; },
+        preview(l) {
+            return `<div class="lb-prev">
+                <div class="t"><span class="co">${SF.esc(this.company || 'Atelier')}</span><span class="num">FACT. N° ${SF.esc(l.sale_number)}</span></div>
+                <div class="ref">Réf. ${SF.esc(l.invoice_ref)} · ${SF.esc(this.dt(l.sale_created_at))}</div>
+                <div class="cli"><span class="cn">${SF.esc(l.client_name || '')}</span>${l.client_phone ? `<span class="cp">${SF.esc(l.client_phone)}</span>` : ''}</div>
+                <div class="pc">
+                    <div class="pcn">${SF.esc(l.client_pc || '')}</div>
+                    <div class="cfg"><span>RAM : <b>${SF.esc(l.client_pc_ram || '—')}</b></span><span>Stockage : <b>${SF.esc(l.client_pc_storage || '—')}</b></span></div>
+                </div>
+                <span class="chg ${l.client_pc_charger === 'avec' ? 'on' : ''}">${l.client_pc_charger === 'avec' ? 'AVEC CHARG.' : 'SANS CHARG.'}</span>
+                <span class="chg ${l.balance_due > 0 ? 'on' : ''}">${SF.fmt.ar(l.service_price)} · ${l.balance_due > 0 ? 'RESTE ' + SF.fmt.ar(l.balance_due) : 'PAYÉ'}</span>
+                <div class="todo"><b>À faire :</b> ${SF.esc(l.services || '')}</div>
+                ${(l.parts || []).length ? `<div class="todo"><b>Achats :</b> ${l.parts.map(x => `${x.qty > 1 ? x.qty + '× ' : ''}${SF.esc(x.name)} <b>${x.gift ? 'offert' : SF.fmt.ar(x.price)}</b>`).join(' · ')}</div>` : ''}
+                ${l.client_pc_note ? `<div class="note">${SF.esc(l.client_pc_note)}</div>` : ''}
+            </div>`;
+        },
+        renderPending() {
+            const n = this.pending.length;
+            document.getElementById('nPending').innerHTML = n ? `<span class="badge-n" style="background:var(--warning);color:#fff;border-radius:999px;padding:0 7px;font-size:11px;">${n}</span>` : '';
+            document.getElementById('sub').textContent = n ? `${n} étiquette${n > 1 ? 's' : ''} en attente` : 'Aucune étiquette en attente';
+            document.getElementById('pendingBar').style.display = n ? '' : 'none';
+            const box = document.getElementById('pendingList');
+            if (!n) { box.innerHTML = '<div class="empty"><i class="fas fa-check-circle" style="font-size:26px;color:var(--success);"></i><br><br>Tout est imprimé.</div>'; this.syncSel(); return; }
+            box.innerHTML = `<div class="lb-grid">${this.pending.map(l => `
+                <div class="lb-card ${this.selected.has(l.id) ? 'sel' : ''}" data-id="${l.id}">
+                    <div class="lb-head">
+                        <label><input type="checkbox" ${this.selected.has(l.id) ? 'checked' : ''} onchange="Lb.toggle(${l.id}, this.checked)"> Facture n° ${SF.esc(l.sale_number)}</label>
+                        <span class="lb-time">${SF.fmt.relative(l.created_at)}</span>
+                    </div>
+                    ${this.preview(l)}
+                    <div class="lb-meta"><i class="fas fa-cash-register"></i> ${SF.esc(l.created_by_name || l.cashier_name || '—')}${l.commercial_name ? ' · <i class="fas fa-user-tie"></i> ' + SF.esc(l.commercial_name) : ''}</div>
+                    <div class="lb-acts"><button class="btn btn-primary" onclick="Lb.print([${l.id}])"><i class="fas fa-print"></i> Imprimer</button></div>
+                </div>`).join('')}</div>`;
+            this.syncSel();
+        },
+        toggle(id, on) {
+            if (on) this.selected.add(id); else this.selected.delete(id);
+            const card = document.querySelector(`.lb-card[data-id="${id}"]`);
+            if (card) card.classList.toggle('sel', on);
+            this.syncSel();
+        },
+        selectAll(on) {
+            this.selected = new Set(on ? this.pending.map(l => l.id) : []);
+            this.renderPending();
+        },
+        syncSel() {
+            const k = this.selected.size, n = this.pending.length;
+            const btn = document.getElementById('printSelBtn');
+            btn.disabled = !k;
+            btn.innerHTML = `<i class="fas fa-print"></i> Imprimer la sélection${k ? ` (${k})` : ''}`;
+            const all = document.getElementById('selAll');
+            all.checked = n > 0 && k === n; all.indeterminate = k > 0 && k < n;
+        },
+        printSelected() { if (this.selected.size) this.print([...this.selected]); },
+        // Ouvre l'onglet d'impression (lecture seule) puis marque les étiquettes « imprimées ».
+        async print(ids) {
+            const w = window.open(`/api/atelier-labels/print?ids=${ids.join(',')}`, '_blank');
+            if (!w) return SF.toast("Autorisez les fenêtres surgissantes pour imprimer l'étiquette", 'warn');
+            ids.forEach(id => this.selected.delete(id));
+            try { await SF.api('/api/atelier-labels/mark-printed', { method: 'POST', body: { ids } }); }
+            catch (e) { SF.toast(e.message, 'error'); }
+            this.loadPending(); if (this.active === 'history') this.loadHistory();
+        },
+        onSearch() { clearTimeout(this._st); this._st = setTimeout(() => this.loadHistory(), 250); },
+        async loadHistory() {
+            const qs = new URLSearchParams({ scope: 'history', from: document.getElementById('h_from').value, to: document.getElementById('h_to').value, q: document.getElementById('h_q').value.trim() });
+            try { this.history = await SF.api('/api/atelier-labels?' + qs); }
+            catch (e) { return SF.toast(e.message, 'error'); }
+            this.renderHistory();
+        },
+        statusHtml(l) {
+            if (l.status === 'annulee') return '<span class="st-badge st-annulee"><i class="fas fa-ban"></i> Annulée</span>';
+            if (l.status === 'a_imprimer') return '<span class="st-badge st-a_imprimer"><i class="fas fa-hourglass-half"></i> À imprimer</span>';
+            return `<span class="st-badge st-imprimee"><i class="fas fa-check"></i> Imprimée${l.print_count > 1 ? ` ×${l.print_count}` : ''}</span>
+                <div class="muted-sm">${SF.esc(this.dt(l.printed_at))}${l.printed_by_name ? ' · ' + SF.esc(l.printed_by_name) : ''}</div>`;
+        },
+        renderHistory() {
+            const box = document.getElementById('historyList');
+            if (!this.history.length) { box.innerHTML = '<div class="empty">Aucune étiquette sur cette période.</div>'; return; }
+            box.innerHTML = `<div class="card"><div class="table-container"><table class="table">
+                <thead><tr><th>Date</th><th>Facture</th><th>Client</th><th>Ordinateur</th><th>À faire</th><th>Statut</th><th></th></tr></thead>
+                <tbody>${this.history.map(l => `<tr>
+                    <td data-label="Date">${SF.esc(this.dt(l.created_at))}</td>
+                    <td data-label="Facture"><b>N° ${SF.esc(l.sale_number)}</b><div class="muted-sm">${SF.esc(l.invoice_ref)}</div></td>
+                    <td data-label="Client">${SF.esc(l.client_name || '—')}<div class="muted-sm">${SF.esc(l.client_phone || '')}</div></td>
+                    <td data-label="Ordinateur">${SF.esc(l.client_pc || '—')}<div class="muted-sm">${SF.esc([l.client_pc_ram, l.client_pc_storage].filter(Boolean).join(' · '))} · ${l.client_pc_charger === 'avec' ? 'avec chargeur' : 'sans chargeur'}</div></td>
+                    <td data-label="À faire">${SF.esc(l.services || '')}${(l.parts || []).length ? `<div class="muted-sm"><b>Achats :</b> ${l.parts.map(x => `${x.qty > 1 ? x.qty + '× ' : ''}${SF.esc(x.name)} (${x.gift ? 'offert' : SF.fmt.ar(x.price)})`).join(' · ')}</div>` : ''}${l.client_pc_note ? `<div class="muted-sm">${SF.esc(l.client_pc_note)}</div>` : ''}</td>
+                    <td data-label="Statut">${this.statusHtml(l)}</td>
+                    <td>${l.status === 'annulee' ? '' : `<button class="btn btn-sm ${l.status === 'a_imprimer' ? 'btn-primary' : 'btn-secondary'}" onclick="Lb.print([${l.id}])"><i class="fas fa-print"></i> ${l.status === 'a_imprimer' ? 'Imprimer' : 'Réimprimer'}</button>`}</td>
+                </tr>`).join('')}</tbody></table></div></div>`;
+        }
+    };
+    Lb.init();
+    </script>
+</body>
+</html>

@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <title>Facture proforma — STOCKFLOW</title>
+    <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css">
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/sf.css">
+    <script>document.documentElement.setAttribute('data-theme', localStorage.getItem('stockflow-theme') === 'dark' ? 'dark' : 'light'); try { var sfu = JSON.parse(localStorage.getItem('stockflow-ui') || '{}'); for (var k in sfu) document.documentElement.setAttribute('data-' + k, sfu[k]); } catch (e) {}</script>
+    <style>
+        .pf-layout { display:grid; grid-template-columns:1fr 380px; gap:18px; align-items:start; }
+        @media (max-width:1024px){ .pf-layout{ grid-template-columns:1fr; } }
+        .pf-filters { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px; }
+        .pf-filters .form-control { min-width:150px; }
+        .prod-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:12px; }
+        .pcard { background:var(--bg-card); border:1px solid var(--border-color); border-radius:var(--border-radius); overflow:hidden; cursor:pointer; transition:transform .1s,border-color .1s; }
+        .pcard:hover { transform:translateY(-2px); border-color:var(--accent); }
+        .pcard.out { opacity:.62; }                 /* rupture : GRISÉ mais sélectionnable (devis) */
+        .pcard.sel { border-color:var(--accent); box-shadow:0 0 0 2px var(--accent-glow); }
+        .pcard-img { position:relative; height:96px; background:var(--bg-input) center/cover no-repeat; display:flex;align-items:center;justify-content:center;color:var(--text-dark);font-size:26px; }
+        .pcard-b { padding:10px 11px; }
+        .pcard-t { font-size:13px; font-weight:700; color:var(--text-primary); line-height:1.2; }
+        .pcard-s { font-size:10.5px; line-height:1.3; color:var(--text-muted); margin:2px 0 6px; min-height:2.6em; overflow:hidden; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow-wrap:anywhere; }
+        .pcard-f { display:flex; justify-content:space-between; align-items:center; }
+        .pcard-price { font-size:13px; font-weight:800; }
+        .pcard-qty { font-size:11px; font-weight:700; background:var(--accent); color:var(--accent-contrast); border-radius:6px; padding:1px 7px; }
+        .pcard-rupture { color:var(--danger); font-weight:800; font-size:10.5px; text-transform:uppercase; }
+        .pf-cart { background:var(--bg-card); border:1px solid var(--border-color); border-radius:var(--border-radius-lg); position:sticky; top:16px; display:flex; flex-direction:column; max-height:calc(100vh - 110px); }
+        .pf-cart-h { padding:14px 16px; border-bottom:1px solid var(--border-color); display:flex; justify-content:space-between; align-items:center; }
+        .pf-cart-items { flex:1; overflow-y:auto; padding:8px 12px; min-height:120px; }
+        .pf-empty { text-align:center; color:var(--text-muted); padding:36px 10px; font-size:13px; }
+        .pf-line { padding:10px 4px; border-bottom:1px solid var(--border-light); }
+        .pf-line:last-child { border-bottom:none; }
+        .pf-line-h { display:flex; justify-content:space-between; gap:8px; align-items:flex-start; }
+        .pf-line-t { font-size:12.5px; font-weight:700; line-height:1.3; }
+        .pf-line-s { font-size:10.5px; color:var(--text-muted); }
+        .pf-line-rm { color:var(--text-muted); cursor:pointer; background:none; border:none; font-size:13px; padding:2px; }
+        .pf-line-rm:hover { color:var(--danger); }
+        .pf-line-inputs { display:flex; gap:8px; align-items:center; margin-top:7px; }
+        .pf-line-inputs label { font-size:10px; color:var(--text-muted); display:block; }
+        .pf-line-inputs input { width:100%; padding:5px 8px; font-size:12px; border:1px solid var(--border-color); border-radius:8px; background:var(--bg-input); color:var(--text-primary); font-family:var(--font-body); }
+        .pf-line-inputs .g { flex:1; } .pf-line-inputs .g.qty { max-width:64px; }
+        .pf-line-desc { margin-top:7px; }
+        .pf-line-desc label { font-size:10px; color:var(--text-muted); display:block; margin-bottom:2px; }
+        .pf-line-desc textarea { width:100%; padding:5px 8px; font-size:12px; border:1px solid var(--border-color); border-radius:8px; background:var(--bg-input); color:var(--text-primary); font-family:var(--font-body); resize:vertical; line-height:1.35; }
+        .pf-line-total { text-align:right; font-size:12px; font-weight:700; margin-top:5px; }
+        .pf-cart-f { padding:14px 16px; border-top:1px solid var(--border-color); }
+        .pf-total { display:flex; justify-content:space-between; font-size:18px; font-weight:800; margin-bottom:12px; }
+        .modal-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+        @media (max-width:560px){ .modal-grid{ grid-template-columns:1fr 1fr; gap:0 10px; } .modal-grid > .form-group:nth-child(-n+2){ grid-column:1 / -1; } }
+        .req { color:var(--danger); }
+        .hist-row { display:flex; align-items:center; gap:12px; padding:12px 4px; border-bottom:1px solid var(--border-light); }
+        .hist-row:last-child { border-bottom:none; }
+        .hist-main { flex:1; min-width:0; }
+        .hist-ref { font-weight:800; color:var(--text-primary); font-size:13.5px; }
+        .hist-sub { font-size:11.5px; color:var(--text-muted); }
+        .hist-amt { font-weight:800; white-space:nowrap; }
+        /* ===== Téléphone : produits sur 2 colonnes, sélection en barre fixe dépliable ===== */
+        @media (max-width:768px) {
+            .pf-filters { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:12px; }
+            .pf-filters #psearch { grid-column:1 / -1; min-height:44px; }
+            .pf-filters .form-control { min-width:0; }
+            .prod-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+            .pcard-img { height:72px; }
+            .pf-layout { padding-bottom:96px; }
+            .pf-cart { position:fixed !important; left:8px; right:8px; top:auto; bottom:calc(68px + env(safe-area-inset-bottom,0px)); z-index:850;
+                max-height:74vh !important; box-shadow:0 -8px 30px rgba(16,24,40,.22); border-radius:16px; }
+            .pf-cart .pf-cart-items { display:none; max-height:44vh; }
+            .pf-cart.open .pf-cart-items { display:block; }
+            .pf-cart-h { cursor:pointer; padding:10px 14px !important; }
+            .pf-cart-h h3 { font-size:14px; }
+            .pf-cart-h h3::after { content:'\f077'; font-family:'Font Awesome 6 Free'; font-weight:900; font-size:11px; margin-left:8px; color:var(--text-muted); }
+            .pf-cart.open .pf-cart-h h3::after { content:'\f078'; }
+            .pf-cart-f { display:flex; align-items:center; gap:10px; padding:8px 10px 10px 14px !important; }
+            .pf-cart-f .pf-total { flex:1; margin:0 !important; flex-direction:column; align-items:flex-start; gap:0; }
+            .pf-cart-f .pf-total span:first-child { font-size:11px; color:var(--text-muted); font-weight:600; }
+            .pf-cart-f .btn { width:auto !important; flex:0 0 auto; min-height:44px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar" id="sfSidebar"></aside>
+        <main class="main-content">
+            <header class="page-header">
+                <div class="page-title"><h1>Facture proforma</h1><p>Devis pour un client avant achat</p></div>
+                <div class="page-actions">
+                    <button class="btn btn-secondary" onclick="Proforma.openHistory()"><i class="fas fa-clock-rotate-left"></i> <span class="btn-label">Historique</span></button>
+                    <button class="btn btn-secondary" onclick="Proforma.clear()"><i class="fas fa-trash"></i> <span class="btn-label">Vider</span></button>
+                    <div id="sfTools"></div>
+                </div>
+            </header>
+            <div class="page-body">
+                <div class="pf-layout">
+                    <div>
+                        <div class="pf-filters">
+                            <input type="text" id="psearch" class="form-control" placeholder="Rechercher un produit…" oninput="Proforma.render()">
+                            <select id="pcat" class="form-control" onchange="Proforma.render()"><option value="">Catégories</option></select>
+                            <select id="psort" class="form-control" onchange="Proforma.render()">
+                                <option value="name">Nom (A→Z)</option>
+                                <option value="price_asc">Prix ↑</option>
+                                <option value="price_desc">Prix ↓</option>
+                            </select>
+                        </div>
+                        <div class="prod-grid" id="prodGrid"><div class="sf-skel sf-skel-card"></div><div class="sf-skel sf-skel-card"></div><div class="sf-skel sf-skel-card"></div></div>
+                    </div>
+                    <div class="pf-cart">
+                        <div class="pf-cart-h" onclick="this.parentElement.classList.toggle('open')"><h3>Sélection <span class="text-muted" id="selCount" style="font-size:12px;font-weight:400;"></span></h3></div>
+                        <div class="pf-cart-items" id="cartItems"><div class="pf-empty">Aucun produit sélectionné</div></div>
+                        <div class="pf-cart-f">
+                            <div class="pf-total"><span>Total</span><span id="cartTotal">0 Ar</span></div>
+                            <button class="btn btn-primary btn-block" id="makeBtn" disabled onclick="Proforma.openClient()"><i class="fas fa-file-invoice"></i> Créer la facture proforma</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modale : informations du destinataire -->
+    <div class="modal-overlay" id="clientModal">
+        <div class="modal" style="max-width:620px;">
+            <div class="modal-header"><h3>Destinataire de la proforma</h3><button class="modal-close" onclick="SF.Modal.close('clientModal')">&times;</button></div>
+            <div class="modal-body">
+                <div class="modal-grid">
+                    <div class="form-group"><label>Nom du client / de la société <span class="req">*</span></label><input type="text" id="d_name" class="form-control" placeholder="Ex : Société XYZ"></div>
+                    <div class="form-group"><label>Contact <span class="req">*</span></label><input type="text" id="d_contact" class="form-control" placeholder="Téléphone"></div>
+                    <div class="form-group" style="grid-column:1/-1;"><label>Adresse</label><input type="text" id="d_address" class="form-control"></div>
+                    <div class="form-group" style="grid-column:1/-1;">
+                        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:600;">
+                            <input type="checkbox" id="d_withtax" checked onchange="Proforma.toggleTax()" style="width:16px;height:16px;"> Inclure le NIF et le STAT sur le document
+                        </label>
+                        <p class="text-muted" style="font-size:11.5px;margin-top:3px;">Décochez pour un devis sans identifiants fiscaux (NIF/STAT masqués, entreprise et destinataire).</p>
+                    </div>
+                    <div class="form-group" id="d_nif_wrap"><label>NIF</label><input type="text" id="d_nif" class="form-control"></div>
+                    <div class="form-group" id="d_stat_wrap"><label>STAT</label><input type="text" id="d_stat" class="form-control"></div>
+                    <div class="form-group" style="grid-column:1/-1;"><label>Email</label><input type="email" id="d_email" class="form-control"></div>
+                    <div class="form-group" style="grid-column:1/-1;"><label>Objet (facultatif)</label><textarea id="d_objet" class="form-control" rows="2" placeholder="Ex : Fourniture de matériel informatique"></textarea></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="SF.Modal.close('clientModal')">Annuler</button>
+                <button class="btn btn-primary" onclick="Proforma.generate()"><i class="fas fa-file-pdf"></i> Générer le PDF</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modale : historique des proformas -->
+    <div class="modal-overlay" id="histModal">
+        <div class="modal" style="max-width:640px;">
+            <div class="modal-header"><h3>Historique des proformas</h3><button class="modal-close" onclick="SF.Modal.close('histModal')">&times;</button></div>
+            <div class="modal-body">
+                <div style="margin-bottom:12px;"><input type="text" id="h_search" class="form-control" placeholder="Rechercher (référence, client, contact)…" oninput="Proforma.loadHistory()"></div>
+                <div id="histList"><div class="sf-skel sf-skel-card"></div><div class="sf-skel sf-skel-card"></div><div class="sf-skel sf-skel-card"></div></div>
+            </div>
+            <div class="modal-footer"><button class="btn btn-secondary" onclick="SF.Modal.close('histModal')">Fermer</button></div>
+        </div>
+    </div>
+
+    <script src="/js/sf-core.js"></script>
+    <script src="/js/sf-layout.js"></script>
+    <script src="/js/sf-barcode.js"></script>
+    <script src="/js/sf-pitch.js"></script>
+    <script src="/js/sf-proforma.js"></script>
+    <script>
+    const Proforma = {
+        user: null, products: [], sel: [], config: {},
+        async init() {
+            this.user = await SF.Auth.require(['caisse']);
+            if (!this.user) return;
+            SF.layout({ active: '/proforma.html' });
+            try {
+                const [company, settings] = await Promise.all([SF.api('/api/config'), SF.api('/api/settings').catch(() => ({}))]);
+                this.config = { ...company, ...settings };   // company_config + réglages proforma (tagline, validité, conditions)
+            } catch (e) {}
+            SF.on('stock:update', () => this.load());
+            this.load();
+        },
+        async load() {
+            try {
+                this.products = await SF.api('/api/stock');
+                this.buildCats();
+                this.render();
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        buildCats() {
+            const catSel = document.getElementById('pcat');
+            const cats = [...new Set(this.products.map(p => p.category).filter(Boolean))].sort();
+            const cur = catSel.value;
+            catSel.innerHTML = '<option value="">Catégories</option>' + cats.map(c => `<option value="${SF.esc(c)}">${SF.esc(c)}</option>`).join('');
+            if (cats.includes(cur)) catSel.value = cur;
+        },
+        specLine(p) {
+            return p.is_accessory ? (p.category || '') : [p.cpu, p.ram, p.storage].filter(Boolean).join(' · ');
+        },
+        // Détails complets, bien libellés (surtout ordinateurs) affichés sous le titre dans le PDF.
+        ...SFPitch,   // buildDetail / buildPitch / pitch* (public/js/sf-pitch.js)
+        // ── Description AUTOMATIQUE des services (comme le pitch produit) ──
+        // Le type de service est déduit des mots-clés du nom/catégorie. Chaque type a
+        // plusieurs formulations ; le choix est déterministe (même service = même texte).
+        // ORDRE IMPORTANT : le système avant les logiciels (« installation système ET
+        // logiciels de base » contient « logiciel » mais doit être classé « système »).
+        serviceTpl: [
+            { re: /diagnost|panne/, v: [
+                "Diagnostic complet de l'appareil : identification de l'origine de la panne (matérielle ou logicielle) et remise d'un devis de réparation détaillé.",
+                "Analyse approfondie du matériel et du système afin de localiser précisément le problème, suivie d'une estimation de réparation.",
+                "Contrôle complet de l'ordinateur pour déterminer la cause de la panne, avec diagnostic et devis de réparation à l'appui."
+            ]},
+            { re: /(install|r[ée]install|mise en place).*(syst[eè]me|window|windows|win\s?\d|macos|os\b|exploitation)|syst[eè]me/, v: [
+                "Installation propre du système d'exploitation, pilotes à jour et logiciels de base inclus (navigateur, bureautique, lecteur multimédia et antivirus). Poste prêt à l'emploi.",
+                "Réinstallation complète du système avec l'ensemble des pilotes et les logiciels essentiels préinstallés, testés et fonctionnels.",
+                "Mise en place du système d'exploitation et des logiciels de base indispensables, configurés pour une utilisation immédiate."
+            ]},
+            { re: /logiciel|applicati|software|programme/, v: [
+                "Installation et configuration des logiciels demandés, avec vérification du bon fonctionnement.",
+                "Mise en place des applications souhaitées et paramétrage pour une utilisation immédiate.",
+                "Installation des logiciels nécessaires, mis à jour et prêts à l'emploi."
+            ]},
+            { re: /entretien|nettoyage|d[ée]poussi|p[aâ]te thermique/, v: [
+                "Entretien complet : nettoyage interne, dépoussiérage et remplacement de la pâte thermique pour des performances et des températures optimales.",
+                "Nettoyage approfondi de l'appareil et renouvellement de la pâte thermique, pour un fonctionnement silencieux et plus frais.",
+                "Dépoussiérage complet et entretien du système de refroidissement, pour prolonger la durée de vie de la machine."
+            ]},
+            { re: /r[ée]paration|d[ée]pannage/, v: [
+                "Réparation réalisée par un technicien qualifié, avec test complet de bon fonctionnement après intervention.",
+                "Intervention technique de réparation, suivie d'un contrôle qualité pour garantir le bon fonctionnement de l'appareil.",
+                "Prise en charge de la réparation par nos techniciens, avec vérification finale avant restitution."
+            ]}
+        ],
+        buildServicePitch(p) {
+            const hay = `${p.name || ''} ${p.category || ''} ${p.subcategory || ''} ${p.description || ''}`.toLowerCase();
+            const seed = this.pitchSeed(p);
+            for (const m of this.serviceTpl) if (m.re.test(hay)) return this.pick(m.v, seed);
+            // Repli générique pour tout autre service.
+            return this.pick([
+                "Prestation réalisée par un technicien qualifié, avec contrôle du bon fonctionnement.",
+                "Service assuré par notre atelier, dans le respect des règles de l'art.",
+                "Intervention professionnelle, avec vérification finale de la qualité."
+            ], seed);
+        },
+        fmtLongDate(dt) {
+            try { return new Date(String(dt).replace(' ', 'T')).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }); }
+            catch (e) { return dt; }
+        },
+        avail(p) {
+            const boutique = p.in_presentation || 0;
+            return Math.max(0, (p.available || 0) + (p.presentoir || 0) + boutique - (p.reserved_delivery || 0));
+        },
+        render() {
+            const q = (document.getElementById('psearch').value || '').toLowerCase().trim();
+            const cat = document.getElementById('pcat').value;
+            const sort = document.getElementById('psort').value;
+            const hay = p => `${p.brand} ${p.model} ${p.name} ${p.category} ${p.subcategory} ${p.cpu} ${p.ram} ${p.storage} ${p.gpu} ${p.description}`.toLowerCase();
+            // Les SERVICES (diagnostic, installation, frais de livraison…) sont désormais
+            // sélectionnables pour un devis, au même titre que les produits.
+            let list = this.products.filter(p => (!q || hay(p).includes(q)) && (!cat || p.category === cat));
+            const price = p => Number(p.sale_price) || 0;
+            if (sort === 'price_asc') list.sort((a, b) => price(a) - price(b));
+            else if (sort === 'price_desc') list.sort((a, b) => price(b) - price(a));
+            else list.sort((a, b) => String(a.name || '').localeCompare(b.name || ''));
+            const grid = document.getElementById('prodGrid');
+            if (!list.length) { grid.innerHTML = '<div class="pf-empty">Aucun produit</div>'; return; }
+            SF.renderChunks(grid, list, p => {
+                const isSvc = !!p.is_service;
+                const av = isSvc ? 1 : this.avail(p);   // service : toujours disponible (illimité)
+                const icon = isSvc ? 'screwdriver-wrench' : (p.is_accessory ? 'plug' : 'laptop');
+                const selected = this.sel.some(s => s.id === p.id);
+                const badge = isSvc ? '<span class="pcard-qty"><i class="fas fa-infinity"></i> Service</span>'
+                                    : (av ? `<span class="pcard-qty">${av}</span>` : '<span class="pcard-rupture">Rupture</span>');
+                return `<div class="pcard ${isSvc || av ? '' : 'out'} ${selected ? 'sel' : ''}" onclick="Proforma.toggle(${p.id})">
+                    <div class="pcard-img" ${p.image ? `data-bg="${p.image}"` : ''}>${p.image ? '' : '<i class="fas fa-' + icon + '"></i>'}${selected ? '<span style="position:absolute;top:6px;right:6px;background:var(--accent);color:var(--accent-contrast);width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;"><i class="fas fa-check"></i></span>' : ''}</div>
+                    <div class="pcard-b">
+                        <div class="pcard-t">${SF.esc([p.brand, p.model].filter(Boolean).join(' ') || p.name)}</div>
+                        <div class="pcard-s">${SF.esc(isSvc ? (p.description || p.category || 'Service') : this.specLine(p))}</div>
+                        <div class="pcard-f"><span class="pcard-price">${SF.fmt.ar(p.sale_price)}</span>${badge}</div>
+                    </div>
+                </div>`;
+            });
+        },
+        toggle(id) {
+            const i = this.sel.findIndex(s => s.id === id);
+            if (i >= 0) { this.sel.splice(i, 1); }
+            else {
+                const p = this.products.find(x => x.id === id); if (!p) return;
+                const isSvc = !!p.is_service;
+                this.sel.push({
+                    id: p.id,
+                    is_service: isSvc,
+                    designation: [p.brand, p.model].filter(Boolean).join(' ') || p.name,
+                    // Service : description AUTOMATIQUE selon le type (comme le pitch produit) ;
+                    // une description saisie sur la fiche, si elle existe, reste prioritaire.
+                    detail: isSvc ? ((p.description || '').trim() || this.buildServicePitch(p)) : this.buildDetail(p),
+                    pitch: isSvc ? '' : this.buildPitch(p),
+                    qty: 1, unit: isSvc ? 'service' : 'pièce', pu: Number(p.sale_price) || 0
+                });
+            }
+            this.render(); this.renderCart();
+        },
+        remove(id) { this.sel = this.sel.filter(s => s.id !== id); this.render(); this.renderCart(); },
+        setQty(id, v) { const s = this.sel.find(x => x.id === id); if (s) { s.qty = Math.max(1, parseInt(v, 10) || 1); this.renderCart(); } },
+        setPu(id, v) { const s = this.sel.find(x => x.id === id); if (s) { s.pu = Math.max(0, parseFloat(v) || 0); this.renderCart(); } },
+        setDetail(id, v) { const s = this.sel.find(x => x.id === id); if (s) s.detail = v; },   // pas de re-render (garde le focus)
+        total() { return this.sel.reduce((t, s) => t + Math.round(s.qty * s.pu), 0); },
+        renderCart() {
+            const box = document.getElementById('cartItems');
+            document.getElementById('selCount').textContent = this.sel.length ? `(${this.sel.length})` : '';
+            document.getElementById('makeBtn').disabled = !this.sel.length;
+            if (!this.sel.length) { box.innerHTML = '<div class="pf-empty">Aucun produit sélectionné</div>'; document.getElementById('cartTotal').textContent = '0 Ar'; return; }
+            box.innerHTML = this.sel.map(s => `<div class="pf-line">
+                <div class="pf-line-h">
+                    <div><div class="pf-line-t">${SF.esc(s.designation)}${s.is_service ? ' <span class="text-muted" style="font-weight:400;font-size:10.5px;">(service)</span>' : ''}</div></div>
+                    <button class="pf-line-rm" title="Retirer" onclick="Proforma.remove(${s.id})"><i class="fas fa-times"></i></button>
+                </div>
+                <div class="pf-line-desc">
+                    <label>Description</label>
+                    <textarea rows="2" oninput="Proforma.setDetail(${s.id}, this.value)" placeholder="Détail / description (facultatif)">${SF.esc(s.detail || '')}</textarea>
+                </div>
+                <div class="pf-line-inputs">
+                    <div class="g qty"><label>Qté</label><input type="number" min="1" value="${s.qty}" onchange="Proforma.setQty(${s.id}, this.value)"></div>
+                    <div class="g"><label>P.U. (Ar)</label><input type="number" min="0" value="${s.pu}" onchange="Proforma.setPu(${s.id}, this.value)"></div>
+                </div>
+                <div class="pf-line-total">${SF.fmt.ar(Math.round(s.qty * s.pu))}</div>
+            </div>`).join('');
+            document.getElementById('cartTotal').textContent = SF.fmt.ar(this.total());
+        },
+        clear() { if (!this.sel.length) return; this.sel = []; this.render(); this.renderCart(); },
+        openClient() {
+            if (!this.sel.length) return SF.toast('Sélectionnez au moins un produit', 'error');
+            SF.Modal.open('clientModal');
+            this.toggleTax();
+            setTimeout(() => { const el = document.getElementById('d_name'); if (el) el.focus(); }, 60);
+        },
+        // Affiche/masque les champs NIF & STAT du destinataire selon le choix.
+        toggleTax() {
+            const on = document.getElementById('d_withtax').checked;
+            document.getElementById('d_nif_wrap').style.display = on ? '' : 'none';
+            document.getElementById('d_stat_wrap').style.display = on ? '' : 'none';
+        },
+        async generate() {
+            const name = document.getElementById('d_name').value.trim();
+            const contact = document.getElementById('d_contact').value.trim();
+            if (!SF.checkClient('d_name', 'd_contact')) return;
+            const dest = {
+                name, contact,
+                address: document.getElementById('d_address').value.trim(),
+                nif: document.getElementById('d_nif').value.trim(),
+                stat: document.getElementById('d_stat').value.trim(),
+                email: document.getElementById('d_email').value.trim()
+            };
+            const objet = document.getElementById('d_objet').value.trim();
+            const withTax = document.getElementById('d_withtax').checked;
+            const lines = this.sel.map(s => ({ designation: s.designation, detail: s.detail, pitch: s.pitch, qty: s.qty, unit: s.unit || 'pièce', pu: s.pu }));
+            try {
+                const r = await SF.api('/api/proformas', { method: 'POST', body: { dest, objet, lines } });
+                SFProforma.generate({ dest, objet, lines, ref: r.ref, date: this.fmtLongDate(r.created_at), withTax }, this.config);
+                SF.Modal.close('clientModal');
+                SF.toast('Proforma ' + r.ref + ' enregistrée', 'success');
+                this.sel = []; this.render(); this.renderCart();
+                ['d_name', 'd_contact', 'd_address', 'd_nif', 'd_stat', 'd_email', 'd_objet'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        // ── Historique des proformas ──────────────────────────────────
+        async openHistory() {
+            SF.Modal.open('histModal');
+            this.loadHistory();
+        },
+        async loadHistory() {
+            const box = document.getElementById('histList');
+            box.innerHTML = '<div class="sf-skel sf-skel-card"></div><div class="sf-skel sf-skel-card"></div><div class="sf-skel sf-skel-card"></div>';
+            const q = new URLSearchParams();
+            const s = document.getElementById('h_search').value.trim();
+            if (s) q.set('search', s);
+            try {
+                const rows = await SF.api('/api/proformas' + (q.toString() ? '?' + q.toString() : ''));
+                if (!rows.length) { box.innerHTML = '<div class="pf-empty">Aucune proforma enregistrée.</div>'; return; }
+                box.innerHTML = rows.map(r => `<div class="hist-row">
+                    <div class="hist-main">
+                        <div class="hist-ref">${SF.esc(r.ref)}</div>
+                        <div class="hist-sub">${SF.esc(r.dest_name)} · ${SF.esc(r.dest_contact || '')}</div>
+                        <div class="hist-sub">${SF.fmt.datetime(r.created_at)} · ${SF.esc(r.created_by_name || '')}</div>
+                    </div>
+                    <div class="hist-amt">${SF.fmt.ar(r.total)}</div>
+                    <button class="btn btn-sm btn-secondary" onclick="Proforma.reprint(${r.id})"><i class="fas fa-print"></i> Revoir / Imprimer</button>
+                </div>`).join('');
+            } catch (e) { box.innerHTML = '<div class="pf-empty">' + SF.esc(e.message) + '</div>'; }
+        },
+        async reprint(id) {
+            try {
+                const p = await SF.api('/api/proformas/' + id);
+                const dest = { name: p.dest_name, contact: p.dest_contact, address: p.dest_address, nif: p.dest_nif, stat: p.dest_stat, email: p.dest_email };
+                SFProforma.generate({ dest, objet: p.objet, lines: p.lines, ref: p.ref, date: this.fmtLongDate(p.created_at) }, this.config);
+            } catch (e) { SF.toast(e.message, 'error'); }
+        }
+    };
+    Proforma.init();
+    </script>
+</body>
+</html>

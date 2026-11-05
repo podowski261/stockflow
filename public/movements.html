@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <title>Mouvements de stock — STOCKFLOW</title>
+    <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css">
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/sf.css">
+    <script>document.documentElement.setAttribute('data-theme', localStorage.getItem('stockflow-theme') === 'dark' ? 'dark' : 'light'); try { var sfu = JSON.parse(localStorage.getItem('stockflow-ui') || '{}'); for (var k in sfu) document.documentElement.setAttribute('data-' + k, sfu[k]); } catch (e) {}</script>
+    <style>
+        .filters { display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; margin-bottom:16px; }
+        .filters .form-group { margin-bottom:0; } .filters .form-control { min-width:120px; }
+        .dir { font-size:10.5px; font-weight:700; padding:2px 8px; border-radius:999px; }
+        .dir.in { background:#ecf6f1; color:#05603a; }
+        .dir.out { background:#fbeeed; color:#a12a22; }
+        .dir.other { background:var(--neutral-soft); color:var(--text-muted); }
+        :root[data-theme="dark"] .dir.in { background:rgba(47,165,122,.16); color:#8fd8bc; }
+        :root[data-theme="dark"] .dir.out { background:rgba(239,122,114,.15); color:#f3b2ad; }
+        .mv-recap tfoot td { font-weight:700; border-top:2px solid var(--border-color); }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar" id="sfSidebar"></aside>
+        <main class="main-content">
+            <header class="page-header">
+                <div class="page-title"><h1>Mouvements de stock</h1><p>Entrées et sorties de tous les produits</p></div>
+                <div class="page-actions">
+                    <button class="btn btn-secondary" onclick="Mv.exportPDF()"><i class="fas fa-file-pdf"></i> Rapport PDF</button>
+                    <button class="btn btn-secondary" onclick="SFReport.as('xlsx', () => Mv.exportPDF())"><i class="fas fa-file-excel"></i> Excel</button>
+                    <div id="sfTools"></div>
+                </div>
+            </header>
+            <div class="page-body">
+                <div class="card" id="recapCard" style="margin-bottom:16px;"><div class="card-header"><h3><i class="fas fa-chart-simple"></i> Récapitulatif du jour par fournisseur</h3><input type="date" id="recapDate" class="form-control" style="max-width:170px;" onchange="Mv.onRecapDate()"></div>
+                    <div class="card-body" id="recapBody"><div class="sf-skel sf-skel-card"></div><div class="sf-skel sf-skel-card"></div><div class="sf-skel sf-skel-card"></div></div>
+                </div>
+                <div class="card"><div class="card-body">
+                    <div class="filters">
+                        <div class="form-group"><label>Du</label><input type="date" id="f_from" class="form-control" onchange="Mv.load()"></div>
+                        <div class="form-group"><label>Au</label><input type="date" id="f_to" class="form-control" onchange="Mv.load()"></div>
+                        <div class="form-group"><label>Sens</label><select id="f_dir" class="form-control" onchange="Mv.load()"><option value="">Tous</option><option value="in">Entrées</option><option value="out">Sorties</option></select></div>
+                        <div class="form-group"><label>Type</label><select id="f_type" class="form-control" onchange="Mv.load()"><option value="">Tous</option><option value="pc">Ordinateurs</option><option value="acc">Accessoires</option></select></div>
+                        <div class="form-group" style="flex:1;min-width:180px;"><label>Recherche produit / n° série</label><input type="text" id="f_q" class="form-control" placeholder="Modèle, marque, n° série…" onkeydown="if(event.key==='Enter')Mv.load()"></div>
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead><tr><th>Date &amp; heure</th><th>Produit</th><th>N° série</th><th>Sens</th><th>Mouvement</th><th>Par</th><th>Détail</th></tr></thead>
+                            <tbody id="body"><tr><td colspan="7" class="sf-skel-cell"><span class="sf-skel sf-skel-line"></span><span class="sf-skel sf-skel-line"></span><span class="sf-skel sf-skel-line"></span></td></tr></tbody>
+                        </table>
+                    </div>
+                </div></div>
+            </div>
+        </main>
+    </div>
+
+    <div class="modal-overlay" id="traceModal">
+        <div class="modal" style="max-width:560px;">
+            <div class="modal-header"><h3 id="tmTitle">Parcours de l'article</h3><button class="modal-close" onclick="SF.Modal.close('traceModal')">&times;</button></div>
+            <div class="modal-body" id="tmBody"></div>
+        </div>
+    </div>
+
+    <script src="/js/sf-core.js"></script>
+    <script src="/js/sf-layout.js"></script>
+    <script src="/js/sf-report.js"></script>
+    <script src="/js/sf-trace.js"></script>
+    <script>
+    const Mv = {
+        list: [], config: {},
+        actionLabels: {
+            reception: 'Réception', envoi_installation: 'Envoi installation', installation_terminee: 'Installation terminée',
+            retour_garantie: 'Retour garantie', presentoir: 'Mise en présentoir', presentoir_retrait: 'Retrait présentoir',
+            vente: 'Vente', vente_echange: 'Vente (échange)', retour_vente: 'Retour de vente', retour_receptionne: 'Retour réceptionné',
+            echange_retour: 'Retour pour échange', retour_fournisseur: 'Retour fournisseur', garantie_traitee: 'Garantie traitée',
+            garantie_reparee: 'Réparé', remplace: 'Remplacé', supprime: 'Supprimé', reservation: 'Réservation',
+            reservation_annulee: 'Réservation annulée', livraison_facturee: 'Livraison facturée', livraison_sortie: 'Sortie livraison',
+            livraison_livree: 'Livrée', livraison_retour: 'Retour livraison'
+        },
+        async init() {
+            const u = await SF.Auth.require(['gestion_stock']); if (!u) return;
+            SF.layout({ active: '/movements.html' });
+            try { this.config = await SF.api('/api/config'); } catch (e) {}
+            const t = new Date(), pad = n => String(n).padStart(2, '0');
+            const today = `${t.getFullYear()}-${pad(t.getMonth() + 1)}-${pad(t.getDate())}`;
+            // Pré-filtrage depuis l'URL (ex : clic sur « Sorties du jour » du tableau de bord).
+            const qp = new URLSearchParams(location.search);
+            const date = qp.get('date');
+            if (date) { document.getElementById('f_from').value = date; document.getElementById('f_to').value = date; }
+            else if (qp.get('from') || qp.get('to')) { if (qp.get('from')) document.getElementById('f_from').value = qp.get('from'); if (qp.get('to')) document.getElementById('f_to').value = qp.get('to'); }
+            else { document.getElementById('f_from').value = today; document.getElementById('f_to').value = today; }
+            const dir = qp.get('dir') || qp.get('direction'); if (dir) document.getElementById('f_dir').value = dir;
+            const type = qp.get('type'); if (type) document.getElementById('f_type').value = type;
+            document.getElementById('recapDate').value = date || today;
+            SF.on('stock:update', () => { this.load(); this.loadSummary(); });
+            this.loadSummary();
+            this.load();
+        },
+        // Changement de date du récap → la liste ci-dessous suit la même date.
+        onRecapDate() {
+            const date = document.getElementById('recapDate').value;
+            document.getElementById('f_from').value = date;
+            document.getElementById('f_to').value = date;
+            this.loadSummary();
+            this.load();
+        },
+        async loadSummary() {
+            const date = document.getElementById('recapDate').value;
+            try {
+                const s = await SF.api('/api/movements/summary' + (date ? '?date=' + date : ''));
+                const t = s.totals;
+                const body = document.getElementById('recapBody');
+                if (!s.suppliers.length) { body.innerHTML = '<div class="text-muted">Aucun mouvement ce jour.</div>'; return; }
+                const pair = (a, b) => `<b>${a}</b> <span class="text-muted">/ ${b}</span>`;
+                const cells = (f, name) => `<td>${name}</td>
+                    <td class="text-center">${pair(f.in_pc, f.in_acc)}</td>
+                    <td class="text-center">${pair(f.out_pc, f.out_acc)}</td>
+                    <td class="text-center">${pair(f.gar_in, f.gar_out)}</td>`;
+                body.innerHTML = `<div class="table-container"><table class="mv-recap">
+                    <thead><tr><th>Fournisseur</th><th class="text-center">Entrées (ordi / acc.)</th><th class="text-center">Sorties (ordi / acc.)</th><th class="text-center">Garantie (reçue / envoyée)</th></tr></thead>
+                    <tbody>${s.suppliers.map(f => `<tr>${cells(f, SF.esc(f.supplier_name))}</tr>`).join('')}</tbody>
+                    <tfoot><tr>${cells(t, 'Total')}</tr></tfoot>
+                    </table></div>`;
+            } catch (e) {}
+        },
+        dir(m) { return m.to_status === 'stock' ? 'in' : (m.from_status === 'stock' && m.to_status !== 'stock' ? 'out' : 'other'); },
+        dirLabel(d) { return d === 'in' ? 'Entrée' : (d === 'out' ? 'Sortie' : '—'); },
+        async load() {
+            const q = new URLSearchParams();
+            ['from', 'to'].forEach(k => { const v = document.getElementById('f_' + k).value; if (v) q.set(k, v); });
+            const dir = document.getElementById('f_dir').value; if (dir) q.set('direction', dir);
+            const type = document.getElementById('f_type').value; if (type) q.set('type', type);
+            const s = document.getElementById('f_q').value.trim(); if (s) q.set('q', s);
+            try { this.list = await SF.api('/api/movements?' + q.toString()); this.render(); }
+            catch (e) { SF.toast(e.message, 'error'); }
+        },
+        rowHtml(m) {
+            const d = this.dir(m);
+            return `<tr class="clk" onclick="SFTrace.open(${m.unit_id})">
+                <td>${SF.fmt.datetime(m.created_at)}</td>
+                <td>${SF.esc([m.brand, m.model].filter(Boolean).join(' ') || m.product_name || '—')}</td>
+                <td style="font-family:monospace;">${SF.esc(m.serial)}</td>
+                <td><span class="dir ${d}">${this.dirLabel(d)}</span></td>
+                <td>${SF.esc(this.actionLabels[m.action] || SFTrace.actionLabel(m.action))}<div class="text-muted" style="font-size:11px;">${SF.UNIT_STATUS[m.from_status] || m.from_status || '—'} → ${SF.UNIT_STATUS[m.to_status] || m.to_status}</div></td>
+                <td>${SF.esc(m.user_name || '—')}</td>
+                <td class="text-muted" style="font-size:12px;">${SF.esc(m.note || '')}</td></tr>`;
+        },
+        render() {
+            const body = document.getElementById('body');
+            if (!this.list.length) { body.innerHTML = '<tr><td colspan="7" class="text-center text-muted">Aucun mouvement</td></tr>'; return; }
+            // Séparation claire Ordinateurs / Accessoires (chaque groupe avec son en-tête et son total).
+            const groups = [
+                { label: 'Ordinateurs', icon: 'fa-laptop', rows: this.list.filter(m => m.is_accessory === 0) },
+                { label: 'Accessoires', icon: 'fa-plug', rows: this.list.filter(m => m.is_accessory === 1) },
+                { label: 'Autres', icon: 'fa-box', rows: this.list.filter(m => m.is_accessory !== 0 && m.is_accessory !== 1) }
+            ];
+            const head = g => `<tr><td colspan="7" style="background:var(--neutral-soft);font-weight:700;font-size:12.5px;padding:8px 12px;"><i class="fas ${g.icon}" style="color:var(--text-muted);"></i> ${g.label} <span style="color:var(--text-muted);font-weight:500;">(${g.rows.length})</span></td></tr>`;
+            body.innerHTML = groups.filter(g => g.rows.length).map(g => head(g) + g.rows.map(m => this.rowHtml(m)).join('')).join('');
+        },
+        exportPDF() {
+            if (!this.list.length) return SF.toast('Aucun mouvement à exporter', 'error');
+            const from = document.getElementById('f_from').value, to = document.getElementById('f_to').value;
+            const ins = this.list.filter(m => this.dir(m) === 'in').length;
+            const outs = this.list.filter(m => this.dir(m) === 'out').length;
+            SFReport.build({
+                company: this.config,
+                title: 'Mouvements de stock',
+                period: (from || to) ? `Période : ${from ? SF.fmt.date(from) : '…'} — ${to ? SF.fmt.date(to) : '…'}` : 'Tous les mouvements',
+                filename: 'Mouvements-stock.pdf',
+                summary: [
+                    { label: 'Mouvements', value: this.list.length },
+                    { label: 'Entrées', value: ins },
+                    { label: 'Sorties', value: outs }
+                ],
+                sections: [{
+                    heading: 'Détail des mouvements',
+                    columns: [
+                        { header: 'Date & heure', key: 'created_at', width: 22, format: v => SF.fmt.datetime(v) },
+                        { header: 'Produit', key: '_p', width: 30, format: (v, m) => [m.brand, m.model].filter(Boolean).join(' ') || m.product_name || '—' },
+                        { header: 'N° série', key: 'serial', width: 18 },
+                        { header: 'Sens', key: '_d', width: 12, format: (v, m) => this.dirLabel(this.dir(m)) },
+                        { header: 'Mouvement', key: 'action', width: 26, format: v => this.actionLabels[v] || v },
+                        { header: 'État', key: '_s', width: 26, format: (v, m) => `${SF.UNIT_STATUS[m.from_status] || m.from_status || '—'} → ${SF.UNIT_STATUS[m.to_status] || m.to_status}` },
+                        { header: 'Par', key: 'user_name', width: 18, format: v => v || '—' },
+                        { header: 'Détail', key: 'note', width: 30, format: v => v || '' }
+                    ],
+                    rows: this.list
+                }]
+            });
+        }
+    };
+    Mv.init();
+    </script>
+</body>
+</html>

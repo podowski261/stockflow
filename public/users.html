@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <title>Utilisateurs — STOCKFLOW</title>
+    <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css">
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/sf.css">
+    <script>document.documentElement.setAttribute('data-theme', localStorage.getItem('stockflow-theme') === 'dark' ? 'dark' : 'light'); try { var sfu = JSON.parse(localStorage.getItem('stockflow-ui') || '{}'); for (var k in sfu) document.documentElement.setAttribute('data-' + k, sfu[k]); } catch (e) {}</script>
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar" id="sfSidebar"></aside>
+        <main class="main-content">
+            <header class="page-header">
+                <div class="page-title">
+                    <h1>Utilisateurs</h1>
+                    <p>Gérez les accès et les rôles de votre équipe</p>
+                </div>
+                <div class="page-actions">
+                    <button class="btn btn-secondary" onclick="Codes.showGenerate()"><i class="fas fa-key"></i> Générer un code</button>
+                    <button class="btn btn-primary" onclick="Users.showAdd()"><i class="fas fa-plus"></i> Nouvel utilisateur</button>
+                    <div id="sfTools"></div>
+                </div>
+            </header>
+            <div class="page-body">
+                <div class="card">
+                    <div class="card-header"><h3>Liste des utilisateurs</h3><span class="text-muted" id="userCount"></span></div>
+                    <div class="card-body">
+                        <div class="table-container">
+                            <table>
+                                <thead><tr>
+                                    <th>Utilisateur</th><th>Rôle</th><th>Téléphone</th><th>État</th><th>Créé le</th><th style="text-align:right;">Actions</th>
+                                </tr></thead>
+                                <tbody id="usersBody"><tr><td colspan="6" class="sf-skel-cell"><span class="sf-skel sf-skel-line"></span><span class="sf-skel sf-skel-line"></span><span class="sf-skel sf-skel-line"></span></td></tr></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card" style="margin-top:20px;">
+                    <div class="card-header">
+                        <div><h3>Codes d'invitation</h3><p class="text-muted" style="font-size:12.5px;margin:2px 0 0;">Chaque code est à usage unique : un code = un compte, avec le rôle imposé.</p></div>
+                        <span class="text-muted" id="codeCount"></span>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-container">
+                            <table>
+                                <thead><tr>
+                                    <th>Code</th><th>Rôle</th><th>Note</th><th>État</th><th>Créé le / par</th><th>Utilisé par</th><th style="text-align:right;">Actions</th>
+                                </tr></thead>
+                                <tbody id="codesBody"><tr><td colspan="7" class="sf-skel-cell"><span class="sf-skel sf-skel-line"></span><span class="sf-skel sf-skel-line"></span><span class="sf-skel sf-skel-line"></span></td></tr></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modale utilisateur -->
+    <div class="modal-overlay" id="userModal">
+        <div class="modal" style="max-width:520px;">
+            <div class="modal-header">
+                <h3 id="userModalTitle">Nouvel utilisateur</h3>
+                <button class="modal-close" onclick="SF.Modal.close('userModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="userForm" onsubmit="return false;">
+                    <input type="hidden" id="userId">
+                    <div class="form-group">
+                        <label for="userFullName">Nom complet</label>
+                        <input type="text" id="userFullName" class="form-control" placeholder="Ex : Jean Rakoto">
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="userUsername">Identifiant *</label>
+                            <input type="text" id="userUsername" class="form-control" required placeholder="jean.rakoto" autocomplete="off">
+                        </div>
+                        <div class="form-group">
+                            <label for="userPhone">Téléphone</label>
+                            <input type="text" id="userPhone" class="form-control" placeholder="034 00 000 00">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="userPassword">Mot de passe *</label>
+                        <input type="password" id="userPassword" class="form-control" placeholder="Minimum 6 caractères" autocomplete="new-password">
+                        <p class="form-hint" id="passwordHint" style="display:none;">Laissez vide pour garder le mot de passe actuel.</p>
+                    </div>
+                    <div class="form-group">
+                        <label for="userRole">Rôle principal *</label>
+                        <select id="userRole" class="form-control" required onchange="Users.renderExtraRoles()"></select>
+                    </div>
+                    <div class="form-group" id="extraRolesGroup">
+                        <label>Rôles supplémentaires <span class="text-muted" style="font-weight:400;">(accès cumulés — ex. commercial boutique + en ligne)</span></label>
+                        <div id="userExtraRoles" style="display:flex;flex-wrap:wrap;gap:8px 16px;"></div>
+                    </div>
+                    <div class="form-group" id="activeGroup" style="display:none;">
+                        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                            <input type="checkbox" id="userActive" checked> Compte actif
+                        </label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="SF.Modal.close('userModal')">Annuler</button>
+                <button class="btn btn-primary" onclick="Users.save()"><i class="fas fa-save"></i> Enregistrer</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modale génération de code -->
+    <div class="modal-overlay" id="codeModal">
+        <div class="modal" style="max-width:460px;">
+            <div class="modal-header">
+                <h3>Générer un code d'invitation</h3>
+                <button class="modal-close" onclick="SF.Modal.close('codeModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="codeForm">
+                    <div class="form-group">
+                        <label for="codeRole">Rôle attribué au compte *</label>
+                        <select id="codeRole" class="form-control" required></select>
+                    </div>
+                    <div class="form-group">
+                        <label for="codeNote">Note (facultatif)</label>
+                        <input type="text" id="codeNote" class="form-control" placeholder="Ex : test caisse, pour Jean…">
+                    </div>
+                    <p class="form-hint">Communiquez le code à la personne : elle l'entrera sur la page de connexion, via « Créer un compte ». Le code n'est valable qu'une seule fois.</p>
+                </div>
+                <div id="codeResult" style="display:none;text-align:center;">
+                    <p class="text-muted" style="font-size:12.5px;margin-bottom:8px;">Code généré pour <strong id="codeResultRole"></strong> — communiquez-le à la personne :</p>
+                    <div style="font-family:monospace;font-size:28px;font-weight:800;letter-spacing:3px;color:var(--accent);background:var(--bg-input);border-radius:var(--border-radius);padding:16px;" id="codeResultValue">—</div>
+                    <button class="btn btn-secondary" style="margin-top:12px;" onclick="Codes.copy()"><i class="fas fa-copy"></i> Copier le code</button>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="SF.Modal.close('codeModal')" id="codeCloseBtn">Annuler</button>
+                <button class="btn btn-primary" onclick="Codes.generate()" id="codeGenBtn"><i class="fas fa-key"></i> Générer</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/sf-core.js"></script>
+    <script src="/js/sf-layout.js"></script>
+    <script>
+    const Users = {
+        list: [], roles: {},
+        async init() {
+            const user = await SF.Auth.require([]);   // admin uniquement
+            if (!user) return;
+            SF.layout({ active: '/users.html' });
+            try { this.roles = await SF.api('/api/meta/roles'); } catch (e) { this.roles = SF.ROLES; }
+            document.getElementById('userRole').innerHTML =
+                Object.entries(this.roles).map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
+            document.getElementById('codeRole').innerHTML =
+                Object.entries(this.roles).map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
+            this.load();
+            Codes.roles = this.roles;
+            Codes.load();
+        },
+        async load() {
+            try {
+                this.list = await SF.api('/api/users');
+                document.getElementById('userCount').textContent = `${this.list.length} utilisateur(s)`;
+                const body = document.getElementById('usersBody');
+                if (!this.list.length) { body.innerHTML = '<tr><td colspan="6" class="text-center text-muted">Aucun utilisateur</td></tr>'; return; }
+                body.innerHTML = this.list.map(u => `
+                    <tr>
+                        <td>
+                            <div style="font-weight:600;color:var(--text-primary);">${SF.esc(u.full_name || u.username)}</div>
+                            <div class="text-muted" style="font-size:12px;">@${SF.esc(u.username)}${u.is_default ? ' · défaut' : ''}</div>
+                        </td>
+                        <td><span class="role-badge ${u.role}">${SF.esc(this.roles[u.role] || u.role)}</span>${(u.extra_roles || []).map(r => ` <span class="role-badge ${r}" style="opacity:.85;">+ ${SF.esc(this.roles[r] || r)}</span>`).join('')}</td>
+                        <td>${SF.esc(u.phone || '—')}</td>
+                        <td>${u.active ? '<span class="badge badge-success">Actif</span>' : '<span class="badge badge-danger">Désactivé</span>'}</td>
+                        <td class="text-muted" style="font-size:12.5px;">${SF.fmt.date(u.created_at)}</td>
+                        <td style="text-align:right;white-space:nowrap;">
+                            <button class="btn btn-sm btn-secondary" onclick="Users.showEdit(${u.id})"><i class="fas fa-pen"></i></button>
+                            ${u.is_default ? '' : `<button class="btn btn-sm btn-danger" onclick="Users.remove(${u.id})"><i class="fas fa-trash"></i></button>`}
+                        </td>
+                    </tr>`).join('');
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        showAdd() {
+            document.getElementById('userForm').reset();
+            document.getElementById('userId').value = '';
+            document.getElementById('userModalTitle').textContent = 'Nouvel utilisateur';
+            document.getElementById('userPassword').required = true;
+            document.getElementById('passwordHint').style.display = 'none';
+            document.getElementById('activeGroup').style.display = 'none';
+            document.getElementById('userRole').disabled = false;
+            this.renderExtraRoles([]);
+            SF.Modal.open('userModal');
+        },
+        showEdit(id) {
+            const u = this.list.find(x => x.id === id); if (!u) return;
+            document.getElementById('userForm').reset();
+            document.getElementById('userId').value = u.id;
+            document.getElementById('userModalTitle').textContent = 'Modifier l\'utilisateur';
+            document.getElementById('userFullName').value = u.full_name || '';
+            document.getElementById('userUsername').value = u.username;
+            document.getElementById('userPhone').value = u.phone || '';
+            document.getElementById('userPassword').required = false;
+            document.getElementById('passwordHint').style.display = 'block';
+            document.getElementById('userRole').value = u.role;
+            document.getElementById('userRole').disabled = !!u.is_default;
+            this.renderExtraRoles(Array.isArray(u.extra_roles) ? u.extra_roles : []);
+            document.getElementById('activeGroup').style.display = u.is_default ? 'none' : 'block';
+            document.getElementById('userActive').checked = !!u.active;
+            SF.Modal.open('userModal');
+        },
+        // Cases à cocher des rôles supplémentaires (tous les rôles sauf admin et le rôle principal).
+        renderExtraRoles(selected) {
+            const primary = document.getElementById('userRole').value;
+            if (!selected) selected = [...document.querySelectorAll('.extra-role-chk:checked')].map(c => c.value);
+            document.getElementById('extraRolesGroup').style.display = primary === 'admin' ? 'none' : 'block';
+            const box = document.getElementById('userExtraRoles');
+            const opts = Object.entries(this.roles).filter(([k]) => k !== 'admin' && k !== primary);
+            box.innerHTML = opts.map(([k, v]) => `<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;">
+                <input type="checkbox" class="extra-role-chk" value="${k}" ${selected.includes(k) ? 'checked' : ''}> ${SF.esc(v)}</label>`).join('') || '<span class="text-muted" style="font-size:12px;">—</span>';
+        },
+        async save() {
+            const id = document.getElementById('userId').value;
+            const payload = {
+                full_name: document.getElementById('userFullName').value.trim(),
+                username: document.getElementById('userUsername').value.trim(),
+                phone: document.getElementById('userPhone').value.trim(),
+                password: document.getElementById('userPassword').value,
+                role: document.getElementById('userRole').value,
+                extra_roles: [...document.querySelectorAll('.extra-role-chk:checked')].map(c => c.value).join(','),
+                active: document.getElementById('userActive').checked ? 1 : 0
+            };
+            if (!payload.username) return SF.toast('Identifiant requis', 'error');
+            if (!id && !payload.password) return SF.toast('Mot de passe requis', 'error');
+            if (payload.password && payload.password.length < 6) return SF.toast('Mot de passe : 6 caractères minimum', 'error');
+            try {
+                if (id) await SF.api('/api/users/' + id, { method: 'PUT', body: payload });
+                else await SF.api('/api/users', { method: 'POST', body: payload });
+                SF.Modal.close('userModal');
+                SF.toast('Utilisateur enregistré', 'success');
+                this.load();
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        async remove(id) {
+            const u = this.list.find(x => x.id === id);
+            if (!await SF.confirm(`Supprimer « ${u.full_name || u.username} » ?`, { danger: true, okLabel: 'Supprimer' })) return;
+            try { await SF.api('/api/users/' + id, { method: 'DELETE' }); SF.toast('Utilisateur supprimé', 'success'); this.load(); }
+            catch (e) { SF.toast(e.message, 'error'); }
+        }
+    };
+
+    const Codes = {
+        list: [], roles: {}, lastCode: '',
+        showGenerate() {
+            document.getElementById('codeForm').style.display = 'block';
+            document.getElementById('codeResult').style.display = 'none';
+            document.getElementById('codeNote').value = '';
+            document.getElementById('codeGenBtn').style.display = '';
+            document.getElementById('codeGenBtn').disabled = false;
+            document.getElementById('codeCloseBtn').textContent = 'Annuler';
+            SF.Modal.open('codeModal');
+        },
+        async generate() {
+            const role = document.getElementById('codeRole').value;
+            const note = document.getElementById('codeNote').value.trim();
+            const btn = document.getElementById('codeGenBtn');
+            btn.disabled = true;
+            try {
+                const r = await SF.api('/api/registration-codes', { method: 'POST', body: { role, note } });
+                this.lastCode = r.code;
+                document.getElementById('codeResultValue').textContent = r.code;
+                document.getElementById('codeResultRole').textContent = this.roles[r.role] || r.role;
+                document.getElementById('codeForm').style.display = 'none';
+                document.getElementById('codeResult').style.display = 'block';
+                document.getElementById('codeGenBtn').style.display = 'none';
+                document.getElementById('codeCloseBtn').textContent = 'Fermer';
+                this.load();
+            } catch (e) { SF.toast(e.message, 'error'); btn.disabled = false; }
+        },
+        copy() {
+            navigator.clipboard?.writeText(this.lastCode)
+                .then(() => SF.toast('Code copié', 'success'))
+                .catch(() => SF.toast('Copie impossible', 'error'));
+        },
+        statusBadge(s) {
+            if (s === 'active') return '<span class="badge badge-success">Actif</span>';
+            if (s === 'used') return '<span class="badge badge-info">Utilisé</span>';
+            return '<span class="badge badge-danger">Révoqué</span>';
+        },
+        async load() {
+            try {
+                this.list = await SF.api('/api/registration-codes');
+                const active = this.list.filter(c => c.status === 'active').length;
+                document.getElementById('codeCount').textContent = `${active} code(s) actif(s) · ${this.list.length} au total`;
+                const body = document.getElementById('codesBody');
+                if (!this.list.length) { body.innerHTML = '<tr><td colspan="7" class="text-center text-muted">Aucun code généré</td></tr>'; return; }
+                body.innerHTML = this.list.map(c => `
+                    <tr>
+                        <td style="font-family:monospace;font-weight:700;letter-spacing:1px;">${SF.esc(c.code)}</td>
+                        <td><span class="role-badge ${c.role}">${SF.esc(this.roles[c.role] || c.role)}</span></td>
+                        <td class="text-muted" style="font-size:12.5px;">${SF.esc(c.note || '—')}</td>
+                        <td>${this.statusBadge(c.status)}</td>
+                        <td class="text-muted" style="font-size:12px;">${SF.fmt.date(c.created_at)}<br>${SF.esc(c.created_by || '—')}</td>
+                        <td class="text-muted" style="font-size:12px;">${c.used_by ? SF.esc(c.used_by) + '<br>' + SF.fmt.date(c.used_at) : '—'}</td>
+                        <td style="text-align:right;white-space:nowrap;">
+                            ${c.status === 'active' ? `
+                                <button class="btn btn-sm btn-secondary" title="Copier" onclick="Codes.copyOne('${c.code}')"><i class="fas fa-copy"></i></button>
+                                <button class="btn btn-sm btn-danger" title="Révoquer" onclick="Codes.revoke(${c.id})"><i class="fas fa-ban"></i></button>
+                            ` : '—'}
+                        </td>
+                    </tr>`).join('');
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        copyOne(code) {
+            navigator.clipboard?.writeText(code)
+                .then(() => SF.toast('Code copié', 'success'))
+                .catch(() => SF.toast('Copie impossible', 'error'));
+        },
+        async revoke(id) {
+            const c = this.list.find(x => x.id === id);
+            if (!await SF.confirm(`Révoquer le code « ${c.code} » ? Il ne pourra plus être utilisé.`, { danger: true, okLabel: 'Révoquer' })) return;
+            try { await SF.api('/api/registration-codes/' + id + '/revoke', { method: 'POST' }); SF.toast('Code révoqué', 'success'); this.load(); }
+            catch (e) { SF.toast(e.message, 'error'); }
+        }
+    };
+
+    Users.init();
+    </script>
+</body>
+</html>

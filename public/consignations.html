@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <title>Mes présentations — STOCKFLOW</title>
+    <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css">
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/sf.css">
+    <script>document.documentElement.setAttribute('data-theme', localStorage.getItem('stockflow-theme') === 'dark' ? 'dark' : 'light'); try { var sfu = JSON.parse(localStorage.getItem('stockflow-ui') || '{}'); for (var k in sfu) document.documentElement.setAttribute('data-' + k, sfu[k]); } catch (e) {}</script>
+    <style>
+        /* ---- Carte produit : identique au stock dépôt (stock.html) ---- */
+        .stock-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:16px; }
+        .stock-card { background:var(--bg-card); border:1px solid var(--border-color); border-radius:var(--border-radius-lg); overflow:hidden; transition:transform .12s, box-shadow .12s, border-color .12s; display:flex; flex-direction:column; position:relative; cursor:pointer; }
+        .stock-card:hover { transform:translateY(-2px); box-shadow:var(--shadow-md); border-color:var(--accent); }
+        .sc-img { height:120px; background:var(--bg-input) center/cover no-repeat; display:flex; align-items:center; justify-content:center; color:var(--text-dark); font-size:32px; position:relative; }
+        .sc-cond { position:absolute; top:8px; left:8px; font-size:10px; font-weight:700; text-transform:uppercase; padding:3px 8px; border-radius:6px; background:rgba(0,0,0,.55); color:#fff; }
+        .sc-body { padding:13px 14px; flex:1; display:flex; flex-direction:column; }
+        .sc-title { font-size:14.5px; font-weight:700; color:var(--text-primary); line-height:1.25; }
+        .sc-spec { font-size:11.5px; color:var(--text-muted); margin:3px 0 6px; line-height:1.35; min-height:16px; }
+        .sc-serial { font-family:monospace; font-size:11.5px; font-weight:700; color:var(--accent-dark); background:var(--bg-input); border-radius:6px; padding:2px 7px; display:inline-block; }
+        .sc-sn { font-size:10.5px; color:var(--text-muted); margin-top:3px; }
+        .sc-foot { display:flex; justify-content:space-between; align-items:flex-end; margin-top:auto; padding-top:8px; }
+        .sc-price { font-size:15px; font-weight:800; color:var(--text-primary); }
+
+        /* ---- Bloc par présentation ---- */
+        .pres { background:var(--bg-card); border:1px solid var(--border-color); border-radius:var(--border-radius-lg); padding:16px; margin-bottom:18px; }
+        .pres.sent { border-color:var(--warning); }
+        .pres-head { display:flex; justify-content:space-between; align-items:flex-start; gap:10px; flex-wrap:wrap; margin-bottom:12px; }
+        .pres-head h4 { font-size:15px; }
+        .pres-tot { font-size:17px; font-weight:800; }
+        .st { font-size:10.5px; font-weight:700; padding:2px 9px; border-radius:999px; text-transform:uppercase; }
+        .st.sent { background:rgba(245,158,11,.15); color:var(--warning-dark); }
+        .st.received, .st.boutique { background:rgba(14,165,233,.15); color:#0284c7; }
+        .stat-row { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; margin-bottom:16px; }
+        .stat-tile { display:flex; align-items:center; gap:12px; background:var(--bg-card); border:1px solid var(--border-color); border-radius:var(--border-radius-lg); padding:14px 16px; cursor:pointer; }
+        .stat-tile:hover { border-color:var(--accent); }
+        .stat-tile.active { border-color:var(--accent); background:var(--accent-glow); }
+        .stat-tile i { font-size:20px; color:var(--accent-dark); }
+        .stat-tile .stn { font-size:21px; font-weight:800; line-height:1; }
+        .stat-tile .stl { font-size:11.5px; color:var(--text-muted); margin-top:3px; }
+        .st.sold { background:rgba(34,197,94,.15); color:var(--success-dark); }
+        .st.cancelled, .st.returned { background:var(--bg-input); color:var(--text-muted); }
+        .grp-title { font-size:11px; font-weight:700; text-transform:uppercase; color:var(--text-muted); margin:12px 0 8px; display:flex; align-items:center; gap:6px; }
+        .empty { text-align:center; color:var(--text-muted); padding:40px; }
+
+        /* ---- Barre de recherche flottante (identique au stock dépôt) ---- */
+        .sticky-toolbar { position:sticky; top:var(--topbar-height); z-index:20; background:var(--bg-body); padding:10px 0; margin:-4px 0 14px; border-bottom:1px solid var(--border-color); display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+        .search-box { position:relative; flex:1; min-width:200px; max-width:400px; }
+        .search-box input { width:100%; padding:11px 14px 11px 40px; background:var(--bg-input); border:1px solid transparent; border-radius:var(--border-radius); color:var(--text-primary); font-family:var(--font-body); font-size:14px; }
+        .search-box input:focus { outline:none; border-color:var(--accent); background:var(--bg-card); }
+        .search-box i { position:absolute; left:14px; top:50%; transform:translateY(-50%); color:var(--text-muted); }
+        .res-count { font-size:12px; color:var(--text-muted); margin-bottom:10px; }
+        .dl-row { display:flex; justify-content:space-between; padding:7px 0; border-bottom:1px solid var(--border-light); font-size:13px; }
+        .dl-row .l { color:var(--text-secondary); font-weight:600; }
+        /* Onglets Ma boutique | Historique de réception */
+        .mb-tabs { display:flex; gap:6px; border-bottom:1px solid var(--border-color); margin-bottom:18px; }
+        .mb-tab { padding:12px 18px; border:none; background:none; color:var(--text-secondary); font-family:var(--font-body); font-size:14px; font-weight:600; cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-1px; display:flex; align-items:center; gap:8px; }
+        .mb-tab:hover { color:var(--text-primary); }
+        .mb-tab.active { color:var(--accent); border-bottom-color:var(--accent); }
+        /* Sélection multiple par clic sur la carte + bouton Détails */
+        .stock-card.sel { border-color:var(--accent); box-shadow:0 0 0 2px var(--accent) inset; }
+        .sc-check { position:absolute; top:8px; left:8px; z-index:2; width:24px; height:24px; border-radius:7px; background:var(--bg-card); border:1px solid var(--border-color); display:flex; align-items:center; justify-content:center; color:transparent; font-size:12px; pointer-events:none; }
+        .stock-card.sel .sc-check { background:var(--accent); border-color:var(--accent); color:var(--accent-contrast); }
+        .sc-details { border:none; background:var(--bg-input); color:var(--text-secondary); border-radius:8px; padding:5px 9px; font-size:12px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:5px; }
+        .sc-details:hover { background:var(--accent); color:var(--accent-contrast); }
+        /* Barre d'action FLOTTANTE (bas d'écran) : apparaît dès qu'une sélection existe.
+           Pensée mobile-first — pouce accessible, compteur d'articles bien visible. */
+        .act-bar { position:fixed; left:50%; bottom:calc(18px + env(safe-area-inset-bottom, 0px)); transform:translateX(-50%) translateY(24px);
+            z-index:1200; display:flex; align-items:center; gap:10px; flex-wrap:nowrap;
+            background:var(--bg-card); border:1px solid var(--accent); box-shadow:0 10px 30px rgba(0,0,0,.28);
+            border-radius:999px; padding:9px 10px 9px 18px; max-width:calc(100vw - 24px);
+            opacity:0; pointer-events:none; transition:opacity .18s ease, transform .18s ease; }
+        .act-bar.show { opacity:1; transform:translateX(-50%) translateY(0); pointer-events:auto; }
+        .act-bar .cnt { font-weight:800; white-space:nowrap; }
+        .act-bar .btn { white-space:nowrap; }
+        @media (max-width:560px) {
+            .act-bar { left:12px; right:12px; transform:translateY(24px); justify-content:space-between; max-width:none; }
+            .act-bar.show { transform:translateY(0); }
+        }
+        /* Carte d'un article déjà VENDU dans « Ma boutique » : atténuée et non sélectionnable. */
+        .stock-card.sold-card { opacity:.72; cursor:default; }
+        .stock-card.sold-card:hover { transform:none; box-shadow:none; border-color:var(--border-color); }
+        /* ===== Téléphone : outils compacts, cartes en lignes, barre d'action au-dessus de la navigation ===== */
+        @media (max-width:768px) {
+            .sticky-toolbar { position:static; display:grid; grid-template-columns:1fr 1fr; gap:8px; padding:0; margin:0 0 12px; border:0; background:none; }
+            .sticky-toolbar .search-box { grid-column:1 / -1; min-width:0; max-width:none; }
+            .sticky-toolbar .search-box input { min-height:44px; }
+            .sticky-toolbar .sf-prange { grid-column:1 / -1; }
+            .sticky-toolbar select.form-control { max-width:none !important; min-width:0; }
+            .mb-tab { padding:11px 12px; font-size:13.5px; }
+            .stock-grid { grid-template-columns:1fr; gap:10px; }
+            .stock-card { flex-direction:row; border-radius:14px; }
+            .sc-img { width:92px; height:auto; min-height:100px; flex-shrink:0; font-size:24px; }
+            .sc-cond { font-size:9px; padding:2px 6px; top:auto; bottom:6px; left:6px; }
+            .sc-body { padding:10px 12px; min-width:0; }
+            .sc-title { font-size:14px; }
+            .sc-foot { flex-wrap:wrap; gap:6px; }
+            .sc-foot .btn { min-height:34px; }
+            .pres { padding:12px; }
+            body.sf-has-bnav .act-bar { bottom:calc(72px + env(safe-area-inset-bottom, 0px)); }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar" id="sfSidebar"></aside>
+        <main class="main-content">
+            <header class="page-header">
+                <div class="page-title"><h1>Ma boutique</h1><p>Articles sortis en boutique à votre nom — vendus à l'unité par la caisse</p></div>
+                <div class="page-actions"><div id="sfTools"></div></div>
+            </header>
+            <div class="page-body">
+                <div class="mb-tabs">
+                    <button class="mb-tab active" data-t="boutique"><i class="fas fa-store"></i> Ma boutique</button>
+                    <button class="mb-tab" data-t="vendu"><i class="fas fa-circle-check"></i> Vendus</button>
+                    <button class="mb-tab" data-t="historique"><i class="fas fa-clock-rotate-left"></i> Historique de réception</button>
+                </div>
+
+                <!-- Onglet MA BOUTIQUE : cartes comme le stock dépôt (ordinateurs puis accessoires) -->
+                <div id="panel-boutique">
+                    <div class="act-bar" id="actBar">
+                        <span class="cnt" id="actCount">0 article(s)</span>
+                        <button class="btn btn-sm btn-danger" onclick="Cons.returnSelected()"><i class="fas fa-rotate-left"></i> Retour au dépôt</button>
+                        <button class="btn btn-sm btn-secondary" onclick="Cons.clearSelection()" title="Tout désélectionner" aria-label="Tout désélectionner"><i class="fas fa-xmark"></i></button>
+                    </div>
+                    <div class="card dash-card"><div class="card-header"><h3><i class="fas fa-store"></i> Ma boutique</h3><span class="text-muted" style="font-size:12px;">Cliquer pour filtrer</span></div><div class="card-body"><div class="stats-grid" id="statRow"></div></div></div>
+                    <div class="sticky-toolbar">
+                        <div class="search-box"><i class="fas fa-search"></i><input type="text" id="search" placeholder="Rechercher (nom, config, n° série…)" oninput="Cons.render()"></div>
+                        <select id="filterCat" class="form-control" style="max-width:180px;" onchange="Cons.render()"><option value="">Toutes catégories</option></select>
+                        <select id="filterSort" class="form-control" style="max-width:180px;" onchange="Cons.render()">
+                            <option value="">Trier…</option>
+                            <option value="price_asc">Prix ↑ (bas → haut)</option>
+                            <option value="price_desc">Prix ↓ (haut → bas)</option>
+                            <option value="name">Nom (A → Z)</option>
+                            <option value="serial">N° de série</option>
+                        </select>
+                        <div id="pprice"></div>
+                    </div>
+                    <div class="res-count" id="resCount"></div>
+                    <div id="page"><div class="sf-skel sf-skel-card"></div><div class="sf-skel sf-skel-card"></div><div class="sf-skel sf-skel-card"></div></div>
+                </div>
+
+                <!-- Onglet VENDUS : articles vendus par la caisse (récap + liste) -->
+                <div id="panel-vendu" style="display:none;">
+                    <div class="card dash-card"><div class="card-header"><h3><i class="fas fa-circle-check"></i> Sortis de la boutique</h3></div><div class="card-body"><div class="stats-grid" id="venduStat"></div></div></div>
+                    <div class="res-count" id="venduCount"></div>
+                    <div id="venduPage"><div class="sf-skel sf-skel-card"></div><div class="sf-skel sf-skel-card"></div><div class="sf-skel sf-skel-card"></div></div>
+                </div>
+
+                <!-- Onglet HISTORIQUE DE RÉCEPTION : toutes les sorties reçues (par date) -->
+                <div id="panel-historique" style="display:none;">
+                    <div id="histPage"><div class="sf-skel sf-skel-card"></div><div class="sf-skel sf-skel-card"></div><div class="sf-skel sf-skel-card"></div></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Détail d'une pièce -->
+    <div class="modal-overlay" id="unitModal">
+        <div class="modal" style="max-width:520px;">
+            <div class="modal-header"><h3 id="umTitle">Article</h3><button class="modal-close" onclick="SF.Modal.close('unitModal')">&times;</button></div>
+            <div class="modal-body" id="umBody"></div>
+        </div>
+    </div>
+
+    <script src="/js/sf-core.js"></script>
+    <script src="/js/sf-layout.js"></script>
+    <script src="/js/sf-barcode.js"></script>
+    <script>
+    const Cons = {
+        user: null, list: [], reserved: [], typeFilter: null, selected: new Set(), tab: 'boutique', histList: [], _histLoaded: false,
+        statusLabel: { boutique: 'En boutique', sent: 'À réceptionner', received: 'Encaissement en attente', sold: 'Vendu', cancelled: 'Annulé — retour stock', returned: 'Retourné' },
+        async init() {
+            this.user = await SF.Auth.require(['commercial']); if (!this.user) return;
+            SF.layout({ active: '/consignations.html' });
+            SF.PriceRange.mount(document.getElementById('pprice'), () => this.render());
+            document.querySelectorAll('.mb-tab').forEach(t => t.onclick = () => this.switchTab(t.dataset.t));
+            SF.on('consignment:update', () => this.load());
+            this.load();
+        },
+        async load() {
+            try {
+                this.list = await SF.api('/api/consignments');
+                try { this.histList = await SF.api('/api/consignments?all=1'); } catch (e) { this.histList = []; }
+                try { this.reserved = await SF.api('/api/reservations/units'); } catch (e) { this.reserved = []; }
+                this.selected.clear(); this.updateActionBar(); this.fillCatFilter();
+                this.render();
+                if (this.tab === 'vendu') this.renderVendu();
+                else if (this.tab === 'historique') this.renderHist();
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        allItems() { return this.list.flatMap(c => (c.items || []).map(it => ({ ...it, _consign: c }))); },
+        // Unités RÉELLEMENT encore en boutique (statut d'unité 'consignation'). La vue commercial ne
+        // renvoie déjà que celles-ci ; la vue admin renvoie tous les statuts (une sortie boutique garde
+        // ses lignes même après vente/retour), d'où ce filtre pour ne pas compter les unités vendues.
+        boutiqueItems() { return this.allItems().filter(it => it.unit_status === 'consignation'); },
+        // Unités réservées à mon nom, encore au dépôt (statut 'reserve'). Le retour se fait par
+        // le stock via « Engagements clients → Annuler » : ici, affichage informatif seulement.
+        reservedItems() { return (this.reserved || []).map(it => ({ ...it, unit_status: 'reserve' })); },
+        fillCatFilter() {
+            const cats = [...new Set([...this.boutiqueItems(), ...this.reservedItems()].map(it => it.category).filter(Boolean))].sort();
+            const sel = document.getElementById('filterCat'), keep = sel.value;
+            sel.innerHTML = '<option value="">Toutes catégories</option>' + cats.map(c => `<option value="${SF.esc(c)}">${SF.esc(c)}</option>`).join('');
+            if (keep && cats.includes(keep)) sel.value = keep;
+        },
+        specLine(it) { return it.is_accessory ? [it.category, it.subcategory].filter(Boolean).join(' · ')
+            : [it.cpu, it.ram, it.storage ? it.storage + (it.storage_type ? ' ' + it.storage_type : '') : '', it.screen_size].filter(Boolean).join(' · '); },
+        title(it) { return [it.brand, it.model].filter(Boolean).join(' ') || it.product_name || 'Produit'; },
+
+        // Filtre + tri appliqués aux PIÈCES (une carte = une unité physique, jamais fusionnée).
+        filterItems(items) {
+            const q = (document.getElementById('search').value || '').trim().toLowerCase();
+            const cat = document.getElementById('filterCat').value;
+            const sort = document.getElementById('filterSort').value;
+            let list = (items || []).filter(it => {
+                if (cat && it.category !== cat) return false;
+                if (this.typeFilter && (this.typeFilter === 'acc') !== !!it.is_accessory) return false;
+                if (!SF.PriceRange.test(document.getElementById('pprice'), it.unit_price)) return false;
+                if (!q) return true;
+                return `${this.title(it)} ${this.specLine(it)} ${it.serial || ''} ${it.manufacturer_sn || ''} ${it.category || ''}`.toLowerCase().includes(q);
+            });
+            if (sort === 'price_asc')       list.sort((a, b) => (a.unit_price || 0) - (b.unit_price || 0));
+            else if (sort === 'price_desc') list.sort((a, b) => (b.unit_price || 0) - (a.unit_price || 0));
+            else if (sort === 'name')       list.sort((a, b) => this.title(a).localeCompare(this.title(b)));
+            else if (sort === 'serial')     list.sort((a, b) => String(a.serial || '').localeCompare(String(b.serial || '')));
+            return list;
+        },
+        showDetail(unitId) { const it = this.allItems().find(x => x.unit_id === unitId) || this.reservedItems().find(x => x.unit_id === unitId); if (it) SF.productDetail(it); },
+        // ---- Demande d'échange d'une pièce en boutique (même modèle) — validée par le stock ----
+        async openExchange(unitId, consignId, isAcc, serial) {
+            const r = await SF.exchangeDialog({ is_accessory: !!isAcc, serial });
+            if (!r) return;
+            try {
+                await SF.api('/api/exchanges', { method: 'POST', body: { kind: 'consignation', ref_id: consignId, old_unit_id: unitId, reason: r.reason, disposition: r.disposition } });
+                SF.toast('Demande d\'échange envoyée au stock', 'success');
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        // ---- Sélection multiple → retour au dépôt (stock valide la réception) ----
+        // Clic sur la carte = sélection (multi). Le bouton « Détails » (dans la carte) ouvre le détail.
+        toggleSelect(unitId) {
+            if (this.selected.has(unitId)) this.selected.delete(unitId); else this.selected.add(unitId);
+            this.updateActionBar(); this.render();
+        },
+        updateActionBar() {
+            const n = this.selected.size;
+            document.getElementById('actBar').classList.toggle('show', n > 0);
+            document.getElementById('actCount').textContent = `${n} article${n > 1 ? 's' : ''}`;
+        },
+        clearSelection() { this.selected.clear(); this.updateActionBar(); this.render(); },
+        async returnSelected() {
+            const ids = [...this.selected];
+            if (!ids.length) return;
+            if (!await SF.confirm(`Retourner ${ids.length} article(s) au dépôt ? Le stock validera la réception physique.`, { okLabel: 'Retourner', danger: true })) return;
+            const reason = await SF.prompt('Motif (optionnel) :', { title: 'Retour au dépôt', okLabel: 'Confirmer' });
+            if (reason === null) return;
+            try {
+                const r = await SF.api('/api/consignments/return-units', { method: 'POST', body: { unit_ids: ids, reason } });
+                SF.toast(`${r.count} article(s) renvoyé(s) au dépôt — à réceptionner par le stock`, 'success');
+                this.selected.clear(); this.updateActionBar(); this.load();
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        unitCard(it, opts = {}) {
+            const selectable = opts.selectable !== false;
+            const sel = selectable && this.selected.has(it.unit_id);
+            const click = selectable ? ` onclick="Cons.toggleSelect(${it.unit_id})"` : '';
+            return `<div class="stock-card${sel ? ' sel' : ''}${opts.sold ? ' sold-card' : ''}" style="cursor:${selectable ? 'pointer' : 'default'};"${click}>
+                ${selectable ? '<div class="sc-check"><i class="fas fa-check"></i></div>' : ''}
+                <div class="sc-img" ${it.image ? `data-bg="${it.image}"` : ''}>
+                    ${it.image ? '' : `<i class="fas fa-${it.is_accessory ? 'plug' : 'laptop'}"></i>`}
+                    ${opts.badge || ''}
+                </div>
+                <div class="sc-body">
+                    <div class="sc-title">${SF.esc(this.title(it))}</div>
+                    <div class="sc-spec">${SF.esc(this.specLine(it) || '—')}</div>
+                    <span class="sc-serial">N° ${SF.esc(it.serial || '—')}</span>
+                    ${it.manufacturer_sn ? `<div class="sc-sn">SN : ${SF.esc(it.manufacturer_sn)}</div>` : ''}
+                    <div class="sc-foot"><span class="sc-price">${SF.fmt.ar(it.unit_price)}</span>
+                        <div style="display:flex;gap:6px;">
+                        ${selectable && it._consign ? `<button class="sc-details" title="Demander un échange" onclick="event.stopPropagation();Cons.openExchange(${it.unit_id}, ${it._consign.id}, ${it.is_accessory ? 1 : 0}, '${SF.esc(it.serial || '')}')"><i class="fas fa-right-left"></i> Échanger</button>` : ''}
+                        <button class="sc-details" onclick="event.stopPropagation();Cons.openUnit(${it.unit_id})"><i class="fas fa-circle-info"></i> Détails</button></div></div>
+                </div>
+            </div>`;
+        },
+        // Groupe « Ma boutique » : articles disponibles (sélectionnables) PUIS articles déjà
+        // vendus (badge « Vendu », atténués, non sélectionnables) — le commercial voit tout d'un coup.
+        grpBoutique(available, sold, title, icon) {
+            const n = available.length + sold.length;
+            if (!n) return '';
+            const cards = available.map(it => this.unitCard(it)).join('')
+                + sold.map(it => this.unitCard(it, { selectable: false, sold: true, badge: this.soldBadge(it) })).join('');
+            return `<div class="grp-title"><i class="fas ${icon}"></i> ${title} (${n})</div>
+                <div class="stock-grid">${cards}</div>`;
+        },
+        // Groupe « Réservés — au dépôt » : articles réservés à mon nom mais encore physiquement au
+        // dépôt (pas encore sortis en boutique). Informatif : le retour au stock est fait par le
+        // service stock via « Engagements clients → Réservation → Annuler ».
+        grpReserved(reserved) {
+            if (!reserved.length) return '';
+            const badge = '<span class="sc-cond" style="background:var(--warning);color:#3a2a00;">Réservé — au dépôt</span>';
+            const cards = reserved.map(it => this.unitCard(it, { selectable: false, badge })).join('');
+            return `<div class="grp-title"><i class="fas fa-user-tag" style="color:var(--warning);"></i> Réservés à votre nom — au dépôt (${reserved.length})</div>
+                <p class="ghint" style="font-size:12px;color:var(--text-muted);margin:-4px 0 8px;"><i class="fas fa-circle-info"></i> Réservés à vendre, encore au dépôt (pas en boutique). Le retour au stock se fait par le service stock (Engagements clients → Annuler).</p>
+                <div class="stock-grid">${cards}</div>`;
+        },
+        renderStats() {
+            let pc = 0, acc = 0, pcVal = 0, accVal = 0;
+            this.boutiqueItems().forEach(it => { if (it.is_accessory) { acc++; accVal += it.unit_price || 0; } else { pc++; pcVal += it.unit_price || 0; } });
+            const sold = this.venduItems(); const soldVal = sold.reduce((s, it) => s + (it.unit_price || 0), 0);
+            const reserved = this.reservedItems(); const resVal = reserved.reduce((s, it) => s + (it.unit_price || 0), 0);
+            document.getElementById('statRow').innerHTML =
+                SF.tile({ label: 'Ordinateurs en boutique', value: pc, sub: SF.fmt.ar(pcVal), icon: 'fa-laptop', tone: 'teal', active: this.typeFilter === 'pc', onclick: "Cons.toggleType('pc')" })
+                + SF.tile({ label: 'Accessoires en boutique', value: acc, sub: SF.fmt.ar(accVal), icon: 'fa-plug', tone: 'blue', active: this.typeFilter === 'acc', onclick: "Cons.toggleType('acc')" })
+                + SF.tile({ label: 'Total articles en boutique', value: pc + acc, icon: 'fa-store', tone: 'violet', onclick: 'Cons.clearType()' })
+                + (reserved.length ? SF.tile({ label: 'Réservés au dépôt', value: reserved.length, sub: SF.fmt.ar(resVal), icon: 'fa-user-tag', tone: 'yellow' }) : '')
+                + SF.tile({ label: 'Vendus / en livraison', value: sold.length, sub: SF.fmt.ar(soldVal), icon: 'fa-circle-check', tone: 'green', onclick: "Cons.switchTab('vendu')" });
+        },
+        toggleType(t) { this.typeFilter = this.typeFilter === t ? null : t; this.render(); },
+        clearType() { this.typeFilter = null; document.getElementById('search').value = ''; document.getElementById('filterCat').value = ''; this.render(); },
+        // ---- Onglet Ma boutique : liste PLATE comme le stock dépôt (ordinateurs puis accessoires) ----
+        render() {
+            this.renderStats();
+            const page = document.getElementById('page');
+            const rc = document.getElementById('resCount');
+            const boutique = this.boutiqueItems();   // disponibles (unité encore en consignation)
+            const sold = this.venduItems();     // déjà vendus / en livraison → affichés avec badge
+            const reserved = this.reservedItems();   // réservés à mon nom, encore au dépôt
+            if (!boutique.length && !sold.length && !reserved.length) { page.innerHTML = '<div class="empty"><i class="fas fa-store fa-2x"></i><p style="margin-top:12px;">Aucun article en boutique à votre nom.</p></div>'; rc.textContent = ''; return; }
+            const availF = this.filterItems(boutique), soldF = this.filterItems(sold), resF = this.filterItems(reserved);
+            const total = boutique.length + sold.length + reserved.length, shown = availF.length + soldF.length + resF.length;
+            const hasFilter = document.getElementById('search').value.trim() || document.getElementById('filterCat').value || this.typeFilter;
+            rc.textContent = hasFilter ? `${shown} article(s) sur ${total}` : `${boutique.length} en boutique · ${reserved.length} réservé(s) · ${sold.length} vendu(s)`;
+            const pcsA = availF.filter(it => !it.is_accessory), accsA = availF.filter(it => it.is_accessory);
+            const pcsS = soldF.filter(it => !it.is_accessory), accsS = soldF.filter(it => it.is_accessory);
+            const html = this.grpBoutique(pcsA, pcsS, 'Ordinateurs', 'fa-laptop') + this.grpBoutique(accsA, accsS, 'Accessoires', 'fa-plug')
+                + this.grpReserved(resF);
+            page.innerHTML = html || '<div class="empty"><i class="fas fa-filter fa-2x"></i><p style="margin-top:12px;">Aucun article pour ce filtre</p></div>';
+        },
+        // ---- Onglets ----
+        switchTab(name) {
+            this.tab = name;
+            document.querySelectorAll('.mb-tab').forEach(t => t.classList.toggle('active', t.dataset.t === name));
+            document.getElementById('panel-boutique').style.display = name === 'boutique' ? '' : 'none';
+            document.getElementById('panel-vendu').style.display = name === 'vendu' ? '' : 'none';
+            document.getElementById('panel-historique').style.display = name === 'historique' ? '' : 'none';
+            if (name === 'vendu') this.renderVendu();
+            else if (name === 'historique') this.renderHist();
+        },
+        // ---- Onglet Vendus : unités SORTIES de la boutique = vendues (caisse ou livraison livrée)
+        //      OU en cours de livraison. Une annulation de livraison renvoie l'unité au stock dépôt
+        //      (unit_status = 'stock') → elle disparaît automatiquement d'ici. ----
+        venduItems() {
+            return (this.histList || []).flatMap(c => (c.items || []).map(it => ({ ...it, _consign: c }))).filter(it => ['vendu', 'livraison'].includes(it.unit_status));
+        },
+        soldBadge(it) {
+            return it.unit_status === 'livraison'
+                ? '<span class="sc-cond" style="background:#0284c7;">Vendu · livraison</span>'
+                : '<span class="sc-cond" style="background:var(--success-dark);">Vendu</span>';
+        },
+        renderVendu() {
+            const items = this.venduItems();
+            const val = items.reduce((s, it) => s + (it.unit_price || 0), 0);
+            const soldN = items.filter(it => it.unit_status === 'vendu').length;
+            const livN = items.filter(it => it.unit_status === 'livraison').length;
+            const pc = items.filter(it => !it.is_accessory), acc = items.filter(it => it.is_accessory);
+            document.getElementById('venduStat').innerHTML =
+                SF.tile({ label: 'Vendus (caisse / livrés)', value: soldN, icon: 'fa-circle-check', tone: 'green' })
+                + SF.tile({ label: 'En cours de livraison', value: livN, icon: 'fa-truck-fast', tone: 'blue' })
+                + SF.tile({ label: 'Total sortis', value: items.length, sub: SF.fmt.ar(val), icon: 'fa-coins', tone: 'yellow' });
+            document.getElementById('venduCount').textContent = `${items.length} article(s) sorti(s) de la boutique`;
+            const box = document.getElementById('venduPage');
+            if (!items.length) { box.innerHTML = '<div class="empty"><i class="fas fa-circle-check fa-2x"></i><p style="margin-top:12px;">Aucun article vendu pour le moment.</p></div>'; return; }
+            const grp = (arr, title, icon) => arr.length ? `<div class="grp-title"><i class="fas ${icon}"></i> ${title} (${arr.length})</div><div class="stock-grid">${arr.map(it => this.unitCard(it, { selectable: false, badge: this.soldBadge(it) })).join('')}</div>` : '';
+            box.innerHTML = grp(pc, 'Ordinateurs', 'fa-laptop') + grp(acc, 'Accessoires', 'fa-plug');
+        },
+        renderHist() {
+            const box = document.getElementById('histPage');
+            const list = this.histList || [];
+            if (!list.length) { box.innerHTML = '<div class="empty"><i class="fas fa-clock-rotate-left fa-2x"></i><p style="margin-top:12px;">Aucune réception enregistrée.</p></div>'; return; }
+            const stLabel = { consignation: ['En boutique', 'var(--info)'], vendu: ['Vendu', 'var(--success-dark)'], livraison: ['En livraison', '#0284c7'], stock: ['Retour dépôt', 'var(--text-muted)'], retour_attente: ['Retour dépôt', 'var(--text-muted)'], garantie_exceptionnel: ['Garantie', '#9333ea'], garantie_fournisseur: ['Garantie', '#9333ea'] };
+            const rowList = arr => arr.map(it => {
+                const s = stLabel[it.unit_status] || [it.unit_status || '—', 'var(--text-muted)'];
+                return `<div class="dl-row"><span class="l">${SF.esc(this.title(it))} <span class="text-muted" style="font-family:monospace;font-weight:400;">${SF.esc(it.serial || '—')}</span></span>
+                    <span style="display:flex;gap:12px;align-items:center;"><span style="font-size:11px;font-weight:700;color:${s[1]};">${s[0]}</span>${SF.fmt.ar(it.unit_price)}</span></div>`;
+            }).join('');
+            box.innerHTML = list.map(c => {
+                const items = c.items || [];
+                const pcs = items.filter(it => !it.is_accessory), accs = items.filter(it => it.is_accessory);
+                return `<div class="pres ${c.status}">
+                    <div class="pres-head">
+                        <div>
+                            <h4>Sortie boutique #${c.id} <span class="st ${c.status}">${this.statusLabel[c.status] || c.status}</span></h4>
+                            <div class="text-muted" style="font-size:11.5px;margin-top:4px;">${items.length} article(s) · sortie par ${SF.esc(c.created_by_name || '—')} · reçu le ${SF.fmt.date(c.created_at)}</div>
+                        </div>
+                        <div class="pres-tot">${SF.fmt.ar(items.reduce((s, it) => s + (it.unit_price || 0), 0))}</div>
+                    </div>
+                    ${pcs.length ? `<div class="grp-title"><i class="fas fa-laptop"></i> Ordinateurs (${pcs.length})</div>${rowList(pcs)}` : ''}
+                    ${accs.length ? `<div class="grp-title"><i class="fas fa-plug"></i> Accessoires (${accs.length})</div>${rowList(accs)}` : ''}
+                </div>`;
+            }).join('');
+        },
+        openUnit(unitId) {
+            const it = this.allItems().find(x => x.unit_id === unitId) || this.venduItems().find(x => x.unit_id === unitId) || this.reservedItems().find(x => x.unit_id === unitId); if (!it) return;
+            const pairs = window.SFBarcode ? SFBarcode.specPairs(it) : [];
+            document.getElementById('umTitle').textContent = this.title(it);
+            document.getElementById('umBody').innerHTML = `
+                <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:14px;">
+                    <div style="width:130px;height:130px;border-radius:12px;background:var(--bg-input) center/cover no-repeat;${it.image ? `background-image:url('${it.image}')` : ''};display:flex;align-items:center;justify-content:center;color:var(--text-dark);font-size:32px;flex-shrink:0;">${it.image ? '' : `<i class="fas fa-${it.is_accessory ? 'plug' : 'laptop'}"></i>`}</div>
+                    <div style="flex:1;min-width:190px;">
+                        <div class="dl-row"><span class="l">N° de série</span><span style="font-family:monospace;font-weight:700;">${SF.esc(it.serial || '—')}</span></div>
+                        ${it.manufacturer_sn ? `<div class="dl-row"><span class="l">SN constructeur</span><span style="font-family:monospace;">${SF.esc(it.manufacturer_sn)}</span></div>` : ''}
+                        <div class="dl-row"><span class="l">Type</span><span>${SF.esc(it.category || '—')}${it.subcategory ? ' · ' + SF.esc(it.subcategory) : ''}</span></div>
+                        <div class="dl-row"><span class="l">Prix</span><span style="font-weight:800;">${SF.fmt.ar(it.unit_price)}</span></div>
+                        ${it.warranty_end ? `<div class="dl-row"><span class="l">Garantie</span><span>${SF.warrantyBadge(it.warranty_end)}</span></div>` : ''}
+                    </div>
+                </div>
+                ${pairs.length ? `<h4 style="margin:6px 0 6px;font-size:13px;">Configuration</h4>
+                    ${pairs.map(p => `<div class="dl-row"><span class="l">${SF.esc(p.l)}</span><span>${SF.esc(p.v)}</span></div>`).join('')}` : ''}
+                <div class="dl-row" style="border-bottom:none;margin-top:8px;"><span class="l">Sortie boutique</span><span>#${it._consign.id} · ${SF.fmt.date(it._consign.created_at)}</span></div>`;
+            SF.Modal.open('unitModal');
+        }
+    };
+    Cons.init();
+    </script>
+</body>
+</html>

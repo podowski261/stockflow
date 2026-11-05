@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <title>Annulations — STOCKFLOW</title>
+    <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css">
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/sf.css">
+    <script>document.documentElement.setAttribute('data-theme', localStorage.getItem('stockflow-theme') === 'dark' ? 'dark' : 'light'); try { var sfu = JSON.parse(localStorage.getItem('stockflow-ui') || '{}'); for (var k in sfu) document.documentElement.setAttribute('data-' + k, sfu[k]); } catch (e) {}</script>
+    <style>
+        .an-bar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:14px; }
+        .an-bar .form-control { width:auto; height:38px; font-size:13px; }
+        .an-bar .sp { flex:1; }
+        .an-range { display:none; gap:6px; align-items:center; }
+        .an-range.on { display:inline-flex; }
+        /* Retards à décider */
+        .od-card { border:1px solid color-mix(in srgb, var(--warning) 55%, var(--border-color)); background:color-mix(in srgb, var(--warning) 6%, var(--bg-card)); }
+        .od-row { display:grid; grid-template-columns:minmax(0,1.2fr) minmax(0,1.5fr) minmax(0,1fr) auto; gap:12px; align-items:center; padding:12px 14px; border-bottom:1px solid var(--border-light, var(--border-color)); font-size:13px; }
+        .od-row:last-child { border-bottom:none; }
+        .od-row .muted { font-size:12px; color:var(--text-muted); overflow-wrap:anywhere; }
+        .od-acts { display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; }
+        .late { display:inline-flex; align-items:center; gap:5px; font-size:11.5px; font-weight:800; padding:2px 9px; border-radius:999px; background:rgba(220,38,38,.12); color:#b91c1c; white-space:nowrap; }
+        .paid { display:inline-flex; align-items:center; gap:5px; font-size:11.5px; font-weight:800; padding:2px 9px; border-radius:999px; background:rgba(14,165,233,.13); color:#0369a1; white-space:nowrap; }
+        /* Synthèse experte */
+        .expert { font-size:13.5px; line-height:1.65; color:var(--text-primary); }
+        .expert p { margin:0 0 10px; }
+        .expert b { color:var(--text-primary); }
+        .expert .hl { display:inline-block; font-weight:800; padding:0 7px; border-radius:6px; background:var(--accent-glow); color:var(--accent-dark); }
+        .reco { display:grid; gap:8px; margin-top:6px; }
+        .reco-i { display:flex; gap:10px; align-items:flex-start; padding:10px 12px; border-radius:10px; background:var(--bg-input); font-size:13px; line-height:1.5; }
+        .reco-i i { margin-top:3px; color:var(--c, var(--accent)); width:16px; text-align:center; flex-shrink:0; }
+        /* Barres par cause */
+        .cbars { display:grid; gap:8px; }
+        .cbar { display:grid; grid-template-columns:minmax(0,210px) minmax(0,1fr) 92px; gap:10px; align-items:center; font-size:13px; cursor:pointer; padding:4px 6px; border-radius:8px; }
+        .cbar:hover, .cbar.active { background:var(--bg-input); }
+        .cbar .lb { display:flex; align-items:center; gap:8px; font-weight:700; min-width:0; }
+        .cbar .lb span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .cbar .lb i { color:var(--c); width:16px; text-align:center; flex-shrink:0; }
+        .cbar .tr { height:12px; border-radius:999px; background:var(--bg-input); overflow:hidden; }
+        .cbar .fi { height:100%; border-radius:999px; background:var(--c); }
+        .cbar .vl { text-align:right; font-weight:800; white-space:nowrap; }
+        .cbar .vl small { color:var(--text-muted); font-weight:600; }
+        .two { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:14px; }
+        .tbl { width:100%; border-collapse:collapse; font-size:13px; }
+        .tbl th { text-align:left; font-size:11.5px; text-transform:uppercase; letter-spacing:.3px; color:var(--text-muted); padding:8px 10px; background:var(--bg-input); }
+        .tbl td { padding:9px 10px; border-bottom:1px solid var(--border-light, var(--border-color)); vertical-align:top; }
+        .tbl tr:last-child td { border-bottom:none; }
+        .tbl .r { text-align:right; white-space:nowrap; }
+        .chip { display:inline-flex; align-items:center; gap:5px; font-size:11.5px; font-weight:700; padding:2px 8px; border-radius:999px; background:color-mix(in srgb, var(--c) 13%, var(--bg-card)); color:var(--c); white-space:nowrap; }
+        /* Tendance */
+        .trend { display:flex; align-items:flex-end; gap:6px; height:130px; padding:6px 2px 0; overflow-x:auto; }
+        .trend .wk { flex:1 0 34px; display:flex; flex-direction:column; align-items:center; gap:4px; height:100%; justify-content:flex-end; }
+        .trend .col { width:70%; min-height:2px; border-radius:6px 6px 0 0; background:var(--accent); }
+        .trend .n { font-size:11px; font-weight:800; }
+        .trend .d { font-size:10px; color:var(--text-muted); white-space:nowrap; }
+        /* Détail */
+        .flt { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px; }
+        .flt button { border:1px solid var(--border-color); background:var(--bg-card); color:var(--text-secondary); border-radius:999px; padding:5px 11px; font-size:12px; font-weight:700; cursor:pointer; font-family:inherit; }
+        .flt button.active { border-color:var(--accent); background:var(--accent-glow); color:var(--accent-dark); }
+        .cx { display:grid; grid-template-columns:minmax(0,1.1fr) minmax(0,1.9fr) minmax(0,1fr); gap:12px; padding:12px 14px; border-bottom:1px solid var(--border-light, var(--border-color)); font-size:13px; }
+        .cx:last-child { border-bottom:none; }
+        .cx .muted { font-size:12px; color:var(--text-muted); overflow-wrap:anywhere; }
+        .cx .motif { margin-top:4px; padding:7px 10px; border-left:3px solid var(--c, var(--border-color)); background:var(--bg-input); border-radius:0 8px 8px 0; font-style:italic; overflow-wrap:anywhere; }
+        .cx select { font-size:12px; height:32px; padding:4px 8px; max-width:100%; }
+        .empty { text-align:center; color:var(--text-muted); padding:26px 10px; }
+        .print-only { display:none; }
+        @media (max-width:900px) { .two { grid-template-columns:minmax(0,1fr); } }
+        @media (max-width:700px) {
+            .an-bar .form-control { flex:1 1 auto; font-size:16px; }
+            .od-row { grid-template-columns:minmax(0,1fr) auto; grid-template-areas:"a d" "b b" "c c" "e e"; gap:6px 10px; }
+            .od-row .c1 { grid-area:a; } .od-row .c2 { grid-area:b; } .od-row .c3 { grid-area:c; } .od-row .c4 { grid-area:d; text-align:right; } .od-acts { grid-area:e; justify-content:stretch; }
+            .od-acts .btn { flex:1; justify-content:center; }
+            .cbar { grid-template-columns:minmax(0,1fr) 84px; grid-template-areas:"l v" "t t"; gap:4px 10px; }
+            .cbar .lb { grid-area:l; } .cbar .tr { grid-area:t; } .cbar .vl { grid-area:v; }
+            .cx { grid-template-columns:minmax(0,1fr); gap:6px; }
+            .tbl th:nth-child(3), .tbl td:nth-child(3) { display:none; }
+        }
+        @media print {
+            .sidebar, .page-actions, .sf-topbar, .sf-bnav, .no-print, .an-bar, .od-card, #sfTools, .flt, .cx select, .page-tabs { display:none !important; }
+            .main-content { margin:0 !important; padding:0 !important; }
+            .print-only { display:block; }
+            .card { break-inside:avoid; box-shadow:none !important; }
+            body { background:#fff !important; }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar" id="sfSidebar"></aside>
+        <main class="main-content">
+            <header class="page-header">
+                <div class="page-title"><h1>Annulations de livraison</h1><p>Rapport, analyse des motifs et livraisons en retard à décider</p></div>
+                <div class="page-actions"><button class="btn btn-secondary no-print" onclick="window.print()"><i class="fas fa-print"></i> Imprimer le rapport</button><div id="sfTools"></div></div>
+            </header>
+            <div class="page-body">
+                <div class="print-only" id="printHead"></div>
+                <div class="an-bar">
+                    <select id="per" class="form-control" onchange="An.setPer(this.value)">
+                        <option value="7">7 derniers jours</option>
+                        <option value="30" selected>30 derniers jours</option>
+                        <option value="90">90 derniers jours</option>
+                        <option value="month">Ce mois-ci</option>
+                        <option value="all">Depuis le début</option>
+                        <option value="custom">Personnalisé…</option>
+                    </select>
+                    <span class="an-range" id="range"><input type="date" id="dFrom" class="form-control" onchange="An.render()"> → <input type="date" id="dTo" class="form-control" onchange="An.render()"></span>
+                    <span class="sp"></span>
+                    <span class="text-muted" style="font-size:12px;" id="upd"></span>
+                </div>
+                <div id="overdue"></div>
+                <div id="kpis"></div>
+                <div id="body"><div class="sf-skel sf-skel-card"></div><div class="sf-skel sf-skel-card"></div></div>
+            </div>
+        </main>
+    </div>
+
+    <div class="modal-overlay" id="resModal">
+        <div class="modal" style="max-width:420px;">
+            <div class="modal-header"><h3><i class="fas fa-calendar-day"></i> Reporter la livraison</h3><button class="modal-close" onclick="SF.Modal.close('resModal')">&times;</button></div>
+            <div class="modal-body">
+                <div id="resInfo" class="text-muted" style="font-size:13px;margin-bottom:10px;"></div>
+                <div class="form-group"><label>Nouvelle date de livraison *</label><input type="date" id="resDate" class="form-control"></div>
+                <div class="form-group" style="margin-bottom:0;"><label>Note (facultatif)</label><input type="text" id="resNote" class="form-control" placeholder="Ex. : client rappelé, livraison samedi matin"></div>
+            </div>
+            <div class="modal-footer"><button class="btn btn-secondary" onclick="SF.Modal.close('resModal')">Annuler</button><button class="btn btn-primary" id="resBtn" onclick="An.reschedule()"><i class="fas fa-check"></i> Reporter</button></div>
+        </div>
+    </div>
+
+    <script src="/js/sf-core.js"></script>
+    <script src="/js/sf-layout.js"></script>
+    <script>
+    // Causes d'annulation : libellé, icône, couleur, cause interne (évitable par l'organisation) et conseil.
+    const CATS = {
+        doublon:      { l: 'Commande en double', i: 'fa-clone', c: '#7c3aed', internal: true,
+                        a: "Avant de valider, vérifier qu'aucune commande identique (même client, même produit) n'existe déjà : un double clic ou un réseau lent crée des doublons." },
+        erreur:       { l: 'Erreur de saisie (référence, infos)', i: 'fa-keyboard', c: '#db2777', internal: true,
+                        a: "Faire confirmer la référence exacte, le numéro et l'adresse par le client (photo du produit envoyée) avant de créer la commande." },
+        stock:        { l: 'Rupture / problème de stock', i: 'fa-box-open', c: '#ea580c', internal: true,
+                        a: "Vérifier le stock réellement disponible (quantité restante, état de l'article) avant de confirmer au client." },
+        delai:        { l: 'Délai dépassé (jamais sortie)', i: 'fa-hourglass-end', c: '#64748b', internal: true,
+                        a: "Les commandes non sorties à temps ne sont plus annulées automatiquement : l'admin décide désormais (reporter ou annuler)." },
+        logistique:   { l: 'Logistique / tournée', i: 'fa-motorcycle', c: '#0891b2', internal: true,
+                        a: "Regrouper les livraisons par zone et confirmer l'heure avec le client ; prévenir quand le livreur ne pourra pas passer." },
+        report:       { l: 'Report demandé par le client', i: 'fa-calendar-day', c: '#2563eb', internal: false,
+                        a: "Le client voulait seulement une autre date : utiliser « Reporter » au lieu d'annuler, et confirmer le créneau la veille." },
+        modification: { l: 'Changement de produit / commande', i: 'fa-right-left', c: '#0d9488', internal: false,
+                        a: "Confirmer modèle, couleur et options avant la commande ; modifier la commande plutôt que l'annuler et la recréer." },
+        paiement:     { l: 'Paiement / budget du client', i: 'fa-money-bill-wave', c: '#d97706', internal: false,
+                        a: "Confirmer le budget et le mode de paiement avant l'envoi ; demander un acompte pour les montants importants." },
+        desistement:  { l: 'Désistement / injoignable', i: 'fa-user-xmark', c: '#dc2626', internal: false,
+                        a: "Appeler le client pour confirmer avant la sortie du stock ; un acompte sécurise les commandes à risque." },
+        deja_servi:   { l: 'Déjà servi / déjà acheté', i: 'fa-circle-check', c: '#16a34a', internal: false,
+                        a: "Vérifier l'historique du client (boutique, autre commercial) avant de créer une livraison." },
+        boutique:     { l: 'Client passe en boutique', i: 'fa-store', c: '#4f46e5', internal: false,
+                        a: "Proposer le retrait en boutique dès la prise de commande quand le client est proche." },
+        autre:        { l: 'Motif non précisé', i: 'fa-circle-question', c: '#94a3b8', internal: false,
+                        a: "Motifs trop vagues (« ANNULE », « . ») : exiger un motif précis à chaque annulation pour une analyse fiable." },
+    };
+    const An = {
+        data: null, cat: '', q: '', resId: null,
+        async init() {
+            const u = await SF.Auth.require([]); if (!u) return;   // admin uniquement
+            SF.layout({ active: '/annulations.html' });
+            SF.on('delivery:update', () => this.load());
+            await this.load();
+            if (location.hash === '#retard') setTimeout(() => { const el = document.getElementById('overdue'); if (el) el.scrollIntoView({ behavior: 'smooth' }); }, 200);
+        },
+        async load() {
+            try { this.data = await SF.api('/api/admin/annulations'); } catch (e) { SF.toast(e.message, 'error'); return; }
+            document.getElementById('upd').textContent = 'Mis à jour ' + new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+            this.render();
+        },
+        setPer(v) { document.getElementById('range').classList.toggle('on', v === 'custom');
+            if (v === 'custom' && !document.getElementById('dFrom').value) { document.getElementById('dFrom').value = this.addD(this.data.today, -30); document.getElementById('dTo').value = this.data.today; }
+            this.render(); },
+        addD(d, n) { const x = new Date(d + 'T12:00:00'); x.setDate(x.getDate() + n); return x.toISOString().slice(0, 10); },
+        period() {
+            const t = this.data.today, v = document.getElementById('per').value;
+            if (v === 'all') return ['0000-00-00', '9999-12-31', 'depuis le début'];
+            if (v === 'month') return [t.slice(0, 8) + '01', t, 'ce mois-ci'];
+            if (v === 'custom') { const f = document.getElementById('dFrom').value || '0000-00-00', to = document.getElementById('dTo').value || t;
+                return [f, to, `du ${SF.fmt.date(f)} au ${SF.fmt.date(to)}`]; }
+            const n = parseInt(v, 10) || 30; return [this.addD(t, -(n - 1)), t, `sur les ${n} derniers jours`];
+        },
+        prevPeriod(f, t) { if (f === '0000-00-00') return null; const days = Math.round((new Date(t) - new Date(f)) / 86400000) + 1; return [this.addD(f, -days), this.addD(f, -1)]; },
+        inP(r, f, t) { const d = String(r.cancelled_at || '').slice(0, 10); return d >= f && d <= t; },
+        pct(a, b) { return b ? Math.round(a * 1000 / b) / 10 : 0; },
+        group(arr, fn) { const m = new Map(); arr.forEach(x => { const k = fn(x); (m.get(k) || m.set(k, []).get(k)).push(x); }); return m; },
+
+        render() {
+            if (!this.data) return;
+            this.renderOverdue();
+            const [f, t, lbl] = this.period();
+            const R = this.data.rows.filter(r => this.inP(r, f, t));
+            const created = this.data.created.filter(c => c.day >= f && c.day <= t).reduce((s, c) => s + c.n, 0);
+            const pp = this.prevPeriod(f, t), prev = pp ? this.data.rows.filter(r => this.inP(r, pp[0], pp[1])).length : null;
+            const amount = R.reduce((s, r) => s + r.amount, 0);
+            const after = R.filter(r => r.stage === 'apres_sortie');
+            const byCat = [...this.group(R, r => r.category)].map(([k, l]) => ({ k, n: l.length, amt: l.reduce((s, r) => s + r.amount, 0), rows: l })).sort((a, b) => b.n - a.n);
+            const top = byCat[0];
+            document.getElementById('printHead').innerHTML = `<h2 style="margin:0 0 4px;">Rapport des annulations de livraison</h2><div style="margin-bottom:12px;color:#555;">Période : ${SF.esc(lbl)} · édité le ${SF.fmt.date(this.data.today)}</div>`;
+            document.getElementById('kpis').innerHTML = SF.tileGroup('Annulations ' + lbl, 'fa-ban',
+                SF.tile({ label: 'Livraisons annulées', value: R.length, icon: 'fa-ban', tone: 'coral', sub: created ? `${this.pct(R.length, created)} % des ${created} commandes créées` : '—' })
+                + SF.tile({ label: 'Montant non réalisé', value: SF.fmt.ar(amount), icon: 'fa-sack-xmark', tone: 'yellow', sub: R.length ? 'moyenne ' + SF.fmt.ar(Math.round(amount / R.length)) : '—' })
+                + SF.tile({ label: 'Annulées après sortie', value: after.length, icon: 'fa-truck-arrow-right', tone: after.length ? 'coral' : 'green', sub: 'aller-retour livreur + retour au stock' })
+                + SF.tile({ label: 'Cause n° 1', value: top ? CATS[top.k].l : '—', icon: top ? CATS[top.k].i : 'fa-circle-question', tone: 'violet', sub: top ? `${top.n} annulation(s) · ${this.pct(top.n, R.length)} %` : '' })
+                + SF.tile({ label: 'Retards à décider', value: this.data.overdue.length, icon: 'fa-hourglass-half', tone: this.data.overdue.length ? 'coral' : 'green', sub: `prévues il y a plus de ${this.data.overdue_days} j`, onclick: "document.getElementById('overdue').scrollIntoView({behavior:'smooth'})" }));
+            if (!R.length) { document.getElementById('body').innerHTML = '<div class="card"><div class="card-body"><div class="empty"><i class="fas fa-circle-check fa-2x" style="color:var(--success);"></i><p style="margin-top:10px;">Aucune annulation sur cette période</p></div></div></div>'; return; }
+            document.getElementById('body').innerHTML = this.expert(R, byCat, created, amount, after, prev, lbl)
+                + this.causes(byCat, R.length)
+                + `<div class="two">${this.byCommercial(R)}${this.byWho(R)}</div>`
+                + this.trend(R)
+                + this.detail(R, byCat);
+        },
+        // ── Synthèse experte : chiffres clés, causes dominantes, part évitable, concentration, tendance, actions ──
+        expert(R, byCat, created, amount, after, prev, lbl) {
+            const n = R.length, P = [];
+            P.push(`<p>${lbl.charAt(0).toUpperCase() + lbl.slice(1)}, <b>${n} livraison(s)</b> ont été annulées${created ? ` sur ${created} commandes créées, soit un taux d'annulation de <span class="hl">${this.pct(n, created)} %</span>` : ''}, pour <b>${SF.fmt.ar(amount)}</b> de chiffre d'affaires non réalisé.${prev != null ? (prev ? ` C'est <b>${n > prev ? 'en hausse' : n < prev ? 'en baisse' : 'stable'}</b> par rapport à la période précédente (${prev}${n !== prev ? `, ${n > prev ? '+' : ''}${Math.round((n - prev) * 100 / prev)} %` : ''}).` : ' Aucune annulation sur la période précédente.') : ''}</p>`);
+            const t3 = byCat.slice(0, 3);
+            P.push(`<p>Les causes dominantes sont : ${t3.map((c, i) => `<b>${i + 1}. ${CATS[c.k].l}</b> (${c.n}, ${this.pct(c.n, n)} %)`).join(' ; ')}. ${byCat.length > 3 ? `À elles trois, elles expliquent <span class="hl">${this.pct(t3.reduce((s, c) => s + c.n, 0), n)} %</span> des annulations.` : ''}</p>`);
+            const internal = R.filter(r => CATS[r.category].internal), client = n - internal.length;
+            P.push(`<p><b>${this.pct(internal.length, n)} %</b> des annulations ont une cause <b>interne</b> (doublons, erreurs de saisie, stock, délais, tournée) — donc <b>évitables</b> par l'organisation ; <b>${this.pct(client, n)} %</b> viennent du <b>client</b> (report, changement d'avis, paiement, désistement…).</p>`);
+            const rep = R.filter(r => r.category === 'report').length;
+            if (rep) P.push(`<p><b>${rep}</b> annulation(s) n'étaient en fait que des <b>reports</b> : le client voulait une autre date. Ces commandes auraient dû être reportées et non annulées.</p>`);
+            if (after.length) P.push(`<p><b>${after.length}</b> annulation(s) (${this.pct(after.length, n)} %) sont survenues <b>après la sortie du stock</b> : déplacement du livreur pour rien et retour à réceptionner au dépôt. Une confirmation téléphonique avant la sortie les réduirait.</p>`);
+            const byCom = [...this.group(R, r => r.commercial_name || '—')].sort((a, b) => b[1].length - a[1].length);
+            if (byCom.length > 1 && byCom[0][1].length >= 3 && byCom[0][1].length / n >= 0.3) {
+                const [name, l] = byCom[0]; const c1 = [...this.group(l, r => r.category)].sort((a, b) => b[1].length - a[1].length)[0];
+                P.push(`<p>Concentration : <b>${SF.esc(name)}</b> porte <b>${this.pct(l.length, n)} %</b> des annulations (${l.length}), principalement « ${CATS[c1[0]].l} » (${c1[1].length}). Un point d'accompagnement ciblé est recommandé.</p>`);
+            }
+            const vague = R.filter(r => r.category === 'autre').length;
+            if (vague) P.push(`<p><b>${vague}</b> motif(s) sont trop vagues pour être analysés (ex. « ANNULE »). Vous pouvez corriger leur cause dans le détail ci-dessous.</p>`);
+            const reco = byCat.filter(c => c.k !== 'autre' || c.n / n >= 0.1).slice(0, 4).map(c => `<div class="reco-i" style="--c:${CATS[c.k].c}"><i class="fas ${CATS[c.k].i}"></i><div><b>${CATS[c.k].l}</b> (${c.n}) — ${CATS[c.k].a}</div></div>`).join('');
+            return `<div class="card dash-card"><div class="card-header"><h3><i class="fas fa-user-tie"></i> Synthèse et analyse</h3></div>
+                <div class="card-body expert">${P.join('')}<div style="font-weight:800;margin:14px 0 6px;"><i class="fas fa-lightbulb" style="color:#f5b301;"></i> Actions recommandées</div><div class="reco">${reco}</div></div></div>`;
+        },
+        causes(byCat, n) {
+            const max = byCat[0] ? byCat[0].n : 1;
+            return `<div class="card dash-card"><div class="card-header"><h3><i class="fas fa-chart-bar"></i> Causes d'annulation</h3><span class="text-muted" style="font-size:12px;">Toucher une cause pour voir ses annulations</span></div>
+                <div class="card-body"><div class="cbars">${byCat.map(c => `<div class="cbar ${this.cat === c.k ? 'active' : ''}" style="--c:${CATS[c.k].c}" onclick="An.setCat('${c.k}', true)" title="${SF.esc(CATS[c.k].a)}">
+                    <div class="lb"><i class="fas ${CATS[c.k].i}"></i><span>${CATS[c.k].l}</span></div>
+                    <div class="tr"><div class="fi" style="width:${Math.max(3, c.n * 100 / max)}%"></div></div>
+                    <div class="vl">${c.n} <small>${this.pct(c.n, n)} %</small></div></div>`).join('')}</div></div></div>`;
+        },
+        topCat(l) { const c = [...this.group(l, r => r.category)].sort((a, b) => b[1].length - a[1].length)[0]; return c ? `<span class="chip" style="--c:${CATS[c[0]].c}"><i class="fas ${CATS[c[0]].i}"></i> ${CATS[c[0]].l}</span>` : ''; },
+        byCommercial(R) {
+            const g = [...this.group(R, r => r.commercial_name || '—')].sort((a, b) => b[1].length - a[1].length);
+            return `<div class="card dash-card"><div class="card-header"><h3><i class="fas fa-user"></i> Par commercial</h3></div><div class="card-body" style="padding:0;overflow-x:auto;">
+                <table class="tbl"><thead><tr><th>Commercial</th><th class="r">Annul.</th><th>Cause principale</th><th class="r">Montant</th></tr></thead><tbody>
+                ${g.map(([k, l]) => `<tr><td><b>${SF.esc(k)}</b></td><td class="r">${l.length}</td><td>${this.topCat(l)}</td><td class="r">${SF.fmt.ar(l.reduce((s, r) => s + r.amount, 0))}</td></tr>`).join('')}</tbody></table></div></div>`;
+        },
+        byWho(R) {
+            const g = [...this.group(R, r => r.by || 'Non renseigné')].sort((a, b) => b[1].length - a[1].length);
+            const bef = R.filter(r => r.stage === 'avant_sortie').length;
+            return `<div class="card dash-card"><div class="card-header"><h3><i class="fas fa-user-pen"></i> Qui a annulé</h3><span class="text-muted" style="font-size:12px;">${bef} avant sortie · ${R.length - bef} après</span></div><div class="card-body" style="padding:0;overflow-x:auto;">
+                <table class="tbl"><thead><tr><th>Annulé par</th><th class="r">Annul.</th><th>Cause principale</th><th class="r">Après sortie</th></tr></thead><tbody>
+                ${g.map(([k, l]) => `<tr><td><b>${SF.esc(k)}</b></td><td class="r">${l.length}</td><td>${this.topCat(l)}</td><td class="r">${l.filter(r => r.stage === 'apres_sortie').length}</td></tr>`).join('')}</tbody></table></div></div>`;
+        },
+        trend(R) {
+            const wk = d => { const x = new Date(d + 'T12:00:00'); const day = (x.getDay() + 6) % 7; x.setDate(x.getDate() - day); return x.toISOString().slice(0, 10); };
+            const g = this.group(R, r => wk(String(r.cancelled_at).slice(0, 10)));
+            const keys = [...g.keys()].sort(); if (keys.length < 2) return '';
+            const all = []; for (let k = keys[0]; k <= keys[keys.length - 1]; k = this.addD(k, 7)) all.push(k);
+            const max = Math.max(...all.map(k => (g.get(k) || []).length), 1);
+            return `<div class="card dash-card"><div class="card-header"><h3><i class="fas fa-chart-column"></i> Évolution par semaine</h3></div><div class="card-body"><div class="trend">
+                ${all.map(k => { const n = (g.get(k) || []).length; return `<div class="wk" title="Semaine du ${SF.fmt.date(k)} : ${n}"><span class="n">${n || ''}</span><div class="col" style="height:${n * 100 / max}%"></div><span class="d">${k.slice(8, 10)}/${k.slice(5, 7)}</span></div>`; }).join('')}
+                </div></div></div>`;
+        },
+        setCat(k, toggle) { this.cat = toggle && this.cat === k ? '' : k; this.render(); if (this.cat) setTimeout(() => document.getElementById('detail').scrollIntoView({ behavior: 'smooth' }), 50); },
+        setQ(v) { this.q = v; clearTimeout(this._qt); this._qt = setTimeout(() => { this.render(); const el = document.getElementById('anQ'); if (el) { el.focus(); el.setSelectionRange(v.length, v.length); } }, 250); },
+        detail(R, byCat) {
+            const q = SF.norm ? SF.norm(this.q) : this.q.toLowerCase();
+            const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+            const list = R.filter(r => (!this.cat || r.category === this.cat) && (!this.q || norm(`${r.delivery_number} ${r.client_name} ${r.client_phone} ${r.commercial_name} ${r.livreur_name} ${r.cancel_reason} ${r.items_summary}`).includes(norm(this.q))));
+            const opts = cur => Object.keys(CATS).map(k => `<option value="${k}" ${k === cur ? 'selected' : ''}>${CATS[k].l}</option>`).join('');
+            const row = r => { const C = CATS[r.category]; return `<div class="cx" style="--c:${C.c}">
+                <div><b>#${SF.esc(r.delivery_number)}</b> <span class="muted">· ${SF.esc(String(r.cancelled_at).slice(0, 10).split('-').reverse().join('/'))}</span>
+                    <div class="muted">${SF.esc(r.client_name || '—')}${r.client_phone ? ' · ' + SF.esc(r.client_phone) : ''}</div>
+                    <div class="muted"><i class="fas fa-user"></i> ${SF.esc(r.commercial_name || '—')}${r.livreur_name ? ` · <i class="fas fa-motorcycle"></i> ${SF.esc(r.livreur_name)}` : ''}</div></div>
+                <div><div class="muted">${SF.esc(r.items_summary || '')}</div>
+                    <div class="motif">« ${SF.esc(r.cancel_reason || '—')} »</div>
+                    <div class="muted" style="margin-top:4px;">Annulée ${r.stage === 'apres_sortie' ? '<b>après la sortie du stock</b>' : 'avant la sortie du stock'}${r.by ? ' par ' + SF.esc(r.by) : ''}</div></div>
+                <div style="display:grid;gap:6px;align-content:start;"><div style="font-weight:800;text-align:right;">${SF.fmt.ar(r.amount)}</div>
+                    <span class="chip" style="--c:${C.c};justify-self:end;"><i class="fas ${C.i}"></i> ${C.l}${r.cancel_category ? ' ✓' : ''}</span>
+                    <select class="form-control" title="Corriger la cause" onchange="An.setCategory(${r.id}, this.value)">${opts(r.category)}</select></div>
+            </div>`; };
+            const fb = (k, l, n) => `<button class="${this.cat === k ? 'active' : ''}" onclick="An.setCat('${k}')">${l} (${n})</button>`;
+            return `<div class="card dash-card" id="detail"><div class="card-header" style="flex-wrap:wrap;gap:8px;"><h3><i class="fas fa-list"></i> Détail des annulations</h3>
+                    <input type="search" id="anQ" class="form-control no-print" style="max-width:260px;height:36px;" placeholder="Rechercher (n°, client, motif…)" value="${SF.esc(this.q)}" oninput="An.setQ(this.value)"></div>
+                <div class="card-body" style="padding-bottom:4px;"><div class="flt">${fb('', 'Toutes', R.length)}${byCat.map(c => fb(c.k, CATS[c.k].l, c.n)).join('')}</div></div>
+                <div class="card-body" style="padding:0;">${list.length ? list.map(row).join('') : '<div class="empty">Aucune annulation pour ce filtre</div>'}</div></div>`;
+        },
+        async setCategory(id, cat) {
+            try { await SF.api(`/api/deliveries/${id}/cancel-category`, { method: 'POST', body: { category: cat } });
+                const r = this.data.rows.find(x => x.id === id); if (r) { r.cancel_category = cat; r.category = cat; }
+                SF.toast('Cause corrigée', 'success'); this.render(); }
+            catch (e) { SF.toast(e.message, 'error'); }
+        },
+        // ── Retards à décider (plus d'annulation automatique) ──
+        renderOverdue() {
+            const O = this.data.overdue, box = document.getElementById('overdue');
+            if (!O.length) { box.innerHTML = ''; return; }
+            const days = d => Math.max(0, Math.round((new Date(this.data.today) - new Date(d)) / 86400000));
+            box.innerHTML = `<div class="card dash-card od-card" id="retard"><div class="card-header"><h3><i class="fas fa-hourglass-half" style="color:var(--warning-dark);"></i> Livraisons en retard — à décider</h3><span class="badge badge-warning">${O.length}</span></div>
+                <div class="card-body" style="padding:0;"><div class="text-muted" style="font-size:12.5px;padding:10px 14px 4px;">Prévues il y a plus de ${this.data.overdue_days} jours et jamais sorties du stock. Elles ne sont plus annulées automatiquement : reportez-les à une nouvelle date ou annulez-les avec un motif.</div>
+                ${O.map(d => `<div class="od-row">
+                    <div class="c1"><b>#${SF.esc(d.delivery_number)}</b> <span class="late"><i class="fas fa-clock"></i> ${days(d.plan_date)} j de retard</span><div class="muted">Prévue le ${SF.fmt.date(d.plan_date)} · ${SF.esc(SF.DELIVERY_STATUS[d.status] || d.status)}</div></div>
+                    <div class="c2"><b>${SF.esc(d.client_name || '—')}</b>${d.client_phone ? ` · <a href="tel:${SF.esc(String(d.client_phone).replace(/[^\d+]/g, ''))}">${SF.esc(d.client_phone)}</a>` : ''}<div class="muted">${SF.esc(d.items_summary || '')}</div></div>
+                    <div class="c3 muted"><i class="fas fa-user"></i> ${SF.esc(d.commercial_name || '—')}${d.livreur_name ? `<br><i class="fas fa-motorcycle"></i> ${SF.esc(d.livreur_name)}` : ''}</div>
+                    <div class="c4" style="text-align:right;"><b>${SF.fmt.ar((d.total || 0) + (d.delivery_fee || 0))}</b>${d.paid > 0 || d.payment_status === 'paye' || d.acompte > 0 ? `<div><span class="paid"><i class="fas fa-circle-check"></i> ${d.paid > 0 ? SF.fmt.ar(d.paid) + ' payés' : d.acompte > 0 ? 'acompte ' + SF.fmt.ar(d.acompte) : 'déclarée payée'}</span></div>` : ''}</div>
+                    <div class="od-acts" style="grid-column:1/-1;"><button class="btn btn-sm btn-primary" onclick="An.openRes(${d.id})"><i class="fas fa-calendar-day"></i> Reporter</button><button class="btn btn-sm btn-danger" onclick="An.cancel(${d.id})"><i class="fas fa-ban"></i> Annuler</button></div>
+                </div>`).join('')}</div></div>`;
+        },
+        openRes(id) {
+            const d = this.data.overdue.find(x => x.id === id); if (!d) return;
+            this.resId = id;
+            document.getElementById('resInfo').innerHTML = `Livraison <b>#${SF.esc(d.delivery_number)}</b> — ${SF.esc(d.client_name || '')} · prévue le ${SF.fmt.date(d.plan_date)}`;
+            const el = document.getElementById('resDate'); el.min = this.data.today; el.value = this.addD(this.data.today, 1);
+            document.getElementById('resNote').value = '';
+            SF.Modal.open('resModal');
+        },
+        async reschedule() {
+            const date = document.getElementById('resDate').value; if (!date) return SF.toast('Date obligatoire', 'error');
+            const btn = document.getElementById('resBtn'); btn.disabled = true;
+            try { await SF.api(`/api/deliveries/${this.resId}/reschedule`, { method: 'POST', body: { date, note: document.getElementById('resNote').value } });
+                SF.toast('Livraison reportée au ' + SF.fmt.date(date), 'success'); SF.Modal.close('resModal'); this.load(); }
+            catch (e) { SF.toast(e.message, 'error'); }
+            btn.disabled = false;
+        },
+        async cancel(id) {
+            const d = this.data.overdue.find(x => x.id === id); if (!d) return;
+            const reason = await SF.prompt(`Annuler la livraison #${d.delivery_number} (${d.client_name || ''}) ? Rien n'est sorti du stock : les articles restent disponibles.${d.paid > 0 ? `\n\n${SF.fmt.ar(d.paid)} déjà payés : la caisse sera notifiée pour le remboursement.` : ''}\n\nMotif (obligatoire, précis) :`,
+                { title: 'Annuler la livraison', okLabel: 'Annuler la livraison', placeholder: 'Ex. : client injoignable depuis 4 jours' });
+            if (reason == null) return;
+            if (!reason.trim()) return SF.toast('Motif obligatoire', 'error');
+            try { await SF.api(`/api/deliveries/${id}/cancel-order`, { method: 'POST', body: { reason: reason.trim() } }); SF.toast('Livraison annulée', 'success'); this.load(); }
+            catch (e) { SF.toast(e.message, 'error'); }
+        },
+    };
+    An.init();
+    </script>
+</body>
+</html>

@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <title>Atelier — reste à payer — STOCKFLOW</title>
+    <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css">
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/sf.css">
+    <script>document.documentElement.setAttribute('data-theme', localStorage.getItem('stockflow-theme') === 'dark' ? 'dark' : 'light'); try { var sfu = JSON.parse(localStorage.getItem('stockflow-ui') || '{}'); for (var k in sfu) document.documentElement.setAttribute('data-' + k, sfu[k]); } catch (e) {}</script>
+    <style>
+        .ap-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:14px; }
+        .ap { background:var(--bg-card); border:1px solid var(--border-color); border-left:3px solid var(--warning); border-radius:var(--border-radius-lg); padding:15px 16px; box-shadow:var(--shadow-xs); display:flex; flex-direction:column; }
+        .ap .top { display:flex; justify-content:space-between; align-items:flex-start; gap:8px; }
+        .ap .who { font-weight:800; font-size:15px; }
+        .ap .cli { font-size:12.5px; color:var(--text-secondary); line-height:1.7; margin-top:3px; }
+        .ap .cli a { color:var(--accent-dark); font-weight:600; text-decoration:none; }
+        .ap .rest { font-size:19px; font-weight:800; white-space:nowrap; color:var(--danger); text-align:right; }
+        .ap .rest small { display:block; font-size:11px; font-weight:600; color:var(--text-muted); }
+        .ap .svc { font-size:12.5px; color:var(--text-secondary); line-height:1.55; margin:10px 0; padding:8px 10px; background:var(--bg-input); border-radius:8px; }
+        .ap .acts { display:flex; gap:8px; margin-top:auto; padding-top:10px; flex-wrap:wrap; }
+        .ap .acts .btn { flex:1; min-width:120px; }
+        .cart-total { display:flex; justify-content:space-between; align-items:baseline; gap:12px; font-weight:800; margin:6px 0 12px; padding-top:8px; border-top:1px solid var(--border-color); }
+        .empty { text-align:center; color:var(--text-muted); padding:36px; font-size:13px; background:var(--bg-card); border:1px dashed var(--border-color); border-radius:var(--border-radius-lg); }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar" id="sfSidebar"></aside>
+        <main class="main-content">
+            <header class="page-header">
+                <div class="page-title"><h1>Atelier — reste à payer</h1><p>Services atelier payés en partie : encaisser le reste à la récupération de l'ordinateur</p></div>
+                <div class="page-actions"><div id="sfTools"></div></div>
+            </header>
+            <div class="page-body">
+                <div class="card dash-card"><div class="card-header"><h3><i class="fas fa-laptop-medical"></i> Paiements attendus</h3></div><div class="card-body"><div class="stats-grid" id="sumbar"></div></div></div>
+                <div class="form-group" style="max-width:360px;"><input type="search" id="q" class="form-control" placeholder="Rechercher : client, téléphone, n° facture…" oninput="Ap.render()"></div>
+                <div id="list"><div class="sf-skel sf-skel-card"></div><div class="sf-skel sf-skel-card"></div></div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modale : encaisser le reste -->
+    <div class="modal-overlay" id="payModal">
+        <div class="modal" style="max-width:480px;">
+            <div class="modal-header"><h3 id="pmTitle">Encaisser le reste</h3><button class="modal-close" onclick="SF.Modal.close('payModal')">&times;</button></div>
+            <div class="modal-body" id="pmBody"></div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="SF.Modal.close('payModal')">Annuler</button>
+                <button class="btn btn-primary" id="pmBtn" onclick="Ap.doPay()"><i class="fas fa-check"></i> Encaisser</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/sf-core.js"></script>
+    <script src="/js/sf-layout.js"></script>
+    <script src="/js/sf-invoice.js"></script>
+    <script src="/js/sf-pay.js"></script>
+    <script>
+    const Ap = {
+        rows: [], config: {}, current: null,
+        async init() {
+            const u = await SF.Auth.require(['caisse']); if (!u) return;
+            SF.layout({ active: '/atelier-paiements.html' });
+            try { this.config = await SF.api('/api/config'); } catch (e) {}
+            SF.on('sale:new', () => this.load());
+            SF.on('atelier:update', () => this.load());
+            this.load();
+        },
+        async load() {
+            try { this.rows = await SF.api('/api/atelier/balances'); this.render(); }
+            catch (e) { SF.toast(e.message, 'error'); }
+        },
+        days(r) { return Math.max(0, Math.floor((Date.now() - Date.parse(String(r.created_at).replace(' ', 'T') + '+03:00')) / 86400000)); },
+        render() {
+            const q = (document.getElementById('q').value || '').trim().toLowerCase();
+            const rows = this.rows.filter(r => !q || [r.client_name, r.client_phone, r.client_pc, r.services, r.invoice_ref, String(r.sale_number)].join(' ').toLowerCase().includes(q));
+            const total = this.rows.reduce((s, r) => s + (r.balance_due || 0), 0);
+            const old = this.rows.filter(r => this.days(r) >= 7).length;
+            document.getElementById('sumbar').innerHTML =
+                SF.tile({ label: 'Reste à encaisser', value: SF.fmt.ar(total), icon: 'fa-sack-dollar', tone: 'teal' })
+                + SF.tile({ label: 'Ordinateurs concernés', value: this.rows.length, icon: 'fa-laptop', tone: 'blue' })
+                + SF.tile({ label: 'Depuis 7 jours ou plus', value: old, icon: 'fa-clock', tone: 'coral', valCls: old ? 'neg' : '' });
+            document.getElementById('list').innerHTML = rows.length
+                ? `<div class="ap-grid">${rows.map(r => this.card(r)).join('')}</div>`
+                : `<div class="empty"><i class="fas fa-check-circle" style="font-size:22px;color:var(--success);"></i><br>${q ? 'Aucun résultat.' : 'Aucun service atelier en attente de paiement.'}</div>`;
+        },
+        card(r) {
+            const paid = Math.max(0, (r.total || 0) - (r.balance_due || 0));
+            const phone = (r.client_phone || '').trim();
+            const d = this.days(r);
+            return `<div class="ap">
+                <div class="top">
+                    <div>
+                        <div class="who"><i class="fas fa-laptop-medical"></i> Facture n° ${SF.esc(r.sale_number)} <span class="text-muted" style="font-size:11.5px;font-weight:600;">${SF.esc(r.invoice_ref)}</span></div>
+                        <div class="cli"><i class="fas fa-user"></i> ${SF.esc(r.client_name || '—')}${phone ? ` · <a href="tel:${SF.esc(phone)}"><i class="fas fa-phone"></i> ${SF.esc(phone)}</a>` : ''}<br>
+                            <i class="fas fa-calendar"></i> ${SF.fmt.datetime(r.created_at)} <span class="text-muted">(${d === 0 ? 'aujourd\'hui' : 'il y a ' + d + ' j'})</span></div>
+                    </div>
+                    <div class="rest">${SF.fmt.ar(r.balance_due)}<small>reste à payer</small></div>
+                </div>
+                <div class="svc"><i class="fas fa-screwdriver-wrench"></i> ${SF.esc(r.services || '—')}${r.client_pc ? `<br><i class="fas fa-laptop"></i> ${SF.esc(r.client_pc)}` : ''}<br>
+                    Total ${SF.fmt.ar(r.total)} · déjà payé <b>${SF.fmt.ar(paid)}</b></div>
+                <div class="acts">
+                    <button class="btn btn-primary btn-sm" onclick="Ap.openPay(${r.id})"><i class="fas fa-cash-register"></i> Encaisser le reste</button>
+                    <button class="btn btn-secondary btn-sm" onclick="Ap.print(${r.id})"><i class="fas fa-file-invoice"></i> Facture</button>
+                </div>
+            </div>`;
+        },
+        openPay(id) {
+            const r = this.rows.find(x => x.id === id); if (!r) return;
+            this.current = r;
+            document.getElementById('pmTitle').textContent = `Encaisser le reste — facture n° ${r.sale_number}`;
+            document.getElementById('pmBody').innerHTML = `
+                <div style="font-size:13px;line-height:1.7;margin-bottom:8px;"><b>${SF.esc(r.client_name || '—')}</b>${r.client_phone ? ' · ' + SF.esc(r.client_phone) : ''}<br>
+                    <span class="text-muted">${SF.esc(r.services || '')}</span></div>
+                <div class="form-group"><label>Montant encaissé (Ar)</label><input type="number" id="pa_amount" data-keypad class="form-control" min="1" max="${Math.round(r.balance_due)}" value="${Math.round(r.balance_due)}" oninput="Ap.amt()"></div>
+                <div class="cart-total" style="font-size:18px;"><span>Reste à payer</span><span>${SF.fmt.ar(r.balance_due)}</span></div>
+                <label style="font-size:12.5px;font-weight:600;color:var(--text-secondary);">Paiement (répartition possible)</label>
+                <div id="paBox"></div>`;
+            SFPay.mount(document.getElementById('paBox'), Math.round(r.balance_due));
+            SF.Modal.open('payModal');
+        },
+        amt() {
+            const v = Math.max(0, parseFloat(document.getElementById('pa_amount').value) || 0);
+            SFPay.setTotal(document.getElementById('paBox'), v);
+        },
+        async doPay() {
+            const r = this.current; if (!r) return;
+            const v = Math.max(0, parseFloat(document.getElementById('pa_amount').value) || 0);
+            if (v <= 0) return SF.toast('Montant requis', 'error');
+            if (v > Math.round(r.balance_due)) return SF.toast('Le montant dépasse le reste à payer', 'error');
+            const pr = await SFPay.confirm(document.getElementById('paBox')); if (pr.cancelled) return;
+            if (pr.error) return SF.toast(pr.error, 'error');
+            const btn = document.getElementById('pmBtn'); btn.disabled = true;
+            try {
+                const res = await SF.api(`/api/sales/${r.id}/balance`, { method: 'POST', body: { payment: { payments: pr.payments } } });
+                SF.toast(res.sale.balance_due > 0 ? `Encaissé — il reste ${SF.fmt.ar(res.sale.balance_due)}` : 'Reste encaissé — facture complète', 'success');
+                SF.Modal.close('payModal');
+                SFInvoice.chooser(res.sale, this.config);   // facture complète (ou mise à jour)
+                this.load();
+            } catch (e) { SF.toast(e.message, 'error'); }
+            btn.disabled = false;
+        },
+        async print(id) {
+            try { const sale = await SF.api('/api/sales/' + id); SFInvoice.chooser(sale, this.config); }
+            catch (e) { SF.toast(e.message, 'error'); }
+        }
+    };
+    Ap.init();
+    </script>
+</body>
+</html>

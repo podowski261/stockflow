@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <title>Coordination — STOCKFLOW</title>
+    <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css">
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/sf.css">
+    <script>document.documentElement.setAttribute('data-theme', localStorage.getItem('stockflow-theme') === 'dark' ? 'dark' : 'light'); try { var sfu = JSON.parse(localStorage.getItem('stockflow-ui') || '{}'); for (var k in sfu) document.documentElement.setAttribute('data-' + k, sfu[k]); } catch (e) {}</script>
+    <style>
+        /* ── Onglets ── */
+        .co-tabs { display:flex; gap:6px; margin:4px 0 14px; overflow-x:auto; scrollbar-width:none; padding-bottom:2px; }
+        .co-tabs::-webkit-scrollbar { display:none; }
+        .co-tabs button { flex-shrink:0; display:inline-flex; align-items:center; gap:8px; padding:9px 15px; border-radius:11px; border:1px solid var(--border-color); background:var(--bg-card); color:var(--text-secondary); font-size:13.5px; font-weight:700; cursor:pointer; }
+        .co-tabs button .n { font-size:11.5px; font-weight:800; padding:1px 8px; border-radius:999px; background:var(--bg-input); color:var(--text-primary); }
+        .co-tabs button .n.alert { background:var(--danger); color:#fff; }
+        .co-tabs button.active { border-color:var(--accent); background:var(--accent-glow); color:var(--accent-dark); }
+        .co-tabs button.active .n:not(.alert) { background:var(--accent); color:var(--accent-contrast); }
+        .live { display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--text-muted); }
+        .live i { width:8px; height:8px; border-radius:50%; background:var(--success); box-shadow:0 0 0 0 rgba(22,163,74,.6); animation:pulse 2s infinite; }
+        @keyframes pulse { 0% { box-shadow:0 0 0 0 rgba(22,163,74,.55); } 70% { box-shadow:0 0 0 7px rgba(22,163,74,0); } 100% { box-shadow:0 0 0 0 rgba(22,163,74,0); } }
+
+        /* ── Cartes livraison ── */
+        .dgrid { display:grid; grid-template-columns:repeat(auto-fill, minmax(min(100%, 320px), 1fr)); gap:12px; }
+        .dcard { background:var(--bg-card); border:1px solid var(--border-color); border-radius:14px; padding:14px; cursor:pointer; display:flex; flex-direction:column; gap:10px; min-width:0; transition:border-color .15s, box-shadow .15s; }
+        .dcard:hover { border-color:var(--accent); box-shadow:var(--shadow-md); }
+        .dcard.prio { border-left:4px solid var(--warning); }
+        .dhead { display:flex; justify-content:space-between; align-items:flex-start; gap:8px; }
+        .dnum { font-size:15px; font-weight:800; color:var(--text-primary); display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+        .dsub { font-size:12px; color:var(--text-muted); margin-top:2px; }
+        .dprod { font-size:13px; font-weight:600; color:var(--text-primary); display:flex; gap:8px; align-items:flex-start; overflow-wrap:anywhere; }
+        .dprod i { color:var(--accent); margin-top:2px; }
+        .dcli { background:var(--bg-input); border-radius:10px; padding:9px 11px; font-size:13px; line-height:1.55; display:grid; gap:3px; }
+        .dcli > div { display:flex; gap:8px; align-items:flex-start; overflow-wrap:anywhere; min-width:0; }
+        .dcli i { width:14px; text-align:center; color:var(--text-muted); margin-top:3px; flex-shrink:0; }
+        .dcli b { color:var(--text-primary); }
+        .dcli a { color:var(--accent-dark, var(--accent)); font-weight:700; text-decoration:none; }
+        .dfoot { display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; font-size:12.5px; color:var(--text-secondary); }
+        .dfoot .amt { font-size:15px; font-weight:800; color:var(--text-primary); }
+        .dacts { display:flex; gap:8px; flex-wrap:wrap; }
+        .dacts .btn { flex:1 1 auto; justify-content:center; }
+        .group-head { font-size:13px; font-weight:800; color:var(--text-primary); margin:16px 0 10px; padding:8px 12px; background:var(--bg-input); border-left:3px solid var(--accent); border-radius:8px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+        .group-head:first-child { margin-top:0; }
+        .group-head .n { color:var(--text-muted); font-weight:600; font-size:12px; }
+        .group-head.today { border-left-color:var(--success); }
+        .group-head .r { margin-left:auto; font-weight:700; font-size:12.5px; color:var(--text-secondary); }
+        .group-sub { font-size:12px; font-weight:700; color:var(--text-secondary); margin:10px 0 8px; display:flex; align-items:center; gap:6px; }
+        .group-sub.today { color:var(--success-dark); }
+        .empty { text-align:center; color:var(--text-muted); padding:28px 10px; }
+
+        /* ── Versements livreurs ── */
+        .liv-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(min(100%, 250px), 1fr)); gap:10px; margin-bottom:14px; }
+        .liv { border:1px solid var(--border-color); border-radius:12px; padding:12px; background:var(--bg-card); display:grid; gap:6px; }
+        .liv.late { border-color:var(--warning); } .liv.critical { border-color:var(--danger); background:color-mix(in srgb, var(--danger) 5%, var(--bg-card)); }
+        .liv-n { font-weight:800; font-size:14px; display:flex; align-items:center; gap:8px; }
+        .liv-amt { font-size:19px; font-weight:800; color:var(--text-primary); }
+        .liv-meta { font-size:12px; color:var(--text-muted); line-height:1.5; }
+        .lvl { display:inline-flex; align-items:center; gap:5px; font-size:11.5px; font-weight:800; padding:2px 9px; border-radius:999px; white-space:nowrap; }
+        .lvl.ok { background:rgba(22,163,74,.12); color:#15803d; }
+        .lvl.late { background:rgba(217,119,6,.14); color:#b45309; }
+        .lvl.critical { background:rgba(220,38,38,.13); color:#b91c1c; }
+        .lvl.deferred { background:rgba(99,102,241,.13); color:#4f46e5; }
+        .lvl.paid { background:rgba(14,165,233,.13); color:#0369a1; }
+        .pay-row { display:grid; grid-template-columns:minmax(0,1.3fr) minmax(0,1.6fr) minmax(0,1fr) auto; gap:10px; align-items:center; padding:10px 12px; border-bottom:1px solid var(--border-light, var(--border-color)); font-size:13px; cursor:pointer; }
+        .pay-row:hover { background:var(--bg-input); }
+        .pay-row:last-child { border-bottom:none; }
+        .pay-row .c1 b { font-size:14px; }
+        .pay-row .muted { font-size:12px; color:var(--text-muted); overflow-wrap:anywhere; }
+        .pay-row .amt { font-weight:800; text-align:right; white-space:nowrap; }
+        .pay-list { border:1px solid var(--border-color); border-radius:12px; overflow:hidden; background:var(--bg-card); }
+        .pay-head { display:grid; grid-template-columns:minmax(0,1.3fr) minmax(0,1.6fr) minmax(0,1fr) auto; gap:10px; padding:8px 12px; font-size:11.5px; font-weight:800; text-transform:uppercase; letter-spacing:.3px; color:var(--text-muted); background:var(--bg-input); }
+        .day-pick { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+        .day-pick input { max-width:170px; }
+
+        /* ── Résumé du jour ── */
+        .sum-top { display:flex; align-items:center; gap:14px; padding:14px 16px; border-radius:14px; margin-bottom:14px;
+            background:linear-gradient(135deg, color-mix(in srgb, #f5b301 22%, var(--bg-card)), var(--bg-card)); border:1px solid color-mix(in srgb, #f5b301 45%, var(--border-color)); }
+        .sum-top .trophy { width:46px; height:46px; border-radius:12px; background:#f5b301; color:#fff; display:flex; align-items:center; justify-content:center; font-size:21px; flex-shrink:0; }
+        .sum-top .t1 { font-size:11.5px; font-weight:800; text-transform:uppercase; letter-spacing:.4px; color:var(--text-muted); }
+        .sum-top .t2 { font-size:18px; font-weight:800; color:var(--text-primary); }
+        .sum-top .t3 { font-size:12.5px; color:var(--text-secondary); }
+        .rank { display:grid; grid-template-columns:34px minmax(0,1.4fr) repeat(4, minmax(0,1fr)); gap:10px; align-items:center; padding:10px 12px; border-bottom:1px solid var(--border-light, var(--border-color)); font-size:13px; cursor:pointer; }
+        .rank:last-child { border-bottom:none; } .rank:hover { background:var(--bg-input); }
+        .rank.active { background:var(--accent-glow); }
+        .rank.head { cursor:default; font-size:11.5px; font-weight:800; text-transform:uppercase; letter-spacing:.3px; color:var(--text-muted); background:var(--bg-input); }
+        .rank .pos { width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:12.5px; background:var(--bg-input); color:var(--text-secondary); }
+        .rank .pos.p1 { background:#f5b301; color:#fff; } .rank .pos.p2 { background:#9ca3af; color:#fff; } .rank .pos.p3 { background:#c2793a; color:#fff; }
+        .rank .nm { font-weight:800; overflow-wrap:anywhere; }
+        .rank .num { text-align:right; font-weight:700; white-space:nowrap; }
+        .rank .lbl { display:none; }
+        .st-pill { display:inline-flex; align-items:center; gap:5px; font-size:11.5px; font-weight:800; padding:2px 9px; border-radius:999px; white-space:nowrap; }
+        .st-pill.payee { background:rgba(22,163,74,.12); color:#15803d; }
+        .st-pill.non_payee { background:rgba(220,38,38,.12); color:#b91c1c; }
+        .st-pill.annulee, .st-pill.retournee { background:var(--bg-input); color:var(--text-muted); }
+        .sum-filters { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+        .sum-filters button { border:1px solid var(--border-color); background:var(--bg-card); color:var(--text-secondary); border-radius:999px; padding:5px 12px; font-size:12.5px; font-weight:700; cursor:pointer; font-family:inherit; }
+        .sum-filters button.active { border-color:var(--accent); background:var(--accent-glow); color:var(--accent-dark); }
+        @media (max-width:700px) {
+            .sum-top { padding:12px; } .sum-top .t2 { font-size:16px; }
+            .rank { grid-template-columns:30px minmax(0,1fr) auto; grid-template-areas:"p n d" "p m m"; gap:4px 10px; }
+            .rank.head { display:none; }
+            .rank .pos { grid-area:p; } .rank .nm { grid-area:n; } .rank .c-done { grid-area:d; }
+            .rank .c-route, .rank .c-paid, .rank .c-unpaid { display:none; }
+            .rank .meta { grid-area:m; display:block !important; font-size:12px; color:var(--text-muted); }
+        }
+        /* ── Détails ── */
+        .detail-row { display:flex; justify-content:space-between; gap:12px; padding:8px 0; border-bottom:1px solid var(--border-light, var(--border-color)); font-size:13.5px; }
+        .detail-label { font-weight:600; color:var(--text-secondary); flex-shrink:0; }
+        .detail-value { color:var(--text-primary); text-align:right; overflow-wrap:anywhere; min-width:0; }
+        .item-row { display:flex; justify-content:space-between; gap:10px; padding:6px 0; font-size:13px; }
+        .item-row span:first-child { overflow-wrap:anywhere; }
+
+        @media (max-width:700px) {
+            .co-tabs { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); overflow:visible; }
+            .co-tabs button { flex-direction:column; gap:3px; padding:8px 4px; font-size:11.5px; text-align:center; line-height:1.2; }
+            .co-tabs button > i { font-size:15px; }
+            .pay-head { display:none; }
+            .pay-row { grid-template-columns:1fr auto; grid-template-areas:"a d" "b b" "c c"; gap:4px 10px; }
+            .pay-row .c1 { grid-area:a; } .pay-row .c2 { grid-area:b; } .pay-row .c3 { grid-area:c; } .pay-row .c4 { grid-area:d; }
+            .dacts .btn { flex:1 1 100%; }
+            .detail-row { flex-direction:column; gap:2px; } .detail-value { text-align:left; }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar" id="sfSidebar"></aside>
+        <main class="main-content">
+            <header class="page-header">
+                <div class="page-title"><h1>Coordination des livraisons</h1><p><span class="live"><i></i> Temps réel</span> · assignation des livreurs et suivi des versements</p></div>
+                <div class="page-actions"><div id="sfTools"></div></div>
+            </header>
+            <div class="page-body">
+                <div id="kpis"></div>
+                <div class="co-tabs" id="tabs"></div>
+                <div id="sections"><div class="sf-skel sf-skel-card"></div><div class="sf-skel sf-skel-card"></div><div class="sf-skel sf-skel-card"></div></div>
+            </div>
+        </main>
+    </div>
+
+    <div class="modal-overlay" id="assignModal">
+        <div class="modal" style="max-width:440px;">
+            <div class="modal-header"><h3><i class="fas fa-user-check"></i> Assigner un livreur</h3><button class="modal-close" onclick="SF.Modal.close('assignModal')">&times;</button></div>
+            <div class="modal-body">
+                <div class="dcli" id="assignInfo" style="margin-bottom:12px;"></div>
+                <div class="form-group">
+                    <label>Nom du livreur *</label>
+                    <input type="text" id="assignLivreurName" class="form-control" placeholder="Ex : Rakoto, Hery, Jean…" list="livreursList">
+                    <datalist id="livreursList"></datalist>
+                </div>
+                <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;"><input type="checkbox" id="assignPrio"> Marquer comme prioritaire</label>
+            </div>
+            <div class="modal-footer"><button class="btn btn-secondary" onclick="SF.Modal.close('assignModal')">Annuler</button><button class="btn btn-primary" onclick="Coord.assign()"><i class="fas fa-user-check"></i> Assigner</button></div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="detailsModal">
+        <div class="modal" style="max-width:620px;">
+            <div class="modal-header"><h3 id="detailsTitle">Détails de la livraison</h3><button class="modal-close" onclick="SF.Modal.close('detailsModal')">&times;</button></div>
+            <div class="modal-body" id="detailsBody"></div>
+            <div class="modal-footer" id="detailsFooter"></div>
+        </div>
+    </div>
+
+    <script src="/js/sf-core.js"></script>
+    <script src="/js/sf-layout.js"></script>
+    <script>
+    const Coord = {
+        deliveries: [], livreurs: [], pay: null, currentId: null,
+        tab: 'assign', day: null,
+        async init() {
+            const u = await SF.Auth.require(['coordinateur']); if (!u) return;
+            SF.layout({ active: '/coordination.html' });
+            const h = (location.hash || '').slice(1);
+            try { this.tab = ['assign', 'assigned', 'versements', 'resume'].includes(h) ? h : (localStorage.getItem('coord-tab') || 'assign'); } catch (e) {}
+            this.day = SF.fmt.today();
+            try { this.livreurs = await SF.api('/api/livreurs'); } catch (e) {}
+            SF.on('delivery:update', () => this.load());
+            setInterval(() => this.loadPay(true), 60000);  // durées / retards à jour même sans événement
+            this.load();
+        },
+        async load() {
+            try { const r = await SF.api('/api/deliveries'); this.deliveries = r.deliveries || []; }
+            catch (e) { SF.toast(e.message, 'error'); }
+            await this.loadPay(true);
+            if (this.tab === 'resume') await this.loadSum(true);
+            this.render();
+        },
+        // ── Résumé des livraisons du jour (payées / non payées, livreurs, classement) ──
+        sum: null, sumDay: null, sumFilter: '', sumLiv: '',
+        async loadSum(silent) {
+            try { this.sum = await SF.api('/api/coordination/day-summary?day=' + encodeURIComponent(this.sumDay || SF.fmt.today())); }
+            catch (e) { if (!silent) SF.toast(e.message, 'error'); }
+        },
+        setSumDay(v) { this.sumDay = v || SF.fmt.today(); this.sumLiv = ''; this.loadSum().then(() => this.render()); },
+        setSumFilter(f) { this.sumFilter = f; this.render(); },
+        setSumLiv(n) { this.sumLiv = this.sumLiv === n ? '' : n; this.render(); },
+        renderSum() {
+            const S = this.sum, today = SF.fmt.today();
+            if (!S) { this.loadSum().then(() => { if (this.tab === 'resume') this.render(); }); return '<div class="sf-skel sf-skel-card"></div>'; }
+            const R = S.rows || [], L = S.livreurs || [];
+            const paid = R.filter(d => d.state === 'payee'), unpaid = R.filter(d => d.state === 'non_payee');
+            const done = R.filter(d => d.done);
+            const dayLbl = S.day === today ? "aujourd'hui" : 'le ' + SF.fmt.date(S.day);
+            const tiles = SF.tileGroup('Livraisons ' + dayLbl, 'fa-calendar-day',
+                SF.tile({ label: 'Livraisons du jour', value: R.length, icon: 'fa-truck-fast', tone: 'blue', sub: done.length + ' terminée(s) · ' + R.filter(d => d.status === 'en_livraison').length + ' en route', onclick: "Coord.setSumFilter('')", active: !this.sumFilter })
+                + SF.tile({ label: 'Payées', value: paid.length, icon: 'fa-circle-check', tone: 'green', sub: SF.fmt.ar(paid.reduce((t, d) => t + d.amount, 0)), onclick: "Coord.setSumFilter('payee')", active: this.sumFilter === 'payee' })
+                + SF.tile({ label: 'Non payées', value: unpaid.length, icon: 'fa-hourglass-half', tone: unpaid.length ? 'coral' : 'green', sub: SF.fmt.ar(unpaid.reduce((t, d) => t + d.due, 0)) + ' à encaisser', onclick: "Coord.setSumFilter('non_payee')", active: this.sumFilter === 'non_payee' }),
+                `<div class="day-pick"><input type="date" class="form-control" value="${S.day}" max="${today}" onchange="Coord.setSumDay(this.value)"></div>`);
+            const top = S.top;
+            const topHtml = top ? `<div class="sum-top"><div class="trophy"><i class="fas fa-trophy"></i></div><div style="min-width:0;">
+                    <div class="t1">Top livreur ${S.day === today ? 'du jour' : 'du ' + SF.fmt.date(S.day)}</div>
+                    <div class="t2">${SF.esc(top.name)}</div>
+                    <div class="t3">${top.done} livraison(s) terminée(s) · ${SF.fmt.ar(top.paid)} encaissé${top.en_route ? ' · ' + top.en_route + ' en route' : ''}</div></div></div>` : '';
+            const medal = i => `<span class="pos ${i < 3 ? 'p' + (i + 1) : ''}">${i + 1}</span>`;
+            const rankRows = L.map((l, i) => `<div class="rank ${this.sumLiv === l.name ? 'active' : ''}" onclick="Coord.setSumLiv(${SF.esc(JSON.stringify(l.name))})" title="Voir ses livraisons">
+                    ${medal(i)}<div class="nm"><i class="fas fa-motorcycle" style="color:var(--accent);"></i> ${SF.esc(l.name)}</div>
+                    <div class="num c-done">${l.done} <span class="text-muted" style="font-weight:600;">/ ${l.total}</span></div>
+                    <div class="num c-route">${l.en_route}</div>
+                    <div class="num c-paid" style="color:#15803d;">${SF.fmt.ar(l.paid)}</div>
+                    <div class="num c-unpaid" style="color:${l.unpaid ? '#b91c1c' : 'var(--text-muted)'};">${SF.fmt.ar(l.unpaid)}</div>
+                    <div class="meta" style="display:none;">${l.en_route} en route · <span style="color:#15803d;">${SF.fmt.ar(l.paid)} payé</span>${l.unpaid ? ` · <span style="color:#b91c1c;">${SF.fmt.ar(l.unpaid)} non payé</span>` : ''}</div>
+                </div>`).join('');
+            const stLbl = { payee: ['fa-circle-check', 'Payée'], non_payee: ['fa-hourglass-half', 'Non payée'], annulee: ['fa-ban', 'Annulée'], retournee: ['fa-rotate-left', 'Retournée'] };
+            const list = R.filter(d => (!this.sumFilter || d.state === this.sumFilter) && (!this.sumLiv || (d.livreur_name || 'Non assigné') === this.sumLiv))
+                .sort((a, b) => (a.state === 'non_payee' ? 0 : 1) - (b.state === 'non_payee' ? 0 : 1) || String(a.livreur_name || '').localeCompare(String(b.livreur_name || '')));
+            const row = d => { const s = stLbl[d.state] || ['fa-circle', d.state]; return `<div class="pay-row" onclick="Coord.showDetails(${d.id})">
+                <div class="c1"><b>#${d.delivery_number}</b> <span class="muted">· <i class="fas fa-motorcycle"></i> ${SF.esc(d.livreur_name || 'Non assigné')}</span><div class="muted">${SF.esc(d.items_summary || '')}</div></div>
+                <div class="c2"><b>${SF.esc(d.client_name || '—')}</b> · ${this.tel(d.client_phone)}<div class="muted">${SF.esc(d.client_address || '')}</div></div>
+                <div class="c3"><span class="st-pill ${d.state}"><i class="fas ${s[0]}"></i> ${s[1]}</span><div class="muted">${d.done ? 'Terminée' + (d.status_at ? ' à ' + this.hhmm(d.status_at) : '') : d.status === 'en_livraison' ? 'En route depuis ' + this.hhmm(d.released_at) + (d.payment_status === 'paye' ? ' · prépayée' : '') : ''}</div></div>
+                <div class="c4 amt">${d.state === 'non_payee' ? `<span style="color:#b91c1c;">${SF.fmt.ar(d.due)}</span>` : SF.fmt.ar(d.amount)}</div>
+            </div>`; };
+            const fb = (k, l, n) => `<button class="${this.sumFilter === k ? 'active' : ''}" onclick="Coord.setSumFilter('${k}')">${l} (${n})</button>`;
+            return tiles + topHtml
+                + `<div class="card dash-card"><div class="card-header"><h3><i class="fas fa-ranking-star"></i> Livreurs ${S.day === today ? 'du jour' : ''}</h3><span class="text-muted" style="font-size:12px;">Terminée = réglée à la caisse</span></div>
+                    <div class="card-body" style="padding:0;">${L.length ? `<div class="rank head"><div>#</div><div>Livreur</div><div class="num">Terminées</div><div class="num">En route</div><div class="num">Payé</div><div class="num">Non payé</div></div>${rankRows}` : '<div class="empty">Aucune livraison ce jour</div>'}</div></div>`
+                + `<div class="card dash-card"><div class="card-header" style="flex-wrap:wrap;gap:8px;"><h3><i class="fas fa-list-check"></i> Liste des livraisons${this.sumLiv ? ' — ' + SF.esc(this.sumLiv) + ` <button class="btn btn-sm btn-secondary" onclick="Coord.setSumLiv(${SF.esc(JSON.stringify(this.sumLiv))})"><i class="fas fa-xmark"></i></button>` : ''}</h3>
+                    <div class="sum-filters">${fb('', 'Toutes', R.length)}${fb('payee', 'Payées', paid.length)}${fb('non_payee', 'Non payées', unpaid.length)}</div></div>
+                    <div class="card-body" style="padding:0;">${list.length ? `<div class="pay-list" style="border:none;border-radius:0;"><div class="pay-head"><div>Livraison · livreur</div><div>Client</div><div>Paiement</div><div style="text-align:right;">Montant</div></div>${list.map(row).join('')}</div>` : '<div class="empty">Aucune livraison pour ce filtre</div>'}</div></div>`;
+        },
+        async loadPay(silent) {
+            try { this.pay = await SF.api('/api/coordination/payments?day=' + encodeURIComponent(this.day || SF.fmt.today())); }
+            catch (e) { if (!silent) SF.toast(e.message, 'error'); }
+            if (!silent) return;
+            if (this.tab === 'versements') this.render(); else { this.renderKpis(); this.renderTabs(); }
+        },
+        setTab(t) { this.tab = t; try { localStorage.setItem('coord-tab', t); } catch (e) {} history.replaceState(null, '', '#' + t); if (t === 'resume') this.sum = null; this.render(); },
+        setDay(v) { this.day = v || SF.fmt.today(); this.loadPay().then(() => this.render()); },
+
+        // ── Données dérivées ──
+        canAssign(d) { return ['nouvelle', 'assignee', 'acceptee'].includes(d.status); },
+        planDate(d) { return d.planned_date || d.delivery_date; },
+        nouvelles() { return this.deliveries.filter(d => d.status === 'nouvelle'); },
+        assigned() { return this.deliveries.filter(d => d.status !== 'nouvelle' && d.status !== 'annulee'); },
+        lateOut() { return ((this.pay && this.pay.out) || []).filter(d => d.level === 'late' || d.level === 'critical'); },
+        groupBy(arr, keyFn) { const m = {}; arr.forEach(x => { const k = keyFn(x); (m[k] = m[k] || []).push(x); }); return m; },
+        dateLabel(dateStr) {
+            const today = SF.fmt.today();
+            const diff = Math.round((new Date(dateStr + 'T00:00:00') - new Date(today + 'T00:00:00')) / 86400000);
+            if (diff <= 0) return 'Aujourd\'hui';
+            if (diff === 1) return 'Demain';
+            const s = new Date(dateStr + 'T00:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' });
+            return s.charAt(0).toUpperCase() + s.slice(1);
+        },
+        dur(h) {
+            if (h == null) return '—';
+            const m = Math.max(0, Math.round(h * 60));
+            if (m < 60) return m + ' min';
+            if (m < 1440) return Math.floor(m / 60) + ' h ' + String(m % 60).padStart(2, '0');
+            return Math.floor(m / 1440) + ' j ' + Math.floor((m % 1440) / 60) + ' h';
+        },
+        hhmm(ms) { if (!ms) return '—'; const d = new Date(Number(ms)); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); },
+        lvl(l, h) {
+            const m = { ok: ['ok', 'fa-clock', 'Dans les délais'], late: ['late', 'fa-triangle-exclamation', 'En retard'], critical: ['critical', 'fa-circle-exclamation', 'Critique'],
+                deferred: ['deferred', 'fa-calendar', 'Reportée'], paid: ['paid', 'fa-circle-check', 'Déjà payée'] }[l] || ['ok', 'fa-clock', l];
+            return `<span class="lvl ${m[0]}"><i class="fas ${m[1]}"></i> ${m[2]}${h != null && (l === 'late' || l === 'critical') ? ' · ' + this.dur(h) : ''}</span>`;
+        },
+        tel(p) { return p ? `<a href="tel:${SF.esc(String(p).replace(/[^\d+]/g, ''))}" onclick="event.stopPropagation()">${SF.esc(p)}</a>` : '—'; },
+        maps(a) { return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(a)}`; },
+        // Bloc client COMPLET (jamais tronqué) : nom, téléphone cliquable, adresse entière + lien carte.
+        clientBlock(d) {
+            return `<div class="dcli">
+                <div><i class="fas fa-user"></i><b>${SF.esc(d.client_name || '—')}</b></div>
+                <div><i class="fas fa-phone"></i>${this.tel(d.client_phone)}</div>
+                ${d.client_address ? `<div><i class="fas fa-location-dot"></i><span>${SF.esc(d.client_address)} <a href="${this.maps(d.client_address)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="Ouvrir dans Google Maps"><i class="fas fa-map-location-dot" style="color:inherit;"></i></a></span></div>` : ''}
+            </div>`;
+        },
+
+        // ── Rendu ──
+        render() {
+            this.renderKpis(); this.renderTabs();
+            const c = document.getElementById('sections');
+            c.innerHTML = this.tab === 'assigned' ? this.renderAssigned() : this.tab === 'versements' ? this.renderPay() : this.tab === 'resume' ? this.renderSum() : this.renderAssign();
+        },
+        renderKpis() {
+            const P = this.pay || { out: [], settled: [] };
+            const due = P.out.reduce((t, d) => t + (d.due || 0), 0);
+            const late = this.lateOut();
+            const settledAmt = P.settled.reduce((t, d) => t + (d.amount || 0), 0);
+            const today = SF.fmt.today();
+            document.getElementById('kpis').innerHTML = SF.tileGroup('Vue du jour', 'fa-gauge-high',
+                SF.tile({ label: 'À assigner', value: this.nouvelles().length, icon: 'fa-inbox', tone: 'blue', sub: this.nouvelles().filter(d => this.planDate(d) <= today).length + ' pour aujourd\'hui', onclick: "Coord.setTab('assign')", active: this.tab === 'assign' })
+                + SF.tile({ label: 'Assignées / en cours', value: this.assigned().length, icon: 'fa-motorcycle', tone: 'teal', sub: P.out.length + ' en route', onclick: "Coord.setTab('assigned')", active: this.tab === 'assigned' })
+                + SF.tile({ label: 'Chez les livreurs', value: SF.fmt.ar(due), icon: 'fa-hand-holding-dollar', tone: 'yellow', sub: P.out.filter(d => d.due > 0).length + ' versement(s) attendu(s)', onclick: "Coord.setTab('versements')", active: this.tab === 'versements' })
+                + SF.tile({ label: 'Versements en retard', value: late.length, icon: 'fa-triangle-exclamation', tone: late.length ? 'coral' : 'green', sub: late.length ? SF.fmt.ar(late.reduce((t, d) => t + d.due, 0)) : 'aucun retard', onclick: "Coord.setTab('versements')" })
+                + SF.tile({ label: 'Réglées ' + (P.day && P.day !== today ? 'le ' + SF.fmt.date(P.day) : 'aujourd\'hui'), value: P.settled.length, icon: 'fa-circle-check', tone: 'green', sub: SF.fmt.ar(settledAmt), onclick: "Coord.setTab('versements')" }),
+                `<span class="text-muted" style="font-size:12px;">Mis à jour ${this.hhmm(Date.now())}</span>`);
+        },
+        renderTabs() {
+            const late = this.lateOut().length;
+            const b = (k, icon, label, n, alert) => `<button class="${this.tab === k ? 'active' : ''}" onclick="Coord.setTab('${k}')"><i class="fas ${icon}"></i> ${label} <span class="n ${alert ? 'alert' : ''}">${n}</span></button>`;
+            document.getElementById('tabs').innerHTML = b('assign', 'fa-inbox', 'À assigner', this.nouvelles().length)
+                + b('assigned', 'fa-motorcycle', 'Assignées', this.assigned().length)
+                + b('versements', 'fa-hand-holding-dollar', 'Versements livreurs', late || ((this.pay && this.pay.out) || []).length, late > 0)
+                + b('resume', 'fa-clipboard-list', 'Résumé du jour', this.sum ? this.sum.rows.length : '…');
+        },
+        card(d) {
+            const pay = (this.pay && this.pay.out || []).find(x => x.id === d.id);
+            return `<div class="dcard ${d.priority ? 'prio' : ''}" onclick="Coord.showDetails(${d.id})">
+                <div class="dhead">
+                    <div style="min-width:0;"><div class="dnum">#${d.delivery_number}${d.priority ? ' <span class="badge badge-warning"><i class="fas fa-flag"></i> Prioritaire</span>' : ''}</div>
+                        <div class="dsub">${SF.fmt.relative(d.created_at)}${d.commercial_name ? ' · ' + SF.esc(d.commercial_name) : ''}</div></div>
+                    ${SF.deliveryBadge(d.status)}
+                </div>
+                <div class="dprod"><i class="fas fa-box"></i><span>${SF.esc(d.items_summary || '—')}</span></div>
+                ${this.clientBlock(d)}
+                <div class="dfoot">
+                    <span><i class="fas fa-calendar-day"></i> ${SF.fmt.date(this.planDate(d))}${d.delivery_time ? ' · ' + SF.esc(d.delivery_time) : ''}${d.livreur_name ? ` · <i class="fas fa-motorcycle"></i> <b>${SF.esc(d.livreur_name)}</b>` : ''}</span>
+                    <span class="amt">${SF.fmt.ar((parseFloat(d.total) || 0) + (parseFloat(d.delivery_fee) || 0))}</span>
+                </div>
+                ${pay ? `<div>${this.lvl(pay.level, pay.hours)} <span class="dsub">sortie à ${this.hhmm(pay.released_at)}${pay.due ? ' · ' + SF.fmt.ar(pay.due) + ' à verser' : ''}</span></div>` : ''}
+                <div class="dacts" onclick="event.stopPropagation()">
+                    ${this.canAssign(d) ? `<button class="btn btn-sm ${d.status === 'nouvelle' ? 'btn-primary' : 'btn-secondary'}" onclick="Coord.openAssign(${d.id})"><i class="fas fa-user-check"></i> ${d.status === 'nouvelle' ? 'Assigner' : 'Réassigner'}</button>` : ''}
+                    ${d.livreur_name ? `<button class="btn btn-sm btn-secondary" onclick="Coord.printLabel(${d.id})" title="Imprimer l'étiquette 60×40 mm"><i class="fas fa-tag"></i> Étiquette</button>` : ''}
+                </div>
+            </div>`;
+        },
+        renderAssign() {
+            const list = this.nouvelles(), today = SF.fmt.today();
+            if (!list.length) return '<div class="card"><div class="card-body"><div class="empty"><i class="fas fa-circle-check fa-2x" style="color:var(--success);"></i><p style="margin-top:10px;">Aucune commande à assigner</p></div></div></div>';
+            const byDate = this.groupBy(list, d => { const pd = this.planDate(d); return pd < today ? today : pd; });
+            return Object.keys(byDate).sort().map(date => `<div class="group-head ${date <= today ? 'today' : ''}"><i class="fas fa-calendar-day"></i> ${this.dateLabel(date)} <span class="n">(${byDate[date].length})</span></div>
+                <div class="dgrid">${byDate[date].map(d => this.card(d)).join('')}</div>`).join('');
+        },
+        renderAssigned() {
+            const list = this.assigned(), today = SF.fmt.today();
+            if (!list.length) return '<div class="card"><div class="card-body"><div class="empty">Rien en cours</div></div></div>';
+            const byLiv = this.groupBy(list, d => d.livreur_name || 'Non assigné');
+            return Object.keys(byLiv).sort().map(name => {
+                const l = byLiv[name];
+                const byDate = this.groupBy(l, d => { const pd = this.planDate(d); return pd < today ? today : pd; });
+                return `<div class="group-head"><i class="fas fa-motorcycle"></i> ${SF.esc(name)} <span class="n">(${l.length})</span></div>`
+                    + Object.keys(byDate).sort().map(date => `<div class="group-sub ${date <= today ? 'today' : ''}"><i class="fas fa-calendar-day"></i> ${this.dateLabel(date)} (${byDate[date].length})</div>
+                        <div class="dgrid">${byDate[date].map(d => this.card(d)).join('')}</div>`).join('');
+            }).join('');
+        },
+        // ── Versements des livreurs : argent encore chez eux (temps réel) + réglées du jour ──
+        renderPay() {
+            const P = this.pay;
+            if (!P) return '<div class="sf-skel sf-skel-card"></div>';
+            const out = P.out, today = SF.fmt.today();
+            // Par livreur : montant à verser, plus ancienne sortie, niveau le plus grave.
+            const rank = { critical: 4, late: 3, ok: 2, deferred: 1, paid: 0 };
+            const byLiv = this.groupBy(out, d => d.livreur_name || 'Non assigné');
+            const settledBy = this.groupBy(P.settled, d => d.livreur_name || 'Non assigné');
+            const names = [...new Set([...Object.keys(byLiv), ...Object.keys(settledBy)])]
+                .sort((a, b) => Math.max(...(byLiv[b] || []).map(d => rank[d.level]), -1) - Math.max(...(byLiv[a] || []).map(d => rank[d.level]), -1) || a.localeCompare(b));
+            const livCards = names.map(n => {
+                const l = byLiv[n] || [], s = settledBy[n] || [];
+                const due = l.reduce((t, d) => t + d.due, 0);
+                const worst = l.reduce((w, d) => rank[d.level] > rank[w] ? d.level : w, 'paid');
+                const oldest = l.filter(d => d.due > 0).reduce((m, d) => Math.max(m, d.hours || 0), 0);
+                return `<div class="liv ${worst === 'critical' ? 'critical' : worst === 'late' ? 'late' : ''}">
+                    <div class="liv-n"><i class="fas fa-motorcycle" style="color:var(--accent);"></i> ${SF.esc(n)}</div>
+                    <div class="liv-amt">${SF.fmt.ar(due)}</div>
+                    <div>${l.length ? this.lvl(due ? worst : 'paid', oldest || null) : '<span class="lvl paid"><i class="fas fa-circle-check"></i> Tout est versé</span>'}</div>
+                    <div class="liv-meta">${l.length} livraison(s) en route${oldest ? ' · plus ancienne : ' + this.dur(oldest) : ''}<br>${s.length} réglée(s) ${P.day === today ? 'aujourd\'hui' : 'ce jour'} · ${SF.fmt.ar(s.reduce((t, d) => t + d.amount, 0))}</div>
+                </div>`;
+            }).join('');
+            const row = d => `<div class="pay-row" onclick="Coord.showDetails(${d.id})">
+                <div class="c1"><b>#${d.delivery_number}</b> <span class="muted">· ${SF.esc(d.livreur_name || '—')}</span><div class="muted">${SF.esc(d.items_summary || '')}</div></div>
+                <div class="c2"><b>${SF.esc(d.client_name || '—')}</b> · ${this.tel(d.client_phone)}<div class="muted">${SF.esc(d.client_address || '')}</div></div>
+                <div class="c3">${this.lvl(d.level, d.hours)}<div class="muted">Sortie ${this.hhmm(d.released_at)} · ${this.dur(d.hours)}${d.level === 'deferred' ? ' · reportée au ' + SF.fmt.date(d.deferred_date) : ''}</div></div>
+                <div class="c4 amt">${d.due ? SF.fmt.ar(d.due) : '<span class="muted">payée</span>'}</div>
+            </div>`;
+            const srow = d => `<div class="pay-row" onclick="Coord.showDetails(${d.id})">
+                <div class="c1"><b>#${d.delivery_number}</b> <span class="muted">· ${SF.esc(d.livreur_name || '—')}</span><div class="muted">${SF.esc(d.items_summary || '')}</div></div>
+                <div class="c2"><b>${SF.esc(d.client_name || '—')}</b> · ${this.tel(d.client_phone)}<div class="muted">${SF.esc(d.client_address || '')}</div></div>
+                <div class="c3"><span class="lvl ok"><i class="fas fa-circle-check"></i> Versé ${d.status_at ? 'à ' + this.hhmm(d.status_at) : ''}</span><div class="muted">${d.duration_h != null ? 'Sortie → versement : ' + this.dur(d.duration_h) : ''}</div></div>
+                <div class="c4 amt">${SF.fmt.ar(d.amount)}</div>
+            </div>`;
+            const head = (c3) => `<div class="pay-head"><div>Livraison</div><div>Client</div><div>${c3}</div><div style="text-align:right;">Montant</div></div>`;
+            const sorted = [...out].sort((a, b) => rank[b.level] - rank[a.level] || (b.hours || 0) - (a.hours || 0));
+            return `<div class="card dash-card"><div class="card-header"><h3><i class="fas fa-users"></i> Par livreur</h3>
+                    <span class="text-muted" style="font-size:12px;">Retard après ${P.alert_hours} h sans versement · critique si ≥ ${SF.fmt.ar(P.alert_amount)} depuis 24 h</span></div>
+                <div class="card-body">${names.length ? `<div class="liv-grid">${livCards}</div>` : '<div class="empty">Aucun livreur en route</div>'}</div></div>
+                <div class="card dash-card"><div class="card-header"><h3><i class="fas fa-truck-fast"></i> En route — versement attendu</h3><span class="badge badge-secondary">${out.length}</span></div>
+                <div class="card-body" style="padding:0;">${out.length ? `<div class="pay-list" style="border:none;border-radius:0;">${head('État')}${sorted.map(row).join('')}</div>` : '<div class="empty">Aucune livraison en route</div>'}</div></div>
+                <div class="card dash-card"><div class="card-header"><h3><i class="fas fa-circle-check"></i> Réglées à la caisse</h3>
+                    <div class="day-pick"><input type="date" class="form-control" value="${P.day}" max="${today}" onchange="Coord.setDay(this.value)"><span class="badge badge-secondary">${P.settled.length}</span></div></div>
+                <div class="card-body" style="padding:0;">${P.settled.length ? `<div class="pay-list" style="border:none;border-radius:0;">${head('Versement')}${P.settled.map(srow).join('')}</div>` : '<div class="empty">Aucun versement ce jour</div>'}</div></div>`;
+        },
+
+        openAssign(id) {
+            this.currentId = id;
+            const d = this.deliveries.find(x => x.id === id); if (!d) return;
+            document.getElementById('assignInfo').innerHTML = `<div><i class="fas fa-hashtag"></i><b>Livraison #${d.delivery_number}</b></div>` + this.clientBlock(d).replace(/^<div class="dcli">|<\/div>\s*$/g, '');
+            document.getElementById('livreursList').innerHTML = this.livreurs.map(l => `<option value="${SF.esc(l.name)}">`).join('');
+            document.getElementById('assignLivreurName').value = d.livreur_name || '';
+            document.getElementById('assignPrio').checked = !!d.priority;
+            SF.Modal.open('assignModal');
+        },
+        async assign() {
+            const id = this.currentId;
+            const livreur_name = document.getElementById('assignLivreurName').value.trim();
+            if (!livreur_name) return SF.toast('Nom du livreur requis', 'error');
+            try {
+                await SF.api(`/api/deliveries/${id}/assign`, { method: 'POST', body: { livreur_name, priority: document.getElementById('assignPrio').checked ? 1 : 0 } });
+                SF.Modal.close('assignModal');
+                SF.toast(`Assignée à ${livreur_name} — envoyée à la caisse`, 'success');
+                try { this.livreurs = await SF.api('/api/livreurs'); } catch (e) {}
+                this.load();
+                if (await SF.confirm(`Imprimer l'étiquette 60×40 mm à remettre à ${livreur_name} ?`, { title: 'Étiquette de livraison', okLabel: 'Imprimer' }))
+                    this.printLabel(id);
+            } catch (e) { SF.toast(e.message, 'error'); }
+        },
+        printLabel(id) {
+            const w = window.open(`/api/deliveries/${id}/label`, '_blank');
+            if (!w) SF.toast('Autorisez les fenêtres surgissantes pour imprimer l\'étiquette', 'warn');
+        },
+        async showDetails(id) {
+            SF.Modal.open('detailsModal');
+            document.getElementById('detailsBody').innerHTML = '<div class="sf-skel sf-skel-card"></div>';
+            document.getElementById('detailsFooter').innerHTML = '';
+            try {
+                const d = await SF.api(`/api/deliveries/${id}`);
+                const pay = (this.pay && this.pay.out || []).find(x => x.id === d.id);
+                const row = (l, v) => `<div class="detail-row"><span class="detail-label">${l}</span><span class="detail-value">${v}</span></div>`;
+                document.getElementById('detailsTitle').textContent = `Livraison #${d.delivery_number}`;
+                let h = row('Statut', SF.deliveryBadge(d.status))
+                    + row('Livraison prévue', SF.fmt.date(this.planDate(d)) + (d.delivery_time ? ' · ' + SF.esc(d.delivery_time) : ''))
+                    + row('Créée le', SF.fmt.datetime(d.created_at))
+                    + (d.priority ? row('Priorité', '<span style="color:var(--warning);font-weight:700;"><i class="fas fa-flag"></i> Prioritaire</span>') : '')
+                    + (pay ? row('Versement', this.lvl(pay.level, pay.hours) + ` <span class="dsub">sortie à ${this.hhmm(pay.released_at)}</span>`) : '');
+                h += `<h4 style="margin:14px 0 8px;"><i class="fas fa-user"></i> Client</h4>${this.clientBlock(d)}`;
+                if (d.items && d.items.length) {
+                    h += `<h4 style="margin:14px 0 8px;"><i class="fas fa-box"></i> Articles (${d.items.length})</h4>`;
+                    h += d.items.map(it => `<div class="item-row"><span>${it.quantity}× ${SF.esc(it.product_name)}${it.serial ? ` <span class="dsub" style="font-family:monospace;">${SF.esc(it.serial)}</span>` : ''}</span><span style="font-weight:700;white-space:nowrap;">${SF.fmt.ar(it.quantity * it.unit_price)}</span></div>`).join('');
+                }
+                h += '<div style="margin-top:10px;">' + row('Sous-total', SF.fmt.ar(d.total)) + row('Frais de livraison', SF.fmt.ar(d.delivery_fee))
+                    + (d.acompte > 0 ? row('Avance versée', SF.fmt.ar(d.acompte)) : '')
+                    + `<div class="detail-row" style="border-bottom:none;"><span class="detail-label" style="font-size:16px;font-weight:800;">Total</span><span class="detail-value" style="font-size:16px;font-weight:800;color:var(--accent);">${SF.fmt.ar((parseFloat(d.total) || 0) + (parseFloat(d.delivery_fee) || 0))}</span></div></div>`;
+                if (d.commercial_name || d.livreur_name)
+                    h += `<h4 style="margin:14px 0 8px;"><i class="fas fa-users"></i> Équipe</h4>` + (d.commercial_name ? row('Commercial', SF.esc(d.commercial_name)) : '') + (d.livreur_name ? row('Livreur', SF.esc(d.livreur_name)) : '');
+                if (d.note) h += `<h4 style="margin:14px 0 8px;"><i class="fas fa-comment"></i> Note</h4><div style="padding:9px;background:var(--bg-input);border-radius:10px;font-size:13px;white-space:pre-wrap;overflow-wrap:anywhere;">${SF.esc(d.note)}</div>`;
+                document.getElementById('detailsBody').innerHTML = h;
+                let f = '<button class="btn btn-secondary" onclick="SF.Modal.close(\'detailsModal\')">Fermer</button>';
+                if (d.livreur_name) f += `<button class="btn btn-secondary" onclick="Coord.printLabel(${d.id})"><i class="fas fa-tag"></i> Étiquette</button>`;
+                if (this.canAssign(d)) f += `<button class="btn btn-primary" onclick="SF.Modal.close('detailsModal');Coord.openAssign(${d.id})"><i class="fas fa-user-check"></i> ${d.status === 'nouvelle' ? 'Assigner' : 'Réassigner'}</button>`;
+                document.getElementById('detailsFooter').innerHTML = f;
+            } catch (e) { SF.toast(e.message, 'error'); SF.Modal.close('detailsModal'); }
+        }
+    };
+    Coord.init();
+    </script>
+</body>
+</html>
