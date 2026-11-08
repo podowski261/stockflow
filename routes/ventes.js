@@ -756,7 +756,7 @@ app.get('/api/sales', requireAuth, requireRole('caisse', 'gestion_stock', 'comme
                 (SELECT GROUP_CONCAT(DISTINCT lp.sale_date) FROM layaway_payments lp JOIN layaways l ON l.id = lp.layaway_id WHERE l.sale_id = s.id) AS prior_lay_days,
                 (SELECT SUM(dp.amount) FROM delivery_payments dp JOIN deliveries d ON d.id = dp.delivery_id WHERE d.sale_id = s.id) AS prior_dv,
                 (SELECT GROUP_CONCAT(DISTINCT dp.sale_date) FROM delivery_payments dp JOIN deliveries d ON d.id = dp.delivery_id WHERE d.sale_id = s.id) AS prior_dv_days
-             FROM sales s ${where} ORDER BY s.created_at DESC LIMIT 500`, p);
+             FROM sales s ${where} ORDER BY s.created_at DESC`, p);   // pas de plafond : « Tout » = tout l'historique
         res.json(rows);
     } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
 });
